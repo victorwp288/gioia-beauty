@@ -11,25 +11,26 @@ const SubscriberList = ({ onClose }) => {
 
   useEffect(() => {
     const fetchSubscribers = async () => {
-      console.log("🔍 SubscriberList: Starting to fetch active subscribers...");
+      console.log("🔍 SubscriberList: Starting to fetch subscribers...");
       try {
         const subscriberService = new SubscriberService();
 
-        // Only fetch active subscribers to reduce data
+        // Fetch all subscribers (no status filter since existing data doesn't have status)
+        console.log("🔍 SubscriberList: Calling getSubscribers...");
         const subscriberData = await subscriberService.getSubscribers({
-          status: "active",
-          limitCount: 100, // Reasonable limit
+          // Remove limit completely
         });
 
         console.log(
-          "✅ SubscriberList: Fetched active subscribers:",
-          subscriberData.length
+          "✅ SubscriberList: Fetched subscribers:",
+          subscriberData.length,
+          subscriberData
         );
 
         setSubscribers(subscriberData);
       } catch (error) {
         console.error("❌ SubscriberList: Error fetching:", error);
-        toast.error("Failed to load subscribers");
+        toast.error(`Failed to load subscribers: ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -77,37 +78,56 @@ const SubscriberList = ({ onClose }) => {
   return (
     <div className="space-y-4 max-h-[60vh] overflow-y-auto">
       <div className="flex items-center justify-between mt-8 mb-2 gap-2">
-        <Button onClick={copyAllEmails} size="sm" variant="secondary">
+        <Button
+          onClick={copyAllEmails}
+          size="sm"
+          variant="secondary"
+          disabled={subscribers.length === 0}
+        >
           Copia tutte le email
         </Button>
+        <span className="text-sm text-gray-500">
+          {subscribers.length} subscriber{subscribers.length !== 1 ? "s" : ""}
+        </span>
       </div>
       <div className="bg-gray-100 dark:bg-zinc-800 p-4 rounded-md">
-        <ul className="list-none">
-          {subscribers.map((subscriber) => (
-            <li
-              key={subscriber.id}
-              className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-zinc-700"
-            >
-              <span className="flex items-center gap-2">
-                {subscriber.email}
-                <button
-                  onClick={() => copyEmail(subscriber.email)}
-                  className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                  aria-label="Copia questa email"
-                >
-                  <Copy size={16} />
-                </button>
-              </span>
-              <button
-                onClick={() => handleDeleteSubscriber(subscriber.id)}
-                className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-full"
-                aria-label="Elimina"
+        {subscribers.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 dark:text-gray-400">
+              No newsletter subscribers found.
+            </p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+              Check console for debugging information.
+            </p>
+          </div>
+        ) : (
+          <ul className="list-none">
+            {subscribers.map((subscriber) => (
+              <li
+                key={subscriber.id}
+                className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-zinc-700"
               >
-                <LucideX size={16} className="text-red-500" />
-              </button>
-            </li>
-          ))}
-        </ul>
+                <span className="flex items-center gap-2">
+                  {subscriber.email}
+                  <button
+                    onClick={() => copyEmail(subscriber.email)}
+                    className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    aria-label="Copia questa email"
+                  >
+                    <Copy size={16} />
+                  </button>
+                </span>
+                <button
+                  onClick={() => handleDeleteSubscriber(subscriber.id)}
+                  className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-full"
+                  aria-label="Elimina"
+                >
+                  <LucideX size={16} className="text-red-500" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
