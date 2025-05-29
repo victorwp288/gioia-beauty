@@ -70,7 +70,7 @@ const BookingConfirmation = ({ isOpen, onRequestClose }) => {
       ariaHideApp={false}
     >
       <h2 className="font-serif md:text-2xl text-primary font-semibold">
-        L'appuntamento è stato prenotato
+        L&apos;appuntamento è stato prenotato
       </h2>
 
       <button className="absolute top-4 right-4" onClick={handleClose}>

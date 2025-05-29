@@ -328,7 +328,7 @@ export const ProgressLoading = ({
 };
 
 // Export all components
-export default {
+const LoadingComponents = {
   LoadingSpinner,
   CenteredLoading,
   FullPageLoading,
@@ -344,3 +344,5 @@ export default {
   BookingFormLoading,
   ProgressLoading,
 };
+
+export default LoadingComponents;
