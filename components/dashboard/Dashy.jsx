@@ -803,6 +803,9 @@ const Dashy = () => {
                               Client
                             </TableHead>
                             <TableHead className="dark:text-zinc-300">
+                              Notes
+                            </TableHead>
+                            <TableHead className="dark:text-zinc-300">
                               Actions
                             </TableHead>
                           </TableRow>
@@ -811,7 +814,7 @@ const Dashy = () => {
                           {filteredAppointments.length === 0 ? (
                             <TableRow>
                               <TableCell
-                                colSpan={5}
+                                colSpan={6}
                                 className="text-center py-8 text-zinc-400 dark:text-zinc-500"
                               >
                                 No appointments for this date.
@@ -838,6 +841,14 @@ const Dashy = () => {
                                   </div>
                                   <div className="text-zinc-500 dark:text-zinc-400 text-xs">
                                     {appointment.email}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="dark:text-zinc-200 max-w-32">
+                                  <div
+                                    className="text-xs text-zinc-600 dark:text-zinc-400 truncate"
+                                    title={appointment.note || "No notes"}
+                                  >
+                                    {appointment.note || "-"}
                                   </div>
                                 </TableCell>
                                 <TableCell>
