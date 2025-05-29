@@ -1,4 +1,4 @@
-import { CancelEmailTemplate } from "@/components/CancelEmailTemplate";
+import { CancelEmailTemplate } from "@/components/email/CancelEmailTemplate";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);

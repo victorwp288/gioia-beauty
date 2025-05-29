@@ -16,6 +16,27 @@ import {
   rituali1,
 } from "@/components/ImagesExports";
 
+export const metadata = {
+  title: "Galleria - Centro Estetico Gioia Beauty",
+  description:
+    "Scopri gli spazi del centro estetico Gioia Beauty a Roveleto di Cadeo. Sala trattamenti, bagno turco, area relax e attrezzature professionali per la tua bellezza.",
+  keywords:
+    "galleria gioia beauty, centro estetico roveleto, spa piacenza, trattamenti estetici, bagno turco, pressoterapia",
+  openGraph: {
+    title: "Galleria - Centro Estetico Gioia Beauty",
+    description:
+      "Scopri gli spazi del centro estetico Gioia Beauty a Roveleto di Cadeo. Sala trattamenti, bagno turco, area relax.",
+    images: [
+      {
+        url: "https://www.gioiabeauty.net/ogimage.png",
+        width: 1200,
+        height: 630,
+        alt: "Galleria centro estetico Gioia Beauty",
+      },
+    ],
+  },
+};
+
 const Gallery = () => {
   const imagesWithDescriptions = [
     {

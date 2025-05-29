@@ -29,25 +29,26 @@ export function AppointmentCalendar({
   };
 
   return (
-    <div className="flex flex-col gap-2 h-full w-full">
+    <div className="flex gap-6 w-full">
       {/* Calendar Component */}
-      <div className="rounded-lg border border-zinc-200 dark:border-zinc-700/70 bg-white dark:bg-zinc-800 p-4 w-full h-fit">
+      <div className="rounded-lg border bg-background p-4 h-full">
         <Calendar
           mode="single"
           selected={selectedDate}
           onSelect={handleDateSelect}
           initialFocus
-          className="w-full"
-          tableClassName="w-full table-fixed"
         />
       </div>
 
       {/* Appointments List */}
-      <div className="rounded-lg border border-zinc-200 dark:border-zinc-700/70 bg-white dark:bg-zinc-800 p-6 max-h-[calc(100vh-220px)] overflow-y-auto w-full">
+      <div className="rounded-lg border bg-background p-6">
+        <h2 className="text-lg font-medium">
+          Appuntamenti per {formatDate(selectedDate)}
+        </h2>
         <div className="mt-4 grid gap-4">
           {filteredAppointments.map((appointment) => (
             <div key={appointment.id} className="flex items-start gap-4">
-              <div className="flex-none rounded-md bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-medium">
+              <div className="flex-none rounded-md bg-muted px-2 py-1 text-xs font-medium">
                 {appointment.startTime}
               </div>
               <div className="flex-1">

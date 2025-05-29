@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/Fields";
 import { SlimLayout } from "@/components/SlimLayout";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/utils/firebase";
+import { auth } from "@/lib/firebase/config";
 import logo from "@/images/logo.png";
 import Image from "next/image";
 

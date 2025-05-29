@@ -1,28 +1,49 @@
 export default function sitemap() {
+  const baseUrl = "https://www.gioiabeauty.net";
+
   return [
     {
-      url: "https://www.gioiabeauty.net/",
+      url: baseUrl,
       lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 1,
+      changeFrequency: "weekly",
+      priority: 1.0,
     },
     {
-      url: "https://www.gioiabeauty.net/contacts",
+      url: `${baseUrl}/contacts`,
       lastModified: new Date(),
-      changeFrequency: "yearly",
+      changeFrequency: "monthly",
       priority: 0.9,
     },
     {
-      url: "https://www.gioiabeauty.net/gallery",
+      url: `${baseUrl}/gallery`,
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8,
     },
     {
-      url: "https://www.gioiabeauty.net/policy",
+      url: `${baseUrl}/policy`,
       lastModified: new Date(),
       changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    // Add service-related pages if they exist as separate routes
+    {
+      url: `${baseUrl}/#services`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/#about-us`,
+      lastModified: new Date(),
+      changeFrequency: "quarterly",
       priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/#booking-section`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
     },
   ];
 }

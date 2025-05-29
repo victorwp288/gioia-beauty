@@ -1,28 +1,53 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { db } from "@/utils/firebase";
+import { SubscriberService } from "@/lib/firebase/subscribers";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
 import { Copy, X as LucideX } from "lucide-react";
 
 const SubscriberList = ({ onClose }) => {
   const [subscribers, setSubscribers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchSubscribers = async () => {
-      const querySnapshot = await getDocs(
-        collection(db, "newsletter_subscribers")
-      );
-      setSubscribers(
-        querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          email: doc.data().email,
-        }))
-      );
+      console.log("🔍 SubscriberList: Starting to fetch active subscribers...");
+      try {
+        const subscriberService = new SubscriberService();
+
+        // Only fetch active subscribers to reduce data
+        const subscriberData = await subscriberService.getSubscribers({
+          status: "active",
+          limitCount: 100, // Reasonable limit
+        });
+
+        console.log(
+          "✅ SubscriberList: Fetched active subscribers:",
+          subscriberData.length
+        );
+
+        setSubscribers(subscriberData);
+      } catch (error) {
+        console.error("❌ SubscriberList: Error fetching:", error);
+        toast.error("Failed to load subscribers");
+      } finally {
+        setLoading(false);
+      }
     };
+
     fetchSubscribers();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading subscribers...</p>
+        </div>
+      </div>
+    );
+  }
 
   const copyAllEmails = () => {
     const allEmails = subscribers
@@ -39,7 +64,8 @@ const SubscriberList = ({ onClose }) => {
 
   const handleDeleteSubscriber = async (subscriberId) => {
     try {
-      await deleteDoc(doc(db, "newsletter_subscribers", subscriberId));
+      const subscriberService = new SubscriberService();
+      await subscriberService.deleteSubscriber(subscriberId);
       setSubscribers(subscribers.filter((s) => s.id !== subscriberId));
       toast.success("Subscriber deleted successfully");
     } catch (error) {

@@ -25,6 +25,19 @@ const BookingConfirmation = ({ isOpen, onRequestClose }) => {
     window.location.reload();
   };
 
+  // Set the app element when component mounts to avoid SSR issues
+  useEffect(() => {
+    // Try to find the Next.js app element, fallback to body
+    const appElement =
+      document.querySelector("#__next") ||
+      document.querySelector("[data-nextjs-root]") ||
+      document.body;
+
+    if (appElement) {
+      Modal.setAppElement(appElement);
+    }
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       // If the modal is open, set a timeout to refresh the page after 10 seconds
@@ -54,9 +67,10 @@ const BookingConfirmation = ({ isOpen, onRequestClose }) => {
       onRequestClose={handleClose}
       style={customStyles}
       contentLabel="Appointment Booked"
+      ariaHideApp={false}
     >
       <h2 className="font-serif md:text-2xl text-primary font-semibold">
-        L’appuntamento è stato prenotato
+        L'appuntamento è stato prenotato
       </h2>
 
       <button className="absolute top-4 right-4" onClick={handleClose}>

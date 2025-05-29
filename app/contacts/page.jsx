@@ -4,8 +4,29 @@ import React from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
+export const metadata = {
+  title: "Contatti - Centro Estetico Gioia Beauty Roveleto di Cadeo",
+  description:
+    "Contatta Gioia Beauty per prenotare i tuoi trattamenti estetici. Siamo a Roveleto di Cadeo, Via Emilia 60. Tel: +39 391 421 3634. Email: gioiabeautyy@gmail.com",
+  keywords:
+    "contatti gioia beauty, centro estetico roveleto cadeo, prenota trattamento estetico piacenza, via emilia 60",
+  openGraph: {
+    title: "Contatti - Centro Estetico Gioia Beauty",
+    description:
+      "Contatta Gioia Beauty per prenotare i tuoi trattamenti estetici. Via Emilia 60, Roveleto di Cadeo.",
+    images: [
+      {
+        url: "https://www.gioiabeauty.net/ogimage.png",
+        width: 1200,
+        height: 630,
+        alt: "Contatti centro estetico Gioia Beauty",
+      },
+    ],
+  },
+};
+
 const Contacts = () => {
-  const Map = dynamic(() => import("@/components/Map"), {
+  const Map = dynamic(() => import("@/components/common/Map"), {
     ssr: false,
   });
 

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import Accordion from "@/components/Accordion";
+import Accordion from "@/components/common/Accordion";
 import Image from "next/image";
 import {
   maniPiedi,

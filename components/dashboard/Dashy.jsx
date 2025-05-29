@@ -1,0 +1,1113 @@
+"use client";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { X, Plus, Edit, Mail, Phone } from "lucide-react";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
+
+// UI Components
+import { CardTitle, CardHeader, CardContent, Card } from "@/components/ui/card";
+import {
+  TableHead,
+  TableRow,
+  TableHeader,
+  TableCell,
+  TableBody,
+  Table,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Context and Hooks
+import { useAppointmentContext } from "@/context/AppointmentContext";
+import { useNotification } from "@/context/NotificationContext";
+import { useTheme } from "@/context/ThemeContext";
+
+// Utilities
+import {
+  APPOINTMENT_TYPES,
+  APPOINTMENT_STATUS_LABELS,
+  APPOINTMENT_STATUS_COLORS,
+  getAppointmentType,
+} from "@/lib/utils/constants";
+import {
+  formatDate,
+  formatTime,
+  isToday,
+  isSameDate,
+  appointmentDateMatches,
+  parseDate,
+  formatDateString,
+  createAppointmentDate,
+  formatDateForInput,
+  getTodayFormatted,
+} from "@/lib/utils/dateUtils";
+import { calculateEndTime } from "@/lib/utils/timeUtils";
+
+// Separate Components
+import AppointmentCalendar from "./AppointmentCalendar";
+import VacationManager from "./VacationManager";
+import SubscriberList from "../SubscriberList";
+import { useOptimizedTimeSlots } from "@/hooks/useOptimizedTimeSlots";
+
+const Dashy = () => {
+  // Local state for modals and forms
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [isVacationModalOpen, setIsVacationModalOpen] = useState(false);
+  const [isSubscriberModalOpen, setIsSubscriberModalOpen] = useState(false);
+
+  // Form validation state
+  const [formErrors, setFormErrors] = useState({});
+
+  // Data loading state
+  const [showingAllData, setShowingAllData] = useState(false);
+  const [isLoadingAllData, setIsLoadingAllData] = useState(false);
+  const [totalDatabaseCount, setTotalDatabaseCount] = useState(null);
+  const [loadingTotalCount, setLoadingTotalCount] = useState(true);
+
+  // Use global theme context
+  const { darkMode, toggleDarkMode } = useTheme();
+
+  // Track initialization to prevent duplicate calls
+  const hasInitializedRef = useRef(false);
+
+  // Get appointments using centralized context
+  const {
+    appointments,
+    loading: appointmentsLoading,
+    error: appointmentsError,
+    createAppointment,
+    updateAppointment,
+    deleteAppointment,
+    fetchAppointments,
+    fetchAllAppointments,
+  } = useAppointmentContext();
+
+  const { showConfirmation, notifyAsync, showError, showSuccess } =
+    useNotification();
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    number: "",
+    appointmentType: "",
+    startTime: "",
+    duration: "",
+    selectedDate: "",
+    note: "",
+  });
+
+  // Filter appointments for selected date
+  const filteredAppointments = useMemo(() => {
+    if (!selectedDate || !appointments || appointments.length === 0) {
+      return [];
+    }
+
+    const filtered = appointments.filter((appointment) => {
+      try {
+        const matches = appointmentDateMatches(
+          appointment.selectedDate,
+          selectedDate
+        );
+        return matches;
+      } catch (error) {
+        console.error(
+          "🔍 Dashboard: Error filtering appointment",
+          appointment.id,
+          error
+        );
+        return false;
+      }
+    });
+
+    return filtered.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [selectedDate, appointments]);
+
+  // ============================================================================
+  // DATA LOADING FUNCTIONS
+  // ============================================================================
+
+  // Function to automatically get total database count
+  const fetchTotalCount = async () => {
+    try {
+      setLoadingTotalCount(true);
+      const { dataManager } = await import("@/lib/firebase/dataManager");
+      const totalCount = await dataManager.getTotalAppointmentCount();
+      setTotalDatabaseCount(totalCount);
+    } catch (error) {
+      console.error("Error getting total count:", error);
+      // Fallback to loaded count if total count fails
+      setTotalDatabaseCount(null);
+    } finally {
+      setLoadingTotalCount(false);
+    }
+  };
+
+  // Function to load older data (expand date range)
+  const loadExtendedData = async () => {
+    setIsLoadingAllData(true);
+    try {
+      console.log(
+        "📊 Dashboard: Loading extended date range (3 months back/forward)..."
+      );
+
+      // Expand to 3 months back and 3 months forward (much smaller than before)
+      const today = new Date();
+      const threeMonthsAgo = new Date(today);
+      threeMonthsAgo.setMonth(today.getMonth() - 3);
+      const threeMonthsForward = new Date(today);
+      threeMonthsForward.setMonth(today.getMonth() + 3);
+
+      console.log("📊 Dashboard: Extended range:", {
+        start: threeMonthsAgo.toISOString().split("T")[0],
+        end: threeMonthsForward.toISOString().split("T")[0],
+      });
+
+      await fetchAppointments({
+        dateRange: {
+          start: threeMonthsAgo.toISOString(),
+          end: threeMonthsForward.toISOString(),
+        },
+      });
+
+      setShowingAllData(true);
+
+      showSuccess(`Loaded extended range (6 months total).`);
+    } catch (error) {
+      console.error("Error loading extended data:", error);
+      showError("Failed to load extended appointment data");
+    } finally {
+      setIsLoadingAllData(false);
+    }
+  };
+
+  // ============================================================================
+  // FORM HANDLERS
+  // ============================================================================
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      email: "",
+      number: "",
+      appointmentType: "",
+      startTime: "",
+      duration: "",
+      selectedDate: "",
+      note: "",
+    });
+    setFormErrors({});
+  };
+
+  const handleInputChange = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    // Clear error for this field when user starts typing
+    if (formErrors[field]) {
+      setFormErrors((prev) => ({
+        ...prev,
+        [field]: null,
+      }));
+    }
+
+    // Auto-calculate end time when start time or duration changes
+    if (field === "startTime" || field === "duration") {
+      const startTime = field === "startTime" ? value : formData.startTime;
+      const duration = field === "duration" ? value : formData.duration;
+
+      if (startTime && duration) {
+        const endTime = calculateEndTime(startTime, parseInt(duration));
+        setFormData((prev) => ({
+          ...prev,
+          endTime,
+        }));
+      }
+    }
+  };
+
+  const handleAppointmentTypeChange = (appointmentType) => {
+    const selectedType = getAppointmentType(appointmentType);
+    if (selectedType) {
+      setFormData((prev) => ({
+        ...prev,
+        appointmentType,
+        duration: selectedType.durations[0].toString(),
+      }));
+    }
+  };
+
+  // Validate form fields
+  const validateForm = () => {
+    const errors = {};
+
+    if (!formData.name?.trim()) {
+      errors.name = "Name is required";
+    }
+
+    if (!formData.email?.trim()) {
+      errors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (!formData.appointmentType) {
+      errors.appointmentType = "Service is required";
+    }
+
+    if (!formData.startTime) {
+      errors.startTime = "Start time is required";
+    }
+
+    if (!formData.duration) {
+      errors.duration = "Duration is required";
+    }
+
+    if (!formData.selectedDate) {
+      errors.selectedDate = "Date is required";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // ============================================================================
+  // APPOINTMENT OPERATIONS
+  // ============================================================================
+
+  const handleAddAppointment = () => {
+    // Reset form and errors for new appointment
+    resetForm();
+    setFormErrors({});
+    setIsEditMode(false);
+    setSelectedAppointment(null);
+
+    // Set today's date as default using timezone-safe method
+    setFormData((prev) => ({
+      ...prev,
+      selectedDate: getTodayFormatted(),
+    }));
+
+    setIsAddModalOpen(true);
+  };
+
+  const handleEditAppointment = (appointment) => {
+    // Clear any previous errors
+    setFormErrors({});
+
+    // Safely convert appointment date for editing with timezone-safe conversion
+    let displayDate = "";
+    try {
+      const appointmentDate = appointment.selectedDate || appointment.date;
+
+      if (appointmentDate) {
+        displayDate = formatDateForInput(appointmentDate);
+
+        console.log("🗓️ Date conversion:", {
+          original: appointmentDate,
+          display: displayDate,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+
+        if (!displayDate) {
+          console.warn(
+            "Could not format appointment date, using today's date:",
+            appointmentDate
+          );
+          displayDate = getTodayFormatted();
+        }
+      } else {
+        displayDate = getTodayFormatted();
+      }
+    } catch (error) {
+      console.error("Error parsing appointment date:", error, appointment);
+      // Fallback to today's date using timezone-safe method
+      displayDate = getTodayFormatted();
+      showError(
+        "Warning: Could not parse appointment date, using today's date instead."
+      );
+    }
+
+    setFormData({
+      name: appointment.name || "",
+      email: appointment.email || "",
+      number: appointment.number || "",
+      appointmentType: appointment.appointmentType || "",
+      startTime: appointment.startTime || "",
+      duration: appointment.duration?.toString() || "",
+      selectedDate: displayDate,
+      note: appointment.note || "",
+    });
+
+    setSelectedAppointment(appointment);
+    setIsEditMode(true);
+    setIsAddModalOpen(true);
+  };
+
+  const handleSaveAppointment = async () => {
+    try {
+      // Validate form fields
+      if (!validateForm()) {
+        // Collect missing required fields
+        const missingFields = [];
+        if (formErrors.name) missingFields.push("Name");
+        if (formErrors.email) missingFields.push("Email");
+        if (formErrors.appointmentType) missingFields.push("Service");
+        if (formErrors.startTime) missingFields.push("Start Time");
+        if (formErrors.duration) missingFields.push("Duration");
+        if (formErrors.selectedDate) missingFields.push("Date");
+
+        // Show error notification
+        showError(
+          `Please fill in all required fields: ${missingFields.join(", ")}`,
+          { duration: 6000 }
+        );
+
+        // Scroll to first error field
+        const firstErrorField = Object.keys(formErrors)[0];
+        const firstErrorElement = document.querySelector(`#${firstErrorField}`);
+        if (firstErrorElement) {
+          firstErrorElement.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+          firstErrorElement.focus();
+        }
+
+        return;
+      }
+
+      const appointmentDate = createAppointmentDate(formData.selectedDate);
+      if (!appointmentDate) {
+        throw new Error("Invalid date selected");
+      }
+
+      const appointmentData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        number: formData.number,
+        appointmentType: formData.appointmentType,
+        startTime: formData.startTime,
+        duration: parseInt(formData.duration),
+        selectedDate: appointmentDate,
+        note: formData.note?.trim() || "",
+        status: "confirmed",
+      };
+
+      // Calculate end time
+      const selectedType = getAppointmentType(formData.appointmentType);
+      const extraTime = selectedType?.extraTime?.[0] || 0;
+      appointmentData.endTime = calculateEndTime(
+        formData.startTime,
+        appointmentData.duration + extraTime
+      );
+      appointmentData.totalDuration = appointmentData.duration + extraTime;
+
+      if (isEditMode && selectedAppointment) {
+        await notifyAsync(
+          () => updateAppointment(selectedAppointment.id, appointmentData),
+          {
+            loading: "Updating appointment...",
+            success: "Appointment updated successfully!",
+            error: "Failed to update appointment",
+          }
+        );
+      } else {
+        await notifyAsync(() => createAppointment(appointmentData), {
+          loading: "Creating appointment...",
+          success: "Appointment created successfully!",
+          error: "Failed to create appointment",
+        });
+
+        // Send confirmation email for new appointments
+        try {
+          const emailData = {
+            email: appointmentData.email,
+            name: appointmentData.name,
+            startTime: appointmentData.startTime,
+            endTime: appointmentData.endTime,
+            duration: appointmentData.duration,
+            date: (() => {
+              try {
+                if (appointmentData.selectedDate instanceof Date) {
+                  return formatDate(appointmentData.selectedDate);
+                } else if (typeof appointmentData.selectedDate === "string") {
+                  const parsedDate = new Date(appointmentData.selectedDate);
+                  return isNaN(parsedDate.getTime())
+                    ? "Unknown Date"
+                    : formatDate(parsedDate);
+                } else if (appointmentData.selectedDate?.toDate) {
+                  return formatDate(appointmentData.selectedDate.toDate());
+                } else if (appointmentData.selectedDate?.seconds) {
+                  return formatDate(
+                    new Date(appointmentData.selectedDate.seconds * 1000)
+                  );
+                } else {
+                  return "Unknown Date";
+                }
+              } catch (error) {
+                console.error("Error formatting date for email:", error);
+                return "Unknown Date";
+              }
+            })(),
+            appointmentType: appointmentData.appointmentType,
+          };
+
+          const response = await fetch("/api/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(emailData),
+          });
+
+          if (!response.ok) {
+            console.warn(
+              "Failed to send confirmation email:",
+              response.statusText
+            );
+          } else {
+            console.log("✅ Confirmation email sent successfully");
+          }
+        } catch (emailError) {
+          console.warn("Email sending failed:", emailError);
+          // Don't fail the appointment creation if email fails
+        }
+      }
+
+      setIsAddModalOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error saving appointment:", error);
+    }
+  };
+
+  const handleDeleteAppointment = async (appointment) => {
+    const confirmDelete = await showConfirmation({
+      title: "Delete Appointment",
+      message: `Are you sure you want to permanently delete ${appointment.name}'s appointment?\n\nThis action cannot be undone.`,
+      confirmText: "Yes, Delete",
+      cancelText: "No, Keep It",
+      type: "warning",
+      allowClose: false,
+    });
+
+    if (confirmDelete === "confirm") {
+      // Second confirmation for permanent deletion
+      const finalConfirm = await showConfirmation({
+        title: "Confirm Permanent Deletion",
+        message: `Are you absolutely sure you want to permanently delete ${appointment.name}'s appointment?\n\nThis will:\n• Remove the appointment from the database\n• Send a cancellation notification to the client\n• This action cannot be undone`,
+        confirmText: "Yes, Delete Permanently",
+        cancelText: "No, Cancel",
+        type: "error",
+        allowClose: false,
+      });
+
+      if (finalConfirm === "confirm") {
+        try {
+          await notifyAsync(
+            async () => {
+              await deleteAppointment(appointment.id);
+
+              // Send cancellation email
+              const emailData = {
+                email: appointment.email,
+                name: appointment.name,
+                startTime: appointment.startTime,
+                endTime: appointment.endTime,
+                duration: appointment.duration,
+                date: (() => {
+                  try {
+                    const appointmentDate =
+                      appointment.selectedDate || appointment.date;
+                    if (appointmentDate instanceof Date) {
+                      return formatDate(appointmentDate);
+                    } else if (typeof appointmentDate === "string") {
+                      const parsedDate = new Date(appointmentDate);
+                      return isNaN(parsedDate.getTime())
+                        ? "Unknown Date"
+                        : formatDate(parsedDate);
+                    } else if (appointmentDate?.toDate) {
+                      return formatDate(appointmentDate.toDate());
+                    } else if (appointmentDate?.seconds) {
+                      return formatDate(
+                        new Date(appointmentDate.seconds * 1000)
+                      );
+                    } else {
+                      return "Unknown Date";
+                    }
+                  } catch (error) {
+                    console.error("Error formatting date for email:", error);
+                    return "Unknown Date";
+                  }
+                })(),
+              };
+
+              const response = await fetch("/api/cancel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(emailData),
+              });
+
+              if (!response.ok) {
+                throw new Error("Failed to send cancellation email");
+              }
+            },
+            {
+              loading: "Deleting appointment and sending notification...",
+              success: "Appointment deleted and notification sent!",
+              error: "Failed to delete appointment",
+            }
+          );
+        } catch (error) {
+          console.error("Error deleting appointment:", error);
+        }
+      }
+      // If finalConfirm === "cancel" or "close", do nothing (user cancelled deletion)
+    }
+    // If confirmDelete === "cancel" or "close", do nothing (user cancelled deletion)
+  };
+
+  // Handle modal close with cleanup
+  const handleCloseModal = () => {
+    setIsAddModalOpen(false);
+    setIsEditMode(false);
+    setSelectedAppointment(null);
+    resetForm();
+    setFormErrors({});
+  };
+
+  // ============================================================================
+  // DATA INITIALIZATION
+  // ============================================================================
+
+  // Fetch total count and appointments efficiently on mount
+  useEffect(() => {
+    const initializeDashboard = async () => {
+      if (hasInitializedRef.current) {
+        console.log("📊 Dashboard: Already initialized, skipping...");
+        return;
+      }
+
+      try {
+        hasInitializedRef.current = true;
+        console.log("📊 Dashboard: Initializing dashboard...");
+
+        // Clean up past appointment data to optimize memory for future-only approach
+        const { cleanupPastAppointmentData } = await import(
+          "@/lib/cache/appointmentCache"
+        );
+        cleanupPastAppointmentData();
+
+        // Just get the total count if needed
+        const { dataManager } = await import("@/lib/firebase/dataManager");
+        const { getCachedTotalCount } = await import(
+          "@/lib/cache/appointmentCache"
+        );
+
+        const cachedTotalCount = getCachedTotalCount();
+
+        if (!cachedTotalCount) {
+          console.log("📡 Fetching total count from database...");
+          setLoadingTotalCount(true);
+          const totalCount = await dataManager.getTotalAppointmentCount();
+          setTotalDatabaseCount(totalCount);
+          setLoadingTotalCount(false);
+        } else {
+          console.log("✅ Using cached total count:", cachedTotalCount);
+          setTotalDatabaseCount(cachedTotalCount);
+          setLoadingTotalCount(false);
+        }
+
+        console.log("✅ Dashboard initialization completed");
+      } catch (error) {
+        console.error("❌ Dashboard: Error during initialization:", error);
+        hasInitializedRef.current = false; // Reset on error so we can retry
+        setLoadingTotalCount(false);
+      }
+    };
+
+    initializeDashboard();
+  }, []); // Remove fetchAppointments dependency to prevent loops
+
+  // ============================================================================
+  // RENDER HELPERS
+  // ============================================================================
+
+  const getStatusBadge = (status) => {
+    const color = APPOINTMENT_STATUS_COLORS[status] || "#6b7280";
+    const label = APPOINTMENT_STATUS_LABELS[status] || status;
+
+    return (
+      <span
+        className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full"
+        style={{
+          backgroundColor: `${color}20`,
+          color: color,
+          border: `1px solid ${color}40`,
+        }}
+      >
+        {label}
+      </span>
+    );
+  };
+
+  return (
+    <div className="w-full min-h-screen flex flex-col gap-4 bg-background dark:bg-zinc-900 p-4 overflow-x-hidden">
+      {/* Top bar with break, newsletter, and dark mode toggle */}
+      <div className="mb-2 flex gap-2 items-center justify-end bg-white/80 dark:bg-zinc-800/80 rounded-lg shadow-sm px-3 py-2 sm:px-4 sm:py-2 z-30 relative border border-zinc-200 dark:border-zinc-700/60">
+        <div className="flex items-center gap-2 ml-auto">
+          <Button
+            onClick={() => setIsVacationModalOpen(true)}
+            className="flex items-center gap-2 hidden sm:flex"
+          >
+            <Plus className="h-4 w-4" />
+            Imposta break
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => setIsSubscriberModalOpen(true)}
+            className="flex items-center gap-2 dark:bg-gray-600 hidden sm:flex"
+          >
+            <Mail className="h-4 w-4" />
+            Iscritti newsletter
+          </Button>
+          {/* Dark mode toggle */}
+          <div className="flex items-center gap-2 ml-2">
+            <span className="text-xs text-zinc-600 dark:text-zinc-300">
+              Dark mode
+            </span>
+            <button
+              onClick={() => toggleDarkMode()}
+              className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
+                darkMode ? "bg-zinc-700" : "bg-zinc-300"
+              }`}
+              aria-label="Toggle dark mode"
+            >
+              <span
+                className={`w-4 h-4 bg-white dark:bg-zinc-200 rounded-full shadow transform transition-transform duration-300 ${
+                  darkMode ? "translate-x-6" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Newsletter Subscriber List Dialog */}
+      <Dialog
+        open={isSubscriberModalOpen}
+        onOpenChange={setIsSubscriberModalOpen}
+      >
+        <DialogContent className="max-w-lg w-full p-0 dark:border-none dark:bg-zinc-900">
+          <div className="p-4">
+            <DialogHeader>
+              <DialogTitle>Iscrizioni newsletter</DialogTitle>
+            </DialogHeader>
+            <SubscriberList onClose={() => setIsSubscriberModalOpen(false)} />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex flex-col lg:flex-row gap-4 min-h-0">
+        {/* Main Content Card with Overflow Fixes */}
+        <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20">
+          <CardHeader className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between bg-zinc-50 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-700/60 p-4">
+            <div className="flex flex-col gap-1">
+              <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">
+                Dashboard
+              </h1>
+              <span className="text-s text-zinc-500 dark:text-zinc-400 font-normal">
+                {formatDate(selectedDate)}
+              </span>
+            </div>
+            <Button
+              onClick={handleAddAppointment}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Nuovo appuntamento
+            </Button>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-y-auto p-4">
+            {/* Calendar and Appointments - Responsive Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Calendar */}
+              <div className="lg:col-span-1">
+                <Card className="dark:bg-zinc-700/50">
+                  <CardHeader>
+                    <CardTitle className="dark:text-zinc-100">
+                      Calendar
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <AppointmentCalendar
+                      selectedDate={selectedDate}
+                      onDateChange={setSelectedDate}
+                      appointments={appointments}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Appointments Table */}
+              <div className="lg:col-span-2">
+                <Card className="dark:bg-zinc-700/50">
+                  <CardHeader>
+                    <CardTitle className="dark:text-zinc-100">
+                      Appointments for {formatDate(selectedDate)}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-full text-sm">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="dark:text-zinc-300">
+                              Type
+                            </TableHead>
+                            <TableHead className="dark:text-zinc-300">
+                              Start
+                            </TableHead>
+                            <TableHead className="dark:text-zinc-300">
+                              End
+                            </TableHead>
+                            <TableHead className="dark:text-zinc-300">
+                              Client
+                            </TableHead>
+                            <TableHead className="dark:text-zinc-300">
+                              Actions
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredAppointments.length === 0 ? (
+                            <TableRow>
+                              <TableCell
+                                colSpan={5}
+                                className="text-center py-8 text-zinc-400 dark:text-zinc-500"
+                              >
+                                No appointments for this date.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            filteredAppointments.map((appointment) => (
+                              <TableRow
+                                key={appointment.id}
+                                className="hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
+                              >
+                                <TableCell className="dark:text-zinc-200">
+                                  {appointment.appointmentType}
+                                </TableCell>
+                                <TableCell className="dark:text-zinc-200">
+                                  {appointment.startTime}
+                                </TableCell>
+                                <TableCell className="dark:text-zinc-200">
+                                  {appointment.endTime}
+                                </TableCell>
+                                <TableCell className="dark:text-zinc-200">
+                                  <div className="font-medium">
+                                    {appointment.name}
+                                  </div>
+                                  <div className="text-zinc-500 dark:text-zinc-400 text-xs">
+                                    {appointment.email}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleEditAppointment(appointment)
+                                      }
+                                      className="bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleDeleteAppointment(appointment)
+                                      }
+                                      className="bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Add/Edit Appointment Modal */}
+      <Dialog
+        open={isAddModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseModal();
+          } else {
+            setIsAddModalOpen(true);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditMode ? "Edit Appointment" : "Add New Appointment"}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditMode
+                ? "Make changes to the appointment details below."
+                : "Fill in the details to create a new appointment."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                  placeholder="Client name"
+                  className={
+                    formErrors.name ? "border-red-500 focus:border-red-500" : ""
+                  }
+                />
+                {formErrors.name && (
+                  <p className="text-sm text-red-500 mt-1">{formErrors.name}</p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  placeholder="client@example.com"
+                  className={
+                    formErrors.email
+                      ? "border-red-500 focus:border-red-500"
+                      : ""
+                  }
+                />
+                {formErrors.email && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.email}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="phone">Phone Number</Label>
+              <PhoneInput
+                country="it"
+                value={formData.number}
+                onChange={(value) => handleInputChange("number", value)}
+                inputStyle={{
+                  width: "100%",
+                  height: "2.5rem",
+                  borderRadius: "0.375rem",
+                  border: "1px solid #e2e8f1",
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="appointmentType">Service *</Label>
+                <Select
+                  value={formData.appointmentType}
+                  onValueChange={handleAppointmentTypeChange}
+                >
+                  <SelectTrigger
+                    className={
+                      formErrors.appointmentType
+                        ? "border-red-500 focus:border-red-500"
+                        : ""
+                    }
+                  >
+                    <SelectValue placeholder="Select service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(APPOINTMENT_TYPES)
+                      .filter((type) => type.active)
+                      .map((type) => (
+                        <SelectItem key={type.type} value={type.type}>
+                          {type.type}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {formErrors.appointmentType && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.appointmentType}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="duration">Duration *</Label>
+                <Select
+                  value={formData.duration}
+                  onValueChange={(value) =>
+                    handleInputChange("duration", value)
+                  }
+                >
+                  <SelectTrigger
+                    className={
+                      formErrors.duration
+                        ? "border-red-500 focus:border-red-500"
+                        : ""
+                    }
+                  >
+                    <SelectValue placeholder="Select duration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {formData.appointmentType &&
+                      getAppointmentType(
+                        formData.appointmentType
+                      )?.durations.map((duration) => (
+                        <SelectItem key={duration} value={duration.toString()}>
+                          {duration} minutes
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {formErrors.duration && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.duration}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="startTime">Start Time *</Label>
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={formData.startTime}
+                  onChange={(e) =>
+                    handleInputChange("startTime", e.target.value)
+                  }
+                  className={
+                    formErrors.startTime
+                      ? "border-red-500 focus:border-red-500"
+                      : ""
+                  }
+                />
+                {formErrors.startTime && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.startTime}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="selectedDate">Date *</Label>
+                <Input
+                  id="selectedDate"
+                  type="date"
+                  value={formData.selectedDate}
+                  onChange={(e) =>
+                    handleInputChange("selectedDate", e.target.value)
+                  }
+                  className={
+                    formErrors.selectedDate
+                      ? "border-red-500 focus:border-red-500"
+                      : ""
+                  }
+                />
+                {formErrors.selectedDate && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.selectedDate}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="note">Notes</Label>
+              <Input
+                id="note"
+                value={formData.note}
+                onChange={(e) => handleInputChange("note", e.target.value)}
+                placeholder="Additional notes (optional)"
+              />
+            </div>
+
+            {/* Helper text for required fields */}
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                Fields marked with * are required
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={handleCloseModal}
+              className="px-6 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveAppointment}
+              disabled={appointmentsLoading}
+              className="px-6"
+            >
+              {appointmentsLoading
+                ? "Saving..."
+                : isEditMode
+                ? "Update Appointment"
+                : "Create Appointment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vacation Manager Modal */}
+      <VacationManager
+        isOpen={isVacationModalOpen}
+        onClose={() => setIsVacationModalOpen(false)}
+      />
+    </div>
+  );
+};
+
+export default Dashy;

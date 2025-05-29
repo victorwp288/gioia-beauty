@@ -2,35 +2,68 @@ import { Cookie, Inter } from "next/font/google";
 import "./globals.css";
 import { Bricolage_Grotesque, DM_Serif_Display } from "next/font/google";
 import "@/styles/tailwind.css";
-import ConditionalLayout from "@/components/ConditionalLayout"; // Adjust the import path as necessary
+import ConditionalLayout from "@/components/layout/ConditionalLayout";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { AppointmentProvider } from "@/context/AppointmentContext";
+import { NotificationProvider } from "@/context/NotificationContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { ReactScan } from "@/components/scan/ReactScan";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
   title: {
     template: "%s - Gioia Beauty",
-    default: "Gioia Beauty",
+    default: "Gioia Beauty - Centro Estetico Eco-Sostenibile Roveleto di Cadeo",
   },
   description:
-    "Scopri Gioia Beauty, il nuovo centro estetico a Roveleto di Cadeo",
+    "Centro estetico eco-sostenibile a Roveleto di Cadeo specializzato in trattamenti viso, corpo, manicure, pedicure e massaggi con prodotti vegani e biologici.",
+  keywords:
+    "centro estetico roveleto cadeo, gioia beauty, trattamenti estetici piacenza, eco sostenibile, vegano, biologico",
+  authors: [{ name: "Gioia Beauty" }],
+  creator: "Gioia Beauty",
+  publisher: "Gioia Beauty",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  verification: {
+    google: "80C0DA0047C69C3845952ED707A5C88C",
+  },
   openGraph: {
-    title: "Scopri Gioia Beauty - Il Tuo Centro Estetico di Fiducia",
+    title: "Gioia Beauty - Centro Estetico Eco-Sostenibile",
     description:
-      "Gioia Beauty offre servizi estetici di alta qualità a Roveleto di Cadeo. Prenota oggi per un'esperienza di trattamento personalizzato",
+      "Centro estetico specializzato in trattamenti estetici eco-sostenibili con prodotti vegani e biologici a Roveleto di Cadeo",
     url: "https://www.gioiabeauty.net/",
     images: [
       {
         url: "https://www.gioiabeauty.net/ogimage.png",
         width: 1200,
         height: 630,
-        alt: "An example OG image",
+        alt: "Centro Estetico Gioia Beauty",
       },
     ],
     siteName: "Gioia Beauty",
     locale: "it_IT",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Gioia Beauty - Centro Estetico Eco-Sostenibile",
+    description:
+      "Trattamenti estetici eco-sostenibili con prodotti vegani e biologici",
+    images: ["https://www.gioiabeauty.net/ogimage.png"],
+  },
+  alternates: {
+    canonical: "https://www.gioiabeauty.net/",
   },
 };
 
@@ -53,15 +86,131 @@ export const dmSerif = DM_Serif_Display({
 export default function RootLayout({ children }) {
   return (
     <html
-      lang="en"
+      lang="it"
       className={`${bricolage.variable} ${dmSerif.variable} font-bricolage h-full scroll-smooth antialiased`}
     >
+      <ReactScan />
       <head>
         <meta name="msvalidate.01" content="80C0DA0047C69C3845952ED707A5C88C" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": ["BeautySalon", "LocalBusiness"],
+              name: "Gioia Beauty",
+              description:
+                "Centro estetico specializzato in trattamenti viso, corpo, manicure, pedicure e massaggi a Roveleto di Cadeo",
+              image: "https://www.gioiabeauty.net/ogimage.png",
+              logo: "https://www.gioiabeauty.net/ogimage.png",
+              url: "https://www.gioiabeauty.net",
+              telephone: "+393914213634",
+              email: "gioiabeautyy@gmail.com",
+              priceRange: "$$",
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: "Via Emilia 60",
+                addressLocality: "Roveleto di Cadeo",
+                addressRegion: "Emilia-Romagna",
+                postalCode: "29010",
+                addressCountry: "IT",
+              },
+              geo: {
+                "@type": "GeoCoordinates",
+                latitude: 44.96556,
+                longitude: 9.8514,
+              },
+              openingHours: [
+                "Mo 09:00-19:00",
+                "Tu 10:00-20:00",
+                "We 09:00-19:00",
+                "Th 10:00-20:00",
+                "Fr 09:00-18:30",
+              ],
+              sameAs: ["https://www.instagram.com/gioiabeautyy/"],
+              hasOfferCatalog: {
+                "@type": "OfferCatalog",
+                name: "Servizi Estetici",
+                itemListElement: [
+                  {
+                    "@type": "Offer",
+                    itemOffered: {
+                      "@type": "Service",
+                      name: "Trattamenti Viso",
+                      description:
+                        "Pulizia viso, trattamenti anti-età e ossigeno dermo infusione",
+                    },
+                  },
+                  {
+                    "@type": "Offer",
+                    itemOffered: {
+                      "@type": "Service",
+                      name: "Manicure e Pedicure",
+                      description:
+                        "Trattamenti unghie, manicure SPA e pedicure completa",
+                    },
+                  },
+                  {
+                    "@type": "Offer",
+                    itemOffered: {
+                      "@type": "Service",
+                      name: "Massaggi",
+                      description:
+                        "Massaggi viso e corpo personalizzati, pressoterapia",
+                    },
+                  },
+                  {
+                    "@type": "Offer",
+                    itemOffered: {
+                      "@type": "Service",
+                      name: "Ciglia e Sopracciglia",
+                      description:
+                        "Laminazione ciglia, architettura sopracciglia, nanoblading",
+                    },
+                  },
+                ],
+              },
+              founder: {
+                "@type": "Person",
+                name: "Gioia Castignoli",
+                jobTitle: "Estetista Professionista",
+              },
+              areaServed: {
+                "@type": "GeoCircle",
+                geoMidpoint: {
+                  "@type": "GeoCoordinates",
+                  latitude: 44.96556,
+                  longitude: 9.8514,
+                },
+                geoRadius: "50000",
+              },
+            }),
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const darkMode = localStorage.getItem('darkMode');
+                  if (darkMode === 'true') {
+                    document.documentElement.classList.add('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
       </head>
 
       <body className="bg-white flex h-full flex-col">
-        <ConditionalLayout>{children}</ConditionalLayout>
+        <ThemeProvider>
+          <NotificationProvider>
+            <AppointmentProvider>
+              <ConditionalLayout>{children}</ConditionalLayout>
+            </AppointmentProvider>
+          </NotificationProvider>
+        </ThemeProvider>
         <Analytics />
         <SpeedInsights />
       </body>
