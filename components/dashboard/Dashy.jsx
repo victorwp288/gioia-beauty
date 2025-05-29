@@ -266,9 +266,11 @@ const Dashy = () => {
       errors.name = "Name is required";
     }
 
-    if (!formData.email?.trim()) {
-      errors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+    // Email is now optional, but if provided, it should be valid
+    if (
+      formData.email?.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())
+    ) {
       errors.email = "Please enter a valid email address";
     }
 
@@ -282,6 +284,13 @@ const Dashy = () => {
 
     if (!formData.duration) {
       errors.duration = "Duration is required";
+    } else {
+      const durationNum = parseInt(formData.duration);
+      if (isNaN(durationNum) || durationNum < 5) {
+        errors.duration = "Duration must be at least 5 minutes";
+      } else if (durationNum > 300) {
+        errors.duration = "Duration cannot exceed 300 minutes (5 hours)";
+      }
     }
 
     if (!formData.selectedDate) {
@@ -372,7 +381,6 @@ const Dashy = () => {
         // Collect missing required fields
         const missingFields = [];
         if (formErrors.name) missingFields.push("Name");
-        if (formErrors.email) missingFields.push("Email");
         if (formErrors.appointmentType) missingFields.push("Service");
         if (formErrors.startTime) missingFields.push("Start Time");
         if (formErrors.duration) missingFields.push("Duration");
@@ -881,7 +889,18 @@ const Dashy = () => {
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent
+          className="max-w-2xl max-h-[90vh] overflow-y-auto"
+          onOpenAutoFocus={(e) => {
+            // Prevent auto focus issues with Select components
+            e.preventDefault();
+            // Focus the first input instead
+            setTimeout(() => {
+              const nameInput = document.getElementById("name");
+              if (nameInput) nameInput.focus();
+            }, 100);
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {isEditMode ? "Edit Appointment" : "Add New Appointment"}
@@ -893,185 +912,245 @@ const Dashy = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Client name"
-                  className={
-                    formErrors.name ? "border-red-500 focus:border-red-500" : ""
-                  }
-                />
-                {formErrors.name && (
-                  <p className="text-sm text-red-500 mt-1">{formErrors.name}</p>
-                )}
+          <div className="grid gap-6 py-4">
+            {/* Client Information Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Client Information
+                </h3>
               </div>
-              <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  placeholder="client@example.com"
-                  className={
-                    formErrors.email
-                      ? "border-red-500 focus:border-red-500"
-                      : ""
-                  }
-                />
-                {formErrors.email && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {formErrors.email}
-                  </p>
-                )}
-              </div>
-            </div>
 
-            <div>
-              <Label htmlFor="phone">Phone Number</Label>
-              <PhoneInput
-                country="it"
-                value={formData.number}
-                onChange={(value) => handleInputChange("number", value)}
-                inputStyle={{
-                  width: "100%",
-                  height: "2.5rem",
-                  borderRadius: "0.375rem",
-                  border: "1px solid #e2e8f1",
-                }}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="appointmentType">Service *</Label>
-                <Select
-                  value={formData.appointmentType}
-                  onValueChange={handleAppointmentTypeChange}
-                >
-                  <SelectTrigger
-                    className={
-                      formErrors.appointmentType
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="name">Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
+                    placeholder="Client name"
+                    className={`h-10 text-sm ${
+                      formErrors.name
                         ? "border-red-500 focus:border-red-500"
-                        : ""
-                    }
-                  >
-                    <SelectValue placeholder="Select service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.values(APPOINTMENT_TYPES)
-                      .filter((type) => type.active)
-                      .map((type) => (
-                        <SelectItem key={type.type} value={type.type}>
-                          {type.type}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                {formErrors.appointmentType && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {formErrors.appointmentType}
-                  </p>
-                )}
+                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                  />
+                  {formErrors.name && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {formErrors.name}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    placeholder="client@example.com (optional)"
+                    className={`h-10 text-sm ${
+                      formErrors.email
+                        ? "border-red-500 focus:border-red-500"
+                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                  />
+                  {formErrors.email && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {formErrors.email}
+                    </p>
+                  )}
+                </div>
               </div>
+
               <div>
-                <Label htmlFor="duration">Duration *</Label>
-                <Select
-                  value={formData.duration}
-                  onValueChange={(value) =>
-                    handleInputChange("duration", value)
-                  }
-                >
-                  <SelectTrigger
-                    className={
+                <Label htmlFor="phone">Phone Number</Label>
+                <PhoneInput
+                  country="it"
+                  value={formData.number}
+                  onChange={(value) => handleInputChange("number", value)}
+                  inputStyle={{
+                    width: "100%",
+                    height: "2.5rem",
+                    borderRadius: "0.375rem",
+                    border: "1px solid #d1d5db",
+                    fontSize: "0.875rem",
+                    paddingLeft: "48px",
+                  }}
+                  containerStyle={{
+                    width: "100%",
+                  }}
+                  buttonStyle={{
+                    height: "2.5rem",
+                    borderRadius: "0.375rem 0 0 0.375rem",
+                    border: "1px solid #d1d5db",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Service Details Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Service Details
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="appointmentType">Service *</Label>
+                  <Select
+                    value={formData.appointmentType}
+                    onValueChange={handleAppointmentTypeChange}
+                  >
+                    <SelectTrigger
+                      className={`h-10 text-sm ${
+                        formErrors.appointmentType
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                      aria-label="Select service type"
+                    >
+                      <SelectValue placeholder="Select service" />
+                    </SelectTrigger>
+                    <SelectContent
+                      className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
+                      position="popper"
+                      sideOffset={4}
+                    >
+                      {Object.values(APPOINTMENT_TYPES)
+                        .filter((type) => type.active)
+                        .map((type) => (
+                          <SelectItem
+                            key={type.type}
+                            value={type.type}
+                            className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
+                          >
+                            {type.type}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.appointmentType && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {formErrors.appointmentType}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="duration">Duration (minutes) *</Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    min="5"
+                    max="300"
+                    step="5"
+                    value={formData.duration}
+                    onChange={(e) =>
+                      handleInputChange("duration", e.target.value)
+                    }
+                    placeholder="e.g. 60"
+                    className={`h-10 text-sm ${
                       formErrors.duration
                         ? "border-red-500 focus:border-red-500"
-                        : ""
-                    }
-                  >
-                    <SelectValue placeholder="Select duration" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {formData.appointmentType &&
-                      getAppointmentType(
+                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                  />
+                  {formData.appointmentType && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Suggested:{" "}
+                      {getAppointmentType(
                         formData.appointmentType
-                      )?.durations.map((duration) => (
-                        <SelectItem key={duration} value={duration.toString()}>
-                          {duration} minutes
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                {formErrors.duration && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {formErrors.duration}
-                  </p>
-                )}
+                      )?.durations?.join(", ") || "N/A"}{" "}
+                      minutes
+                    </p>
+                  )}
+                  {formErrors.duration && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {formErrors.duration}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="startTime">Start Time *</Label>
-                <Input
-                  id="startTime"
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    handleInputChange("startTime", e.target.value)
-                  }
-                  className={
-                    formErrors.startTime
-                      ? "border-red-500 focus:border-red-500"
-                      : ""
-                  }
-                />
-                {formErrors.startTime && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {formErrors.startTime}
-                  </p>
-                )}
+            {/* Scheduling Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Scheduling
+                </h3>
               </div>
-              <div>
-                <Label htmlFor="selectedDate">Date *</Label>
-                <Input
-                  id="selectedDate"
-                  type="date"
-                  value={formData.selectedDate}
-                  onChange={(e) =>
-                    handleInputChange("selectedDate", e.target.value)
-                  }
-                  className={
-                    formErrors.selectedDate
-                      ? "border-red-500 focus:border-red-500"
-                      : ""
-                  }
-                />
-                {formErrors.selectedDate && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {formErrors.selectedDate}
-                  </p>
-                )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="startTime">Start Time *</Label>
+                  <Input
+                    id="startTime"
+                    type="time"
+                    value={formData.startTime}
+                    onChange={(e) =>
+                      handleInputChange("startTime", e.target.value)
+                    }
+                    className={`h-10 text-sm ${
+                      formErrors.startTime
+                        ? "border-red-500 focus:border-red-500"
+                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                  />
+                  {formErrors.startTime && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {formErrors.startTime}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="selectedDate">Date *</Label>
+                  <Input
+                    id="selectedDate"
+                    type="date"
+                    value={formData.selectedDate}
+                    onChange={(e) =>
+                      handleInputChange("selectedDate", e.target.value)
+                    }
+                    className={`h-10 text-sm ${
+                      formErrors.selectedDate
+                        ? "border-red-500 focus:border-red-500"
+                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                  />
+                  {formErrors.selectedDate && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {formErrors.selectedDate}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="note">Notes</Label>
-              <Input
-                id="note"
-                value={formData.note}
-                onChange={(e) => handleInputChange("note", e.target.value)}
-                placeholder="Additional notes (optional)"
-              />
+            {/* Additional Information Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Additional Information
+                </h3>
+              </div>
+
+              <div>
+                <Label htmlFor="note">Notes</Label>
+                <Input
+                  id="note"
+                  value={formData.note}
+                  onChange={(e) => handleInputChange("note", e.target.value)}
+                  placeholder="Additional notes (optional)"
+                  className="h-10 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
             </div>
 
             {/* Helper text for required fields */}
-            <div className="text-center">
+            <div className="text-center pt-2">
               <p className="text-sm text-muted-foreground">
                 Fields marked with * are required
               </p>
