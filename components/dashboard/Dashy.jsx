@@ -786,15 +786,16 @@ const Dashy = ({ user, authLoading }) => {
             <Mail className="h-4 w-4" />
             Iscritti newsletter
           </Button>
-          <Link href="/export">
-            <Button
-              variant="secondary"
-              className="flex items-center gap-2 dark:bg-gray-600 hidden sm:flex"
-            >
+          <Button
+            asChild
+            variant="secondary"
+            className="flex items-center gap-2 dark:bg-gray-600 hidden sm:flex"
+          >
+            <Link href="/export">
               <Database className="h-4 w-4" />
               Esporta dati
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           {/* Dark mode toggle */}
           <div className="flex items-center gap-2 ml-2">
             <span className="text-xs text-zinc-600 dark:text-zinc-300">
