@@ -4,7 +4,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, isToday, isSameDate } from "@/lib/utils/dateUtils";
 
-const AppointmentCalendar = ({ selectedDate, onDateChange, appointments }) => {
+const AppointmentCalendar = ({
+  selectedDate,
+  onDateChange,
+  appointments,
+  onMonthChange,
+}) => {
   // Create a map of dates with appointment counts from appointments prop
   const appointmentsByDate = useMemo(() => {
     const dateMap = new Map();
@@ -96,6 +101,7 @@ const AppointmentCalendar = ({ selectedDate, onDateChange, appointments }) => {
         mode="single"
         selected={selectedDate}
         onSelect={onDateChange}
+        onMonthChange={onMonthChange}
         components={{
           DayContent: DayContent,
         }}

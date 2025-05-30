@@ -8,6 +8,7 @@ import {
   doc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
+import { dataManager } from "@/lib/firebase/dataManager";
 import { toast } from "react-toastify";
 
 export const useVacations = () => {
@@ -15,29 +16,22 @@ export const useVacations = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch all vacation periods
+  // Fetch all vacation periods using efficient DataManager method
   const fetchVacations = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const querySnapshot = await getDocs(collection(db, "vacations"));
-      const vacationsData = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      // Use DataManager's efficient getVacations method instead of full collection download
+      const vacationsData = await dataManager.getVacations();
 
-      // Convert date strings to Date objects and sort by start date
-      const formattedVacations = vacationsData
-        .map((vacation) => ({
-          ...vacation,
-          startDate: new Date(vacation.startDate),
-          endDate: new Date(vacation.endDate),
-        }))
-        .sort((a, b) => a.startDate - b.startDate);
+      // Sort by start date (DataManager already converts to Date objects)
+      const sortedVacations = vacationsData.sort(
+        (a, b) => a.startDate - b.startDate
+      );
 
-      setVacations(formattedVacations);
-      return formattedVacations;
+      setVacations(sortedVacations);
+      return sortedVacations;
     } catch (err) {
       setError(err.message);
       console.error("Error fetching vacations:", err);

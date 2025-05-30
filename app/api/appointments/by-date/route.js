@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+
+// Force dynamic rendering for this route since it uses searchParams
+export const dynamic = "force-dynamic";
 
 export async function GET(request) {
   try {
@@ -16,30 +19,36 @@ export async function GET(request) {
 
     console.log(`📅 Fetching appointments for date: ${targetDate}`);
 
-    // Get all appointments and filter server-side (more efficient than downloading all to client)
+    // Create date range for the specific day (much more efficient than downloading all)
+    const startOfDay = new Date(targetDate + "T00:00:00.000Z");
+    const endOfDay = new Date(targetDate + "T23:59:59.999Z");
+
+    // Filter at database level - only get appointments for this specific date
     const q = query(
       collection(db, "customers"),
+      where("selectedDate", ">=", startOfDay),
+      where("selectedDate", "<=", endOfDay),
       orderBy("selectedDate"),
       orderBy("startTime")
     );
+
     const querySnapshot = await getDocs(q);
 
     const appointments = [];
 
     querySnapshot.docs.forEach((doc) => {
       const data = doc.data();
-      let appointmentDateStr;
 
       try {
-        // Handle mixed date formats server-side
+        // Handle mixed date formats for the returned data
+        let appointmentDateStr;
+
         if (typeof data.selectedDate === "string") {
           if (data.selectedDate.includes("T")) {
-            // New format: ISO string like '2025-06-25T22:00:00.000Z'
             appointmentDateStr = new Date(data.selectedDate)
               .toISOString()
               .split("T")[0];
           } else {
-            // Old format: simple date string like '2025-06-26'
             appointmentDateStr = data.selectedDate;
           }
         } else if (data.selectedDate instanceof Date) {
@@ -55,15 +64,12 @@ export async function GET(request) {
           return;
         }
 
-        // Only include appointments for the target date
-        if (appointmentDateStr === targetDate) {
-          appointments.push({
-            id: doc.id,
-            ...data,
-            // Normalize the date for consistency
-            selectedDate: appointmentDateStr,
-          });
-        }
+        appointments.push({
+          id: doc.id,
+          ...data,
+          // Normalize the date for consistency
+          selectedDate: appointmentDateStr,
+        });
       } catch (error) {
         console.error("Error processing appointment:", doc.id, error);
       }
@@ -73,7 +79,7 @@ export async function GET(request) {
     appointments.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
     console.log(
-      `📅 Found ${appointments.length} appointments for ${targetDate}`
+      `📅 Found ${appointments.length} appointments for ${targetDate} (used efficient query)`
     );
 
     return NextResponse.json({
@@ -85,7 +91,7 @@ export async function GET(request) {
   } catch (error) {
     console.error("Error fetching appointments by date:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: "Failed to fetch appointments" },
       { status: 500 }
     );
   }

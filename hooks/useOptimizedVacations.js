@@ -26,6 +26,9 @@ export const useOptimizedVacations = (options = {}) => {
   const listenerRef = useRef(null);
   const refreshIntervalRef = useRef(null);
 
+  // Track initialization to prevent StrictMode duplicates
+  const didInitRef = useRef(false);
+
   // Fetch vacations using optimized data manager
   const fetchVacations = useCallback(
     async (fetchOptions = {}) => {
@@ -516,12 +519,24 @@ export const useOptimizedVacations = (options = {}) => {
     }
   }, [autoRefresh, enableRealTime, refreshInterval, fetchVacations]);
 
-  // Initial fetch
+  // Initial fetch with StrictMode protection
   useEffect(() => {
+    if (didInitRef.current) {
+      console.log("🏖️ useOptimizedVacations: Already initialized, skipping...");
+      return;
+    }
+
     console.log("🏖️ useOptimizedVacations: Initial fetch effect triggered");
     if (!enableRealTime) {
+      didInitRef.current = true;
       fetchVacations();
     }
+
+    // Cleanup function for React StrictMode
+    return () => {
+      // In development with StrictMode, this prevents the effect from running twice
+      // The ref persists across unmount/remount cycles
+    };
   }, [fetchVacations, enableRealTime]);
 
   // Cleanup on unmount
@@ -583,6 +598,7 @@ export const useVacationCheck = () => {
   const [loading, setLoading] = useState(false);
 
   const mountedRef = useRef(true);
+  const didInitRef = useRef(false); // StrictMode protection
 
   // Fetch vacation data with extended caching
   const fetchVacations = useCallback(async () => {
@@ -620,17 +636,19 @@ export const useVacationCheck = () => {
     [vacations]
   );
 
-  // Initial fetch
+  // Initial fetch with StrictMode protection
   useEffect(() => {
-    fetchVacations();
-  }, [fetchVacations]);
+    if (didInitRef.current) return;
+    didInitRef.current = true;
 
-  // Cleanup
-  useEffect(() => {
+    fetchVacations();
+
+    // Cleanup function for React StrictMode
     return () => {
-      mountedRef.current = false;
+      // In development with StrictMode, this prevents the effect from running twice
+      // The ref persists across unmount/remount cycles
     };
-  }, []);
+  }, [fetchVacations]);
 
   return {
     isDateInVacation,

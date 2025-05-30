@@ -24,6 +24,9 @@ export const useOptimizedAppointments = (options = {}) => {
   const listenerRef = useRef(null);
   const refreshIntervalRef = useRef(null);
 
+  // Track initialization to prevent StrictMode duplicates
+  const didInitRef = useRef(false);
+
   // Fetch appointments using optimized data manager
   const fetchAppointments = useCallback(
     async (fetchOptions = {}) => {
@@ -60,19 +63,24 @@ export const useOptimizedAppointments = (options = {}) => {
           const startOfToday = new Date(today);
           startOfToday.setHours(0, 0, 0, 0);
 
-          const sixMonthsForward = new Date(today);
-          sixMonthsForward.setMonth(today.getMonth() + 6);
+          // End at the end of current month (much more reasonable for dashboard)
+          const endOfCurrentMonth = new Date(
+            today.getFullYear(),
+            today.getMonth() + 1,
+            0
+          );
+          endOfCurrentMonth.setHours(23, 59, 59, 999);
 
           queryOptions.dateRange = {
             start: startOfToday.toISOString(),
-            end: sixMonthsForward.toISOString(),
+            end: endOfCurrentMonth.toISOString(),
           };
 
-          console.log("📅 HOOK DEBUG: Future-only range applied:", {
+          console.log("📅 HOOK DEBUG: Current month range applied:", {
             excludingBefore: startOfToday.toISOString().split("T")[0],
-            includingUntil: sixMonthsForward.toISOString().split("T")[0],
-            daysForward: Math.ceil(
-              (sixMonthsForward - today) / (1000 * 60 * 60 * 24)
+            includingUntil: endOfCurrentMonth.toISOString().split("T")[0],
+            daysInMonth: Math.ceil(
+              (endOfCurrentMonth - today) / (1000 * 60 * 60 * 24)
             ),
           });
         }
@@ -174,16 +182,22 @@ export const useOptimizedAppointments = (options = {}) => {
     setError(null);
 
     try {
-      // Use existing service for single updates
-      const { AppointmentService } = await import(
-        "@/lib/firebase/appointments"
-      );
-      const appointmentService = new AppointmentService();
+      // Use dataManager instead of legacy AppointmentService
+      const { updateDoc, doc } = await import("firebase/firestore");
+      const { db, collections } = await import("@/lib/firebase/config");
 
-      const result = await appointmentService.updateAppointment(
-        appointmentId,
-        updatedData
-      );
+      const appointmentRef = doc(db, collections.CUSTOMERS, appointmentId);
+      const dataWithTimestamp = {
+        ...updatedData,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await updateDoc(appointmentRef, dataWithTimestamp);
+
+      const result = {
+        id: appointmentId,
+        ...dataWithTimestamp,
+      };
 
       // Optimistic update
       setAppointments((prev) =>
@@ -394,8 +408,13 @@ export const useOptimizedAppointments = (options = {}) => {
     }
   }, [autoRefresh, enableRealTime, refreshInterval, fetchAppointments]);
 
-  // Initial fetch
+  // Initial fetch with StrictMode protection
   useEffect(() => {
+    if (didInitRef.current) {
+      console.log("🎯 HOOK DEBUG: Already initialized, skipping...");
+      return;
+    }
+
     console.log(
       "🎯 HOOK DEBUG: Initial fetch effect triggered, enableRealTime:",
       enableRealTime
@@ -403,7 +422,14 @@ export const useOptimizedAppointments = (options = {}) => {
 
     // Always do initial fetch to get baseline data
     console.log("🎯 HOOK DEBUG: Calling fetchAppointments in initial effect");
+    didInitRef.current = true;
     fetchAppointments();
+
+    // Cleanup function for React StrictMode
+    return () => {
+      // In development with StrictMode, this prevents the effect from running twice
+      // The ref persists across unmount/remount cycles
+    };
   }, [fetchAppointments]);
 
   // Cleanup on unmount
@@ -465,6 +491,7 @@ export const useAppointmentsByDate = (date, options = {}) => {
   const { enableRealTime = false, autoRefresh = false } = options;
 
   const listenerRef = useRef(null);
+  const didInitRef = useRef(false); // StrictMode protection
 
   const fetchAppointments = useCallback(async () => {
     if (!date) return;
@@ -516,11 +543,20 @@ export const useAppointmentsByDate = (date, options = {}) => {
     }
   }, [enableRealTime, date]);
 
-  // Initial fetch
+  // Initial fetch with StrictMode protection
   useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+
     if (!enableRealTime) {
       fetchAppointments();
     }
+
+    // Cleanup function for React StrictMode
+    return () => {
+      // In development with StrictMode, this prevents the effect from running twice
+      // The ref persists across unmount/remount cycles
+    };
   }, [fetchAppointments, enableRealTime]);
 
   // Cleanup

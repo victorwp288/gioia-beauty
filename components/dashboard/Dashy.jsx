@@ -65,7 +65,8 @@ import VacationManager from "./VacationManager";
 import SubscriberList from "../SubscriberList";
 import { useOptimizedTimeSlots } from "@/hooks/useOptimizedTimeSlots";
 
-const Dashy = () => {
+const Dashy = ({ user, authLoading }) => {
+  // ⚠️ ALL HOOKS MUST BE CALLED FIRST - Rules of Hooks
   // Local state for modals and forms
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -605,6 +606,51 @@ const Dashy = () => {
   };
 
   // ============================================================================
+  // CALENDAR HANDLERS
+  // ============================================================================
+
+  // Handle month navigation in calendar - load appointments for the new month
+  const handleMonthChange = async (newMonth) => {
+    try {
+      console.log(
+        "📅 Calendar month changed to:",
+        newMonth.toISOString().split("T")[0]
+      );
+
+      // Get the start and end of the new month
+      const startOfMonth = new Date(
+        newMonth.getFullYear(),
+        newMonth.getMonth(),
+        1
+      );
+      const endOfMonth = new Date(
+        newMonth.getFullYear(),
+        newMonth.getMonth() + 1,
+        0
+      );
+      endOfMonth.setHours(23, 59, 59, 999);
+
+      console.log("📅 Loading appointments for month range:", {
+        start: startOfMonth.toISOString().split("T")[0],
+        end: endOfMonth.toISOString().split("T")[0],
+      });
+
+      // Load appointments for the new month
+      await fetchAppointments({
+        dateRange: {
+          start: startOfMonth.toISOString(),
+          end: endOfMonth.toISOString(),
+        },
+      });
+
+      console.log("✅ Month navigation completed successfully");
+    } catch (error) {
+      console.error("❌ Error loading appointments for new month:", error);
+      showError("Failed to load appointments for the selected month");
+    }
+  };
+
+  // ============================================================================
   // DATA INITIALIZATION
   // ============================================================================
 
@@ -654,8 +700,17 @@ const Dashy = () => {
       }
     };
 
-    initializeDashboard();
-  }, []); // Remove fetchAppointments dependency to prevent loops
+    // Only initialize if we have a user (prevent initialization during auth loading)
+    if (user && !authLoading) {
+      initializeDashboard();
+    }
+
+    // Cleanup function for React StrictMode
+    return () => {
+      // In development with StrictMode, this prevents the effect from running twice
+      // The ref persists across unmount/remount cycles
+    };
+  }, [user, authLoading]); // Add user and authLoading as dependencies
 
   // ============================================================================
   // RENDER HELPERS
@@ -679,6 +734,35 @@ const Dashy = () => {
     );
   };
 
+  // ✅ Conditional rendering AFTER all hooks are called
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 dark:border-gray-100"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">
+            Checking authentication...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show redirect message if no user (will redirect to login)
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 dark:text-gray-300">
+            Redirecting to login...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Main dashboard content (only when authenticated)
   return (
     <div className="w-full min-h-screen flex flex-col gap-4 bg-background dark:bg-zinc-900 p-4 overflow-x-hidden">
       {/* Top bar with break, newsletter, and dark mode toggle */}
@@ -772,6 +856,7 @@ const Dashy = () => {
                       selectedDate={selectedDate}
                       onDateChange={setSelectedDate}
                       appointments={appointments}
+                      onMonthChange={handleMonthChange}
                     />
                   </CardContent>
                 </Card>

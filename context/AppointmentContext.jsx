@@ -13,7 +13,6 @@ import { toast } from "react-toastify";
 import { useOptimizedAppointments } from "../hooks/useOptimizedAppointments";
 // import { useTimeSlots } from "../hooks/useTimeSlots"; // Removed to avoid circular dependency
 import { useOptimizedVacations } from "../hooks/useOptimizedVacations";
-import { AppointmentService } from "../lib/firebase/appointments";
 import { VacationService } from "../lib/firebase/vacations";
 import { invalidateAppointmentCache } from "../lib/cache/appointmentCache";
 import { APPOINTMENT_STATUS } from "../lib/utils/constants";
@@ -313,7 +312,6 @@ export const AppointmentProvider = ({ children }) => {
   const hasInitializedEssentialDataRef = useRef(false);
 
   // Initialize services
-  const appointmentService = new AppointmentService();
   const vacationService = new VacationService();
 
   // Initialize custom hooks with optimized features
@@ -370,36 +368,46 @@ export const AppointmentProvider = ({ children }) => {
           const startOfToday = new Date(today);
           startOfToday.setHours(0, 0, 0, 0);
 
-          // End at 6 months in the future for reasonable coverage
-          const sixMonthsForward = new Date(today);
-          sixMonthsForward.setMonth(today.getMonth() + 6);
+          // End at the end of current month (much more reasonable for dashboard)
+          const endOfCurrentMonth = new Date(
+            today.getFullYear(),
+            today.getMonth() + 1,
+            0
+          );
+          endOfCurrentMonth.setHours(23, 59, 59, 999);
 
           queryOptions.dateRange = {
             start: startOfToday.toISOString(),
-            end: sixMonthsForward.toISOString(),
+            end: endOfCurrentMonth.toISOString(),
           };
 
-          console.log("📅 DEBUGGING: Future-only date range calculation:", {
+          console.log("📅 DEBUGGING: Current month date range calculation:", {
             todayFull: today.toISOString(),
             todayDate: today.toISOString().split("T")[0],
             startOfTodayFull: startOfToday.toISOString(),
             startOfTodayDate: startOfToday.toISOString().split("T")[0],
-            sixMonthsForwardFull: sixMonthsForward.toISOString(),
-            sixMonthsForwardDate: sixMonthsForward.toISOString().split("T")[0],
-            daysForward: Math.ceil(
-              (sixMonthsForward - today) / (1000 * 60 * 60 * 24)
+            endOfCurrentMonthFull: endOfCurrentMonth.toISOString(),
+            endOfCurrentMonthDate: endOfCurrentMonth
+              .toISOString()
+              .split("T")[0],
+            daysInMonth: Math.ceil(
+              (endOfCurrentMonth - today) / (1000 * 60 * 60 * 24)
             ),
             calculatedRange: {
               start: startOfToday.toISOString().split("T")[0],
-              end: sixMonthsForward.toISOString().split("T")[0],
+              end: endOfCurrentMonth.toISOString().split("T")[0],
             },
             excludingBefore: startOfToday.toISOString().split("T")[0],
           });
 
           // Clear any old cached data that might include past appointments
-          console.log("🧹 Clearing old appointment cache to ensure past appointments are excluded...");
+          console.log(
+            "🧹 Clearing old appointment cache to ensure past appointments are excluded..."
+          );
           try {
-            const { clearAppointmentCache } = await import("@/lib/cache/appointmentCache");
+            const { clearAppointmentCache } = await import(
+              "@/lib/cache/appointmentCache"
+            );
             clearAppointmentCache();
             console.log("✅ Old appointment cache cleared");
           } catch (error) {
@@ -929,13 +937,14 @@ export const AppointmentProvider = ({ children }) => {
 
       try {
         hasInitializedEssentialDataRef.current = true;
-        console.log(
-          "🏖️ AppointmentContext: Loading essential data (vacations) on mount..."
-        );
+        console.log("🏖️ AppointmentContext: Initialization started...");
 
-        // Only load vacation periods automatically - they're small, rarely change,
-        // and needed by the booking system to disable vacation dates
-        await fetchVacations();
+        // The vacationsHook automatically fetches vacations in its own useEffect
+        // So we don't need to fetch them again here - just sync the state
+        // from the hook to our context state when available
+        console.log(
+          "🏖️ AppointmentContext: Vacations will be loaded automatically by hook"
+        );
 
         console.log(
           "✅ AppointmentContext: Essential data initialization completed"
@@ -950,6 +959,12 @@ export const AppointmentProvider = ({ children }) => {
     };
 
     initializeEssentialData();
+
+    // Cleanup function for React StrictMode
+    return () => {
+      // In development with StrictMode, this prevents the effect from running twice
+      // The ref persists across unmount/remount cycles
+    };
   }, []); // Empty dependency array is safe here because we use ref to prevent multiple calls
 
   // Context value
@@ -959,6 +974,11 @@ export const AppointmentProvider = ({ children }) => {
     appointments: appointmentHook.appointments || [],
     loading: appointmentHook.loading || state.loading,
     error: appointmentHook.error || state.error,
+
+    // Use vacation data directly from the hook to avoid duplication
+    vacationPeriods: vacationsHook.vacations || [],
+    vacationsLoading: vacationsHook.loading || state.vacationsLoading,
+    vacationsError: vacationsHook.error || state.vacationsError,
 
     // Appointment operations
     fetchAppointments,
@@ -973,7 +993,7 @@ export const AppointmentProvider = ({ children }) => {
     setSelectedDate,
     setSelectedTimeSlot,
 
-    // Vacation operations
+    // Vacation operations - delegate to the hook
     fetchVacations,
     createVacationPeriod,
     updateVacationPeriod,

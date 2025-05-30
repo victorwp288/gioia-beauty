@@ -25,9 +25,9 @@ export const useAppointments = (dateFilter = null) => {
       setError(null);
 
       try {
-        let appointmentsQuery = collection(db, "customers");
+        let appointmentsQuery;
 
-        // Add date filtering if provided
+        // Add date filtering - ALWAYS apply a date filter to prevent massive reads
         if (specificDate || dateFilter) {
           const filterDate = specificDate || dateFilter;
           const startOfDay = new Date(filterDate);
@@ -43,11 +43,30 @@ export const useAppointments = (dateFilter = null) => {
             orderBy("startTime")
           );
         } else {
+          // SAFETY: Never fetch all appointments without a date filter
+          // Default to next 30 days to prevent massive reads
+          console.warn(
+            "🚨 useAppointments called without dateFilter - applying 30-day safety limit"
+          );
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const thirtyDaysFromNow = new Date(today);
+          thirtyDaysFromNow.setDate(today.getDate() + 30);
+          thirtyDaysFromNow.setHours(23, 59, 59, 999);
+
           appointmentsQuery = query(
             collection(db, "customers"),
+            where("selectedDate", ">=", today.toISOString()),
+            where("selectedDate", "<=", thirtyDaysFromNow.toISOString()),
             orderBy("selectedDate"),
             orderBy("startTime")
           );
+
+          console.log("📅 Applied safety date range:", {
+            start: today.toISOString().split("T")[0],
+            end: thirtyDaysFromNow.toISOString().split("T")[0],
+          });
         }
 
         const querySnapshot = await getDocs(appointmentsQuery);
@@ -56,6 +75,9 @@ export const useAppointments = (dateFilter = null) => {
           ...doc.data(),
         }));
 
+        console.log(
+          `📊 useAppointments: Retrieved ${appointmentsData.length} appointments (efficient query)`
+        );
         setAppointments(appointmentsData);
         return appointmentsData;
       } catch (err) {

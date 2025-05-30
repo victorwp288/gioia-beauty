@@ -39,26 +39,11 @@ export default function Dashboard() {
     };
   }, [router]);
 
-  // Show loading while checking auth
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-          <p className="mt-4 text-gray-600">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render dashboard if no user
-  if (!user) {
-    return null; // Will redirect to login
-  }
-
+  // Always render Dashy - it will handle its own loading state
+  // This prevents the component from unmounting/remounting
   return (
     <div className="min-h-screen">
-      <Dashy />
+      <Dashy user={user} authLoading={authLoading} />
     </div>
   );
 }
