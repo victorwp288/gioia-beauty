@@ -4,7 +4,7 @@ export default function robots() {
       {
         userAgent: "*",
         allow: ["/", "/gallery", "/contacts", "/policy"],
-        disallow: ["/login", "/dashboard"],
+        disallow: ["/login", "/dashboard", "/export"],
       },
     ],
     sitemap: "https://www.gioiabeauty.net/sitemap.xml",

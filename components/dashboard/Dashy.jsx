@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Plus, Edit, Mail, Phone } from "lucide-react";
+import { X, Plus, Edit, Mail, Phone, Database } from "lucide-react";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 
@@ -32,6 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+// Import Link for navigation
+import Link from "next/link";
 
 // Context and Hooks
 import { useAppointmentContext } from "@/context/AppointmentContext";
@@ -783,6 +786,15 @@ const Dashy = ({ user, authLoading }) => {
             <Mail className="h-4 w-4" />
             Iscritti newsletter
           </Button>
+          <Link href="/export">
+            <Button
+              variant="secondary"
+              className="flex items-center gap-2 dark:bg-gray-600 hidden sm:flex"
+            >
+              <Database className="h-4 w-4" />
+              Esporta dati
+            </Button>
+          </Link>
           {/* Dark mode toggle */}
           <div className="flex items-center gap-2 ml-2">
             <span className="text-xs text-zinc-600 dark:text-zinc-300">
