@@ -133,9 +133,10 @@ const BookAppointment = () => {
     today.setHours(0, 0, 0, 0);
 
     return (
-      day <= today || // Past dates and today
-      !isBusinessDay(day) || // Weekends
-      isInVacationPeriod(day, vacationPeriods) // Vacation periods
+      // Vacation periods
+      // Weekends
+      (day <= today || // Past dates and today
+      !isBusinessDay(day) || isInVacationPeriod(day, vacationPeriods))
     );
   };
 

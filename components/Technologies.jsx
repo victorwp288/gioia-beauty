@@ -102,7 +102,10 @@ function Technologies() {
                   width={26}
                   height={26}
                   alt="technology indicator"
-                />
+                  style={{
+                    maxWidth: "100%",
+                    height: "auto"
+                  }} />
                 <h2 className="text-lg font-semibold">{tech.title}</h2>
               </div>
               <p className="text-sm w-[90%]">{tech.description}</p>
@@ -114,7 +117,13 @@ function Technologies() {
             onClick={() => scrollTo(currentIndex - 1)}
             className="absolute left-2 top-1/2 text-white rounded-full"
           >
-            <Image alt="left arrow" src={leftArrow} />
+            <Image
+              alt="left arrow"
+              src={leftArrow}
+              style={{
+                maxWidth: "100%",
+                height: "auto"
+              }} />
           </button>
         )}
         {windowWidth < 768 && currentIndex < technologies.length - 1 && (
@@ -122,7 +131,13 @@ function Technologies() {
             onClick={() => scrollTo(currentIndex + 1)}
             className="absolute right-2 top-1/2 text-white rounded-full"
           >
-            <Image alt="right arrow" src={rightArrow} />
+            <Image
+              alt="right arrow"
+              src={rightArrow}
+              style={{
+                maxWidth: "100%",
+                height: "auto"
+              }} />
           </button>
         )}
       </div>

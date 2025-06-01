@@ -41,7 +41,10 @@ const GalleryClient = ({ imagesWithDescriptions, index }) => {
         alt={`Image ${index}`}
         className="object-cover h-full w-full cursor-pointer"
         onClick={() => openModal(index)}
-      />
+        style={{
+          maxWidth: "100%",
+          height: "auto"
+        }} />
       <Modal
         isOpen={modalIsOpen}
         onRequestClose={closeModal}
@@ -75,7 +78,10 @@ const GalleryClient = ({ imagesWithDescriptions, index }) => {
               height={800}
               alt={`Image ${currentIndex}`}
               className="max-h-screen h-auto w-auto"
-            />
+              style={{
+                maxWidth: "100%",
+                height: "auto"
+              }} />
           </div>
           <p className="text-white text-xl font-semibold z-100 bottom-2 left-4 absolute">
             {imagesWithDescriptions[currentIndex].description}

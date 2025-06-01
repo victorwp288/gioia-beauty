@@ -38,7 +38,14 @@ function Navbar() {
   return (
     <div className="fixed top-0 z-40 flex w-full items-center justify-between bg-white px-4 py-4 text-sm transition duration-300 ease-in-out md:px-28 lg:px-64">
       <Link href="/">
-        <Image src={logo} className=" w-16 lg:w-20" alt="Logo" />
+        <Image
+          src={logo}
+          className=" w-16 lg:w-20"
+          alt="Logo"
+          style={{
+            maxWidth: "100%",
+            height: "auto"
+          }} />
       </Link>
       <ul className="hidden gap-10 md:flex">
         <li>

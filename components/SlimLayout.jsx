@@ -17,7 +17,10 @@ export function SlimLayout({ children }) {
             src={loginPhoto}
             alt=""
             unoptimized
-          />
+            style={{
+              maxWidth: "100%",
+              height: "auto"
+            }} />
         </div>
       </div>
     </>

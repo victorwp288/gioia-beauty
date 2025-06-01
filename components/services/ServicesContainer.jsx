@@ -54,7 +54,6 @@ function ServicesContainer() {
           I nostri trattamenti
         </h2>
       </div>
-
       <div
         ref={scrollContainerRef}
         className="flex snap-x snap-mandatory gap-4 overflow-x-auto md:flex-col md:overflow-x-visible"
@@ -79,7 +78,10 @@ function ServicesContainer() {
                       width={18}
                       height={18}
                       alt="duration of the service"
-                    />
+                      style={{
+                        maxWidth: "100%",
+                        height: "auto"
+                      }} />
                     <p className="text-sm font-normal text-gray-500">
                       {service.duration}m
                     </p>
@@ -111,7 +113,10 @@ function ServicesContainer() {
                         width={18}
                         height={18}
                         alt="duration of the service"
-                      />
+                        style={{
+                          maxWidth: "100%",
+                          height: "auto"
+                        }} />
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
                       </p>
@@ -127,7 +132,10 @@ function ServicesContainer() {
                                 width={18}
                                 height={18}
                                 alt="duration of the service"
-                              />
+                                style={{
+                                  maxWidth: "100%",
+                                  height: "auto"
+                                }} />
                               <p className="text-sm font-normal text-gray-500">
                                 +{subcategory.duration}m
                               </p>
@@ -154,7 +162,10 @@ function ServicesContainer() {
                         width={18}
                         height={18}
                         alt="duration of the service"
-                      />
+                        style={{
+                          maxWidth: "100%",
+                          height: "auto"
+                        }} />
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
                       </p>
@@ -170,7 +181,10 @@ function ServicesContainer() {
                                 width={18}
                                 height={18}
                                 alt="duration of the service"
-                              />
+                                style={{
+                                  maxWidth: "100%",
+                                  height: "auto"
+                                }} />
                               <p className="text-sm font-normal text-gray-500">
                                 +{subcategory.duration}m
                               </p>
@@ -208,7 +222,10 @@ function ServicesContainer() {
                       width={18}
                       height={18}
                       alt="duration of the service"
-                    />
+                      style={{
+                        maxWidth: "100%",
+                        height: "auto"
+                      }} />
                     <p className="text-sm font-normal text-gray-500">
                       {service.duration}m
                     </p>
@@ -240,7 +257,10 @@ function ServicesContainer() {
                       width={18}
                       height={18}
                       alt="duration of the service"
-                    />
+                      style={{
+                        maxWidth: "100%",
+                        height: "auto"
+                      }} />
                     {service.duration && (
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
@@ -294,7 +314,10 @@ function ServicesContainer() {
                               width={18}
                               height={18}
                               alt="duration of the service"
-                            />
+                              style={{
+                                maxWidth: "100%",
+                                height: "auto"
+                              }} />
                             <p className="text-sm font-normal text-gray-500">
                               {subcategory.duration}m
                             </p>
@@ -328,7 +351,10 @@ function ServicesContainer() {
                       width={18}
                       height={18}
                       alt="duration of the service"
-                    />
+                      style={{
+                        maxWidth: "100%",
+                        height: "auto"
+                      }} />
                     <p className="text-sm font-normal text-gray-500">60m</p>
                   </div>
                   <p className="text-sm font-semibold text-gray-700">
@@ -342,7 +368,10 @@ function ServicesContainer() {
                       width={18}
                       height={18}
                       alt="duration of the service"
-                    />
+                      style={{
+                        maxWidth: "100%",
+                        height: "auto"
+                      }} />
                     <p className="text-sm font-normal text-gray-500">90m</p>
                   </div>
                   <p className="text-sm font-semibold text-gray-700">
@@ -375,7 +404,10 @@ function ServicesContainer() {
                                 width={18}
                                 height={18}
                                 alt="duration of the service"
-                              />
+                                style={{
+                                  maxWidth: "100%",
+                                  height: "auto"
+                                }} />
                               <p className="text-sm font-normal text-gray-500">
                                 {subcategory.duration}m
                               </p>
@@ -415,7 +447,10 @@ function ServicesContainer() {
                         width={18}
                         height={18}
                         alt="duration of the service"
-                      />
+                        style={{
+                          maxWidth: "100%",
+                          height: "auto"
+                        }} />
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
                       </p>
@@ -432,7 +467,10 @@ function ServicesContainer() {
                               width={18}
                               height={18}
                               alt="duration of the service"
-                            />
+                              style={{
+                                maxWidth: "100%",
+                                height: "auto"
+                              }} />
                             <p className="text-sm font-normal text-gray-500">
                               {subcategory.duration}m
                             </p>
@@ -470,7 +508,10 @@ function ServicesContainer() {
                       width={18}
                       height={18}
                       alt="duration of the service"
-                    />
+                      style={{
+                        maxWidth: "100%",
+                        height: "auto"
+                      }} />
                     {service.duration && (
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
@@ -488,7 +529,10 @@ function ServicesContainer() {
                               width={18}
                               height={18}
                               alt="subcategory indicator"
-                            />
+                              style={{
+                                maxWidth: "100%",
+                                height: "auto"
+                              }} />
                             {subcategory.duration && (
                               <p className="text-sm font-normal text-gray-500">
                                 {subcategory.duration}m
@@ -532,7 +576,10 @@ metaboliche, in totale relax."
                       width={18}
                       height={18}
                       alt="duration of the service"
-                    />
+                      style={{
+                        maxWidth: "100%",
+                        height: "auto"
+                      }} />
                     {service.duration && (
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
@@ -550,7 +597,10 @@ metaboliche, in totale relax."
                               width={18}
                               height={18}
                               alt="subcategory indicator"
-                            />
+                              style={{
+                                maxWidth: "100%",
+                                height: "auto"
+                              }} />
                             {subcategory.duration && (
                               <p className="text-sm font-normal text-gray-500">
                                 {subcategory.duration}m

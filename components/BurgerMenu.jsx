@@ -38,7 +38,6 @@ const BurgerMenu = ({ isOpen, setIsOpen, menuItems }) => {
           }`}
         ></span>
       </button>
-
       <div
         ref={linksRef}
         className={` fixed inset-0 hidden flex-col items-start justify-center space-y-4 bg-white px-8 transition-opacity duration-300 ease-in-out ${
@@ -49,7 +48,10 @@ const BurgerMenu = ({ isOpen, setIsOpen, menuItems }) => {
           src={logo}
           className=" absolute left-4 top-4 z-40 w-16 lg:w-20"
           alt="Logo"
-        />
+          style={{
+            maxWidth: "100%",
+            height: "auto"
+          }} />
 
         {menuItems.map((item) => (
           <Link key={item.id} href={item.link} passHref>

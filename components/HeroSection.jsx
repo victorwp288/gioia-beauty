@@ -11,6 +11,8 @@ function HeroSection() {
         className="h-full w-full object-cover"
         src={reception4}
         alt="duration of the service"
+        fill
+        sizes="100vw"
       />
       <div className="absolute inset-0 flex items-center">
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 from-10% to-transparent"></div>
@@ -36,7 +38,16 @@ function HeroSection() {
               >
                 Scopri i nostri servizi
               </Link>
-              <Image src={downArrow} alt="down arrow" />
+              <Image
+                src={downArrow}
+                alt="down arrow"
+                width={16}
+                height={16}
+                style={{
+                  maxWidth: "100%",
+                  height: "auto",
+                }}
+              />
             </div>
           </div>
         </div>

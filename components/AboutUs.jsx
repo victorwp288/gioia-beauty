@@ -42,9 +42,11 @@ function AboutUs() {
             <Image
               src={portraitSquare}
               alt="Portrait of Gioia"
-              layout="fill"
-              objectFit="cover"
-            />
+              fill
+              sizes="100vw"
+              style={{
+                objectFit: "cover"
+              }} />
           </div>
         </div>
         <p className="text-sm md:w-full mt-4 md:mt-0  p-5">
@@ -59,9 +61,11 @@ function AboutUs() {
           <Image
             src={portraitSquare}
             alt="Portrait of Gioia"
-            layout="fill"
-            objectFit="cover"
-          />
+            fill
+            sizes="100vw"
+            style={{
+              objectFit: "cover"
+            }} />
         </div>
       </div>
     </div>

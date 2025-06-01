@@ -42,13 +42,19 @@ export default function Login() {
     <SlimLayout>
       <div className="flex">
         <Link href="/" aria-label="Home">
-          <Image alt="logo" width={150} src={logo} />
+          <Image
+            alt="logo"
+            width={150}
+            src={logo}
+            style={{
+              maxWidth: "100%",
+              height: "auto"
+            }} />
         </Link>
       </div>
       <h2 className="mt-20 text-lg font-semibold text-gray-900">
         Sign in to your account
       </h2>
-
       <form onSubmit={handleAuth} className="mt-10 grid grid-cols-1 gap-y-8">
         <TextField
           label="Email address"

@@ -18,13 +18,14 @@ const Accordion = ({ title, description, image, children, imagePosition }) => {
         }`}
         onClick={toggleAccordion}
       >
-        <div className="relative w-full md:basis-[50%]">
-          <div className="relative  w-full pb-[56.25%] md:pb-0 md:h-60">
+        <div className="w-full md:basis-[50%]">
+          <div className="relative w-full h-64 md:h-60">
             <Image
               src={image}
               fill
-              style={{ objectFit: "cover" }}
               alt="mani-piedi"
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 50vw"
             />
           </div>
         </div>
