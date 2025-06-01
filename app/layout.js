@@ -64,6 +64,9 @@ export const metadata = {
   },
   alternates: {
     canonical: "https://www.gioiabeauty.net/",
+    languages: {
+      it: "https://www.gioiabeauty.net/",
+    },
   },
 };
 
