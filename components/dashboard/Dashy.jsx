@@ -513,6 +513,64 @@ const Dashy = ({ user, authLoading }) => {
     }
   };
 
+  // Chain Appointment Handler
+  const handleChainAppointment = async () => {
+    try {
+      if (!validateForm()) {
+        showError("Please fill in all required fields before chaining.");
+        return;
+      }
+
+      const appointmentDate = createAppointmentDate(formData.selectedDate);
+      if (!appointmentDate) {
+        throw new Error("Invalid date selected");
+      }
+
+      const appointmentData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        number: formData.number,
+        appointmentType: formData.appointmentType,
+        startTime: formData.startTime,
+        duration: parseInt(formData.duration),
+        selectedDate: appointmentDate,
+        note: formData.note?.trim() || "",
+        status: "confirmed",
+      };
+
+      // Calculate end time WITHOUT extra time for chaining
+      appointmentData.endTime = calculateEndTime(
+        formData.startTime,
+        appointmentData.duration
+      );
+      appointmentData.totalDuration = appointmentData.duration;
+
+      await notifyAsync(() => createAppointment(appointmentData), {
+        loading: "Creating appointment...",
+        success: "Appointment created! Ready for next.",
+        error: "Failed to create appointment",
+      });
+
+      // Prepare form for next appointment: set startTime to previous endTime, clear client info
+      setFormData((prev) => ({
+        ...prev,
+        name: "",
+        email: "",
+        number: "",
+        note: "",
+        startTime: appointmentData.endTime,
+        // Keep same date, appointmentType, duration
+      }));
+      setFormErrors({});
+      setTimeout(() => {
+        const nameInput = document.getElementById("name");
+        if (nameInput) nameInput.focus();
+      }, 100);
+    } catch (error) {
+      console.error("Error chaining appointment:", error);
+    }
+  };
+
   const handleDeleteAppointment = async (appointment) => {
     const confirmDelete = await showConfirmation({
       title: "Delete Appointment",
@@ -1285,6 +1343,18 @@ const Dashy = ({ user, authLoading }) => {
                 ? "Update Appointment"
                 : "Create Appointment"}
             </Button>
+            {/* Chain Appointment Button: only show when adding, not editing */}
+            {!isEditMode && (
+              <Button
+                variant="secondary"
+                onClick={handleChainAppointment}
+                disabled={appointmentsLoading}
+                className="px-6"
+                type="button"
+              >
+                + Add Another Right After
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
