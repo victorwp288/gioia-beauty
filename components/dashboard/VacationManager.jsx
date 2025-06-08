@@ -432,7 +432,7 @@ const VacationManager = ({ isOpen, onClose }) => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Vacation Period Manager
+              Gestore ferie
             </DialogTitle>
           </DialogHeader>
 
@@ -440,7 +440,7 @@ const VacationManager = ({ isOpen, onClose }) => {
             {/* Add Button */}
             <div className="flex justify-between items-center">
               <p className="text-muted-foreground">
-                Manage vacation periods and business closures
+                Gestisci le ferie e i periodi di chiusura.
               </p>
               <div className="flex gap-2">
                 <Button
@@ -465,7 +465,7 @@ const VacationManager = ({ isOpen, onClose }) => {
                   className="flex items-center gap-2"
                 >
                   <Plus className="h-4 w-4" />
-                  Add Vacation Period
+                  Aggiungi periodo di Vacanza
                 </Button>
               </div>
             </div>
@@ -473,7 +473,7 @@ const VacationManager = ({ isOpen, onClose }) => {
             {/* Vacation Periods List */}
             <Card>
               <CardHeader>
-                <CardTitle>Current Vacation Periods</CardTitle>
+                <CardTitle>Ferie impostate</CardTitle>
               </CardHeader>
               <CardContent>
                 {vacationsLoading ? (
@@ -685,11 +685,12 @@ const VacationManager = ({ isOpen, onClose }) => {
             {formData.startDate && formData.endDate && (
               <div className="p-3 bg-blue-50 rounded-md">
                 <p className="text-sm text-blue-700">
-                  Duration:{" "}
+                  Durata:{" "}
                   {calculateDuration(formData.startDate, formData.endDate)}
                 </p>
                 <p className="text-sm text-blue-600">
-                  No appointments can be booked during this period
+                  Attenzione: tutti gli appuntamenti in questo periodo saranno
+                  bloccati e non potranno essere prenotati.
                 </p>
               </div>
             )}

@@ -896,10 +896,7 @@ const Dashy = ({ user, authLoading }) => {
         <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20">
           <CardHeader className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between bg-zinc-50 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-700/60 p-4">
             <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">
-                Dashboard
-              </h1>
-              <span className="text-s text-zinc-500 dark:text-zinc-400 font-normal">
+              <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
                 {formatDate(selectedDate)}
               </span>
             </div>
@@ -914,33 +911,18 @@ const Dashy = ({ user, authLoading }) => {
           <CardContent className="flex-1 overflow-y-auto p-4">
             {/* Calendar and Appointments - Responsive Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Calendar */}
               <div className="lg:col-span-1">
-                <Card className="dark:bg-zinc-700/50">
-                  <CardHeader>
-                    <CardTitle className="dark:text-zinc-100">
-                      Calendar
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <AppointmentCalendar
-                      selectedDate={selectedDate}
-                      onDateChange={setSelectedDate}
-                      appointments={appointments}
-                      onMonthChange={handleMonthChange}
-                    />
-                  </CardContent>
-                </Card>
+                <AppointmentCalendar
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                  appointments={appointments}
+                  onMonthChange={handleMonthChange}
+                />
               </div>
 
               {/* Appointments Table */}
               <div className="lg:col-span-2">
                 <Card className="dark:bg-zinc-700/50">
-                  <CardHeader>
-                    <CardTitle className="dark:text-zinc-100">
-                      Appointments for {formatDate(selectedDate)}
-                    </CardTitle>
-                  </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
                       <Table className="min-w-full text-sm">
@@ -1330,7 +1312,7 @@ const Dashy = ({ user, authLoading }) => {
               onClick={handleCloseModal}
               className="px-6 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
-              Cancel
+              Esci
             </Button>
             <Button
               onClick={handleSaveAppointment}
@@ -1340,8 +1322,8 @@ const Dashy = ({ user, authLoading }) => {
               {appointmentsLoading
                 ? "Saving..."
                 : isEditMode
-                ? "Update Appointment"
-                : "Create Appointment"}
+                ? "Aggiorna appuntamento"
+                : "Crea appuntamento"}
             </Button>
             {/* Chain Appointment Button: only show when adding, not editing */}
             {!isEditMode && (
@@ -1352,7 +1334,7 @@ const Dashy = ({ user, authLoading }) => {
                 className="px-6"
                 type="button"
               >
-                + Add Another Right After
+                + Aggiungi subito dopo
               </Button>
             )}
           </DialogFooter>
