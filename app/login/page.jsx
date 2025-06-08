@@ -57,7 +57,10 @@ export default function Login() {
       <h2 className="mt-20 text-lg font-semibold text-gray-900">
         Sign in to your account
       </h2>
-      <form onSubmit={handleAuth} className="mt-10 grid grid-cols-1 gap-y-8">
+      <form
+        onSubmit={handleAuth}
+        className="mt-10 grid grid-cols-1 gap-y-8 w-full max-w-sm mx-auto"
+      >
         <TextField
           label="Email address"
           name="email"
@@ -76,7 +79,7 @@ export default function Login() {
           required
           onChange={(e) => setPassword(e.target.value)}
         />
-        <div>
+        <div className="w-full">
           <Button type="submit" variant="solid" color="blue" className="w-full">
             <span>
               Sign in <span aria-hidden="true">&rarr;</span>

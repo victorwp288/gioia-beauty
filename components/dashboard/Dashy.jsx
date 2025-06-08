@@ -513,64 +513,6 @@ const Dashy = ({ user, authLoading }) => {
     }
   };
 
-  // Chain Appointment Handler
-  const handleChainAppointment = async () => {
-    try {
-      if (!validateForm()) {
-        showError("Please fill in all required fields before chaining.");
-        return;
-      }
-
-      const appointmentDate = createAppointmentDate(formData.selectedDate);
-      if (!appointmentDate) {
-        throw new Error("Invalid date selected");
-      }
-
-      const appointmentData = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        number: formData.number,
-        appointmentType: formData.appointmentType,
-        startTime: formData.startTime,
-        duration: parseInt(formData.duration),
-        selectedDate: appointmentDate,
-        note: formData.note?.trim() || "",
-        status: "confirmed",
-      };
-
-      // Calculate end time WITHOUT extra time for chaining
-      appointmentData.endTime = calculateEndTime(
-        formData.startTime,
-        appointmentData.duration
-      );
-      appointmentData.totalDuration = appointmentData.duration;
-
-      await notifyAsync(() => createAppointment(appointmentData), {
-        loading: "Creating appointment...",
-        success: "Appointment created! Ready for next.",
-        error: "Failed to create appointment",
-      });
-
-      // Prepare form for next appointment: set startTime to previous endTime, clear client info
-      setFormData((prev) => ({
-        ...prev,
-        name: "",
-        email: "",
-        number: "",
-        note: "",
-        startTime: appointmentData.endTime,
-        // Keep same date, appointmentType, duration
-      }));
-      setFormErrors({});
-      setTimeout(() => {
-        const nameInput = document.getElementById("name");
-        if (nameInput) nameInput.focus();
-      }, 100);
-    } catch (error) {
-      console.error("Error chaining appointment:", error);
-    }
-  };
-
   const handleDeleteAppointment = async (appointment) => {
     const confirmDelete = await showConfirmation({
       title: "Delete Appointment",
@@ -891,12 +833,15 @@ const Dashy = ({ user, authLoading }) => {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col lg:flex-row gap-4 min-h-0 flex-1">
+      <div className="flex flex-col lg:flex-row gap-4 min-h-0">
         {/* Main Content Card with Overflow Fixes */}
-        <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20 flex-1 min-h-0">
+        <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20">
           <CardHeader className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between bg-zinc-50 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-700/60 p-4">
             <div className="flex flex-col gap-1">
-              <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">
+                Dashboard
+              </h1>
+              <span className="text-s text-zinc-500 dark:text-zinc-400 font-normal">
                 {formatDate(selectedDate)}
               </span>
             </div>
@@ -908,24 +853,90 @@ const Dashy = ({ user, authLoading }) => {
               Nuovo appuntamento
             </Button>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-4 min-h-0 flex flex-col">
+          <CardContent className="flex-1 overflow-y-auto p-4">
             {/* Calendar and Appointments - Responsive Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Calendar */}
               <div className="lg:col-span-1">
-                <AppointmentCalendar
-                  selectedDate={selectedDate}
-                  onDateChange={setSelectedDate}
-                  appointments={appointments}
-                  onMonthChange={handleMonthChange}
-                />
+                <Card className="dark:bg-zinc-700/50">
+                  <CardHeader>
+                    <CardTitle className="dark:text-zinc-100">
+                      Calendar
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <AppointmentCalendar
+                      selectedDate={selectedDate}
+                      onDateChange={setSelectedDate}
+                      appointments={appointments}
+                      onMonthChange={handleMonthChange}
+                    />
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Appointments Table */}
               <div className="lg:col-span-2 flex flex-col min-h-0">
-                <Card className="dark:bg-zinc-700/50 flex-1 min-h-0">
-                  <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
-                    <div className="overflow-x-auto flex-1 min-h-0">
-                      <div className="overflow-y-auto max-h-[70vh] min-h-0">
+                {/* Responsive Table: Card/List view on mobile, Table on desktop */}
+                <div className="block sm:hidden space-y-3">
+                  {filteredAppointments.length === 0 ? (
+                    <div className="text-center py-8 text-zinc-400 dark:text-zinc-500">
+                      No appointments for this date.
+                    </div>
+                  ) : (
+                    filteredAppointments.map((appointment) => (
+                      <div
+                        key={appointment.id}
+                        className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 flex flex-col gap-1 shadow-sm"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-base">
+                            {appointment.appointmentType}
+                          </span>
+                        </div>
+                        <div className="text-m text-zinc-500 dark:text-zinc-400">
+                          {appointment.startTime} - {appointment.endTime}
+                        </div>
+                        <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                          {appointment.name}
+                        </div>
+                        {appointment.email && (
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {appointment.email}
+                          </div>
+                        )}
+                        {appointment.note && (
+                          <div className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
+                            <span className="font-semibold">Note:</span>{" "}
+                            {appointment.note}
+                          </div>
+                        )}
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditAppointment(appointment)}
+                            className="flex-1 bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteAppointment(appointment)}
+                            className="flex-1 bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="hidden sm:block">
+                  <Card className="dark:bg-zinc-700/50">
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
                         <Table className="min-w-full text-sm">
                           <TableHeader>
                             <TableRow>
@@ -1020,9 +1031,9 @@ const Dashy = ({ user, authLoading }) => {
                           </TableBody>
                         </Table>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -1151,61 +1162,38 @@ const Dashy = ({ user, authLoading }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="appointmentType">Service *</Label>
-                  {/* Use native select on mobile, custom Select on desktop */}
-                  <div className="block sm:hidden">
-                    <select
-                      id="appointmentType"
-                      value={formData.appointmentType}
-                      onChange={e => handleAppointmentTypeChange(e.target.value)}
-                      className={`h-10 text-sm w-full rounded-md border focus:outline-none focus:ring-blue-500/20 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white ${formErrors.appointmentType ? 'border-red-500 focus:border-red-500' : 'border-gray-300'}`}
+                  <Select
+                    value={formData.appointmentType}
+                    onValueChange={handleAppointmentTypeChange}
+                  >
+                    <SelectTrigger
+                      className={`h-10 text-sm ${
+                        formErrors.appointmentType
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
                       aria-label="Select service type"
                     >
-                      <option value="" disabled>
-                        Seleziona servizio
-                      </option>
-                      {Object.values(APPOINTMENT_TYPES)
-                        .filter(type => type.active)
-                        .map(type => (
-                          <option key={type.type} value={type.type}>
-                            {type.type}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="hidden sm:block">
-                    <Select
-                      value={formData.appointmentType}
-                      onValueChange={handleAppointmentTypeChange}
+                      <SelectValue placeholder="Select service" />
+                    </SelectTrigger>
+                    <SelectContent
+                      className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
+                      position="popper"
+                      sideOffset={4}
                     >
-                      <SelectTrigger
-                        className={`h-10 text-sm ${
-                          formErrors.appointmentType
-                            ? "border-red-500 focus:border-red-500"
-                            : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                        } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
-                        aria-label="Select service type"
-                      >
-                        <SelectValue placeholder="Select service" />
-                      </SelectTrigger>
-                      <SelectContent
-                        className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
-                        position="popper"
-                        sideOffset={4}
-                      >
-                        {Object.values(APPOINTMENT_TYPES)
-                          .filter((type) => type.active)
-                          .map((type) => (
-                            <SelectItem
-                              key={type.type}
-                              value={type.type}
-                              className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
-                            >
-                              {type.type}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      {Object.values(APPOINTMENT_TYPES)
+                        .filter((type) => type.active)
+                        .map((type) => (
+                          <SelectItem
+                            key={type.type}
+                            value={type.type}
+                            className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
+                          >
+                            {type.type}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                   {formErrors.appointmentType && (
                     <p className="text-sm text-red-500 mt-1">
                       {formErrors.appointmentType}
@@ -1337,7 +1325,7 @@ const Dashy = ({ user, authLoading }) => {
               onClick={handleCloseModal}
               className="px-6 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
-              Esci
+              Cancel
             </Button>
             <Button
               onClick={handleSaveAppointment}
@@ -1347,21 +1335,9 @@ const Dashy = ({ user, authLoading }) => {
               {appointmentsLoading
                 ? "Saving..."
                 : isEditMode
-                ? "Aggiorna appuntamento"
-                : "Crea appuntamento"}
+                ? "Update Appointment"
+                : "Create Appointment"}
             </Button>
-            {/* Chain Appointment Button: only show when adding, not editing */}
-            {!isEditMode && (
-              <Button
-                variant="secondary"
-                onClick={handleChainAppointment}
-                disabled={appointmentsLoading}
-                className="px-6"
-                type="button"
-              >
-                + Aggiungi subito dopo
-              </Button>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
