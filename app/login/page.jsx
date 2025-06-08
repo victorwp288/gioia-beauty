@@ -24,6 +24,9 @@ export default function Login() {
         // Signed in successfully, you can use userCredential if needed
         // For example, redirect the user or display a success message
         console.log("Signed in successfully:", userCredential.user);
+        // Clear form only on success
+        setEmail("");
+        setPassword("");
         router.push("/dashboard");
       })
       .catch((error) => {
@@ -32,10 +35,10 @@ export default function Login() {
         const errorMessage = error.message;
         // Display the error message to your user, log it, etc.
         console.error("Error signing in:", errorCode, errorMessage);
+        // Clear form on error as well (optional)
+        setEmail("");
+        setPassword("");
       });
-
-    setEmail("");
-    setPassword("");
   }
 
   return (
@@ -48,8 +51,9 @@ export default function Login() {
             src={logo}
             style={{
               maxWidth: "100%",
-              height: "auto"
-            }} />
+              height: "auto",
+            }}
+          />
         </Link>
       </div>
       <h2 className="mt-20 text-lg font-semibold text-gray-900">
