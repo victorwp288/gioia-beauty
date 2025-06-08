@@ -513,6 +513,64 @@ const Dashy = ({ user, authLoading }) => {
     }
   };
 
+  // Chain Appointment Handler
+  const handleChainAppointment = async () => {
+    try {
+      if (!validateForm()) {
+        showError("Please fill in all required fields before chaining.");
+        return;
+      }
+
+      const appointmentDate = createAppointmentDate(formData.selectedDate);
+      if (!appointmentDate) {
+        throw new Error("Invalid date selected");
+      }
+
+      const appointmentData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        number: formData.number,
+        appointmentType: formData.appointmentType,
+        startTime: formData.startTime,
+        duration: parseInt(formData.duration),
+        selectedDate: appointmentDate,
+        note: formData.note?.trim() || "",
+        status: "confirmed",
+      };
+
+      // Calculate end time WITHOUT extra time for chaining
+      appointmentData.endTime = calculateEndTime(
+        formData.startTime,
+        appointmentData.duration
+      );
+      appointmentData.totalDuration = appointmentData.duration;
+
+      await notifyAsync(() => createAppointment(appointmentData), {
+        loading: "Creating appointment...",
+        success: "Appointment created! Ready for next.",
+        error: "Failed to create appointment",
+      });
+
+      // Prepare form for next appointment: set startTime to previous endTime, clear client info
+      setFormData((prev) => ({
+        ...prev,
+        name: "",
+        email: "",
+        number: "",
+        note: "",
+        startTime: appointmentData.endTime,
+        // Keep same date, appointmentType, duration
+      }));
+      setFormErrors({});
+      setTimeout(() => {
+        const nameInput = document.getElementById("name");
+        if (nameInput) nameInput.focus();
+      }, 100);
+    } catch (error) {
+      console.error("Error chaining appointment:", error);
+    }
+  };
+
   const handleDeleteAppointment = async (appointment) => {
     const confirmDelete = await showConfirmation({
       title: "Delete Appointment",
@@ -833,15 +891,12 @@ const Dashy = ({ user, authLoading }) => {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col lg:flex-row gap-4 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 min-h-0 flex-1">
         {/* Main Content Card with Overflow Fixes */}
-        <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20">
+        <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20 flex-1 min-h-0">
           <CardHeader className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between bg-zinc-50 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-700/60 p-4">
             <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">
-                Dashboard
-              </h1>
-              <span className="text-s text-zinc-500 dark:text-zinc-400 font-normal">
+              <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
                 {formatDate(selectedDate)}
               </span>
             </div>
@@ -853,131 +908,118 @@ const Dashy = ({ user, authLoading }) => {
               Nuovo appuntamento
             </Button>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-4">
+          <CardContent className="flex-1 overflow-y-auto p-4 min-h-0 flex flex-col">
             {/* Calendar and Appointments - Responsive Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Calendar */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
               <div className="lg:col-span-1">
-                <Card className="dark:bg-zinc-700/50">
-                  <CardHeader>
-                    <CardTitle className="dark:text-zinc-100">
-                      Calendar
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <AppointmentCalendar
-                      selectedDate={selectedDate}
-                      onDateChange={setSelectedDate}
-                      appointments={appointments}
-                      onMonthChange={handleMonthChange}
-                    />
-                  </CardContent>
-                </Card>
+                <AppointmentCalendar
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                  appointments={appointments}
+                  onMonthChange={handleMonthChange}
+                />
               </div>
 
               {/* Appointments Table */}
-              <div className="lg:col-span-2">
-                <Card className="dark:bg-zinc-700/50">
-                  <CardHeader>
-                    <CardTitle className="dark:text-zinc-100">
-                      Appointments for {formatDate(selectedDate)}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <Table className="min-w-full text-sm">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="dark:text-zinc-300">
-                              Type
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              Start
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              End
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              Client
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              Notes
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              Actions
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredAppointments.length === 0 ? (
+              <div className="lg:col-span-2 flex flex-col min-h-0">
+                <Card className="dark:bg-zinc-700/50 flex-1 min-h-0">
+                  <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
+                    <div className="overflow-x-auto flex-1 min-h-0">
+                      <div className="overflow-y-auto max-h-[70vh] min-h-0">
+                        <Table className="min-w-full text-sm">
+                          <TableHeader>
                             <TableRow>
-                              <TableCell
-                                colSpan={6}
-                                className="text-center py-8 text-zinc-400 dark:text-zinc-500"
-                              >
-                                No appointments for this date.
-                              </TableCell>
+                              <TableHead className="dark:text-zinc-300">
+                                Type
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                Start
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                End
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                Client
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                Notes
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                Actions
+                              </TableHead>
                             </TableRow>
-                          ) : (
-                            filteredAppointments.map((appointment) => (
-                              <TableRow
-                                key={appointment.id}
-                                className="hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
-                              >
-                                <TableCell className="dark:text-zinc-200">
-                                  {appointment.appointmentType}
-                                </TableCell>
-                                <TableCell className="dark:text-zinc-200">
-                                  {appointment.startTime}
-                                </TableCell>
-                                <TableCell className="dark:text-zinc-200">
-                                  {appointment.endTime}
-                                </TableCell>
-                                <TableCell className="dark:text-zinc-200">
-                                  <div className="font-medium">
-                                    {appointment.name}
-                                  </div>
-                                  <div className="text-zinc-500 dark:text-zinc-400 text-xs">
-                                    {appointment.email}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="dark:text-zinc-200 max-w-32">
-                                  <div
-                                    className="text-xs text-zinc-600 dark:text-zinc-400 truncate"
-                                    title={appointment.note || "No notes"}
-                                  >
-                                    {appointment.note || "-"}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex gap-1">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        handleEditAppointment(appointment)
-                                      }
-                                      className="bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        handleDeleteAppointment(appointment)
-                                      }
-                                      className="bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredAppointments.length === 0 ? (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={6}
+                                  className="text-center py-8 text-zinc-400 dark:text-zinc-500"
+                                >
+                                  No appointments for this date.
                                 </TableCell>
                               </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
+                            ) : (
+                              filteredAppointments.map((appointment) => (
+                                <TableRow
+                                  key={appointment.id}
+                                  className="hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
+                                >
+                                  <TableCell className="dark:text-zinc-200">
+                                    {appointment.appointmentType}
+                                  </TableCell>
+                                  <TableCell className="dark:text-zinc-200">
+                                    {appointment.startTime}
+                                  </TableCell>
+                                  <TableCell className="dark:text-zinc-200">
+                                    {appointment.endTime}
+                                  </TableCell>
+                                  <TableCell className="dark:text-zinc-200">
+                                    <div className="font-medium">
+                                      {appointment.name}
+                                    </div>
+                                    <div className="text-zinc-500 dark:text-zinc-400 text-xs">
+                                      {appointment.email}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="dark:text-zinc-200 max-w-32">
+                                    <div
+                                      className="text-xs text-zinc-600 dark:text-zinc-400 truncate"
+                                      title={appointment.note || "No notes"}
+                                    >
+                                      {appointment.note || "-"}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleEditAppointment(appointment)
+                                        }
+                                        className="bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleDeleteAppointment(appointment)
+                                        }
+                                        className="bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1109,38 +1151,61 @@ const Dashy = ({ user, authLoading }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="appointmentType">Service *</Label>
-                  <Select
-                    value={formData.appointmentType}
-                    onValueChange={handleAppointmentTypeChange}
-                  >
-                    <SelectTrigger
-                      className={`h-10 text-sm ${
-                        formErrors.appointmentType
-                          ? "border-red-500 focus:border-red-500"
-                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                  {/* Use native select on mobile, custom Select on desktop */}
+                  <div className="block sm:hidden">
+                    <select
+                      id="appointmentType"
+                      value={formData.appointmentType}
+                      onChange={e => handleAppointmentTypeChange(e.target.value)}
+                      className={`h-10 text-sm w-full rounded-md border focus:outline-none focus:ring-blue-500/20 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white ${formErrors.appointmentType ? 'border-red-500 focus:border-red-500' : 'border-gray-300'}`}
                       aria-label="Select service type"
                     >
-                      <SelectValue placeholder="Select service" />
-                    </SelectTrigger>
-                    <SelectContent
-                      className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
-                      position="popper"
-                      sideOffset={4}
-                    >
+                      <option value="" disabled>
+                        Seleziona servizio
+                      </option>
                       {Object.values(APPOINTMENT_TYPES)
-                        .filter((type) => type.active)
-                        .map((type) => (
-                          <SelectItem
-                            key={type.type}
-                            value={type.type}
-                            className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
-                          >
+                        .filter(type => type.active)
+                        .map(type => (
+                          <option key={type.type} value={type.type}>
                             {type.type}
-                          </SelectItem>
+                          </option>
                         ))}
-                    </SelectContent>
-                  </Select>
+                    </select>
+                  </div>
+                  <div className="hidden sm:block">
+                    <Select
+                      value={formData.appointmentType}
+                      onValueChange={handleAppointmentTypeChange}
+                    >
+                      <SelectTrigger
+                        className={`h-10 text-sm ${
+                          formErrors.appointmentType
+                            ? "border-red-500 focus:border-red-500"
+                            : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                        } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                        aria-label="Select service type"
+                      >
+                        <SelectValue placeholder="Select service" />
+                      </SelectTrigger>
+                      <SelectContent
+                        className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
+                        position="popper"
+                        sideOffset={4}
+                      >
+                        {Object.values(APPOINTMENT_TYPES)
+                          .filter((type) => type.active)
+                          .map((type) => (
+                            <SelectItem
+                              key={type.type}
+                              value={type.type}
+                              className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
+                            >
+                              {type.type}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {formErrors.appointmentType && (
                     <p className="text-sm text-red-500 mt-1">
                       {formErrors.appointmentType}
@@ -1272,7 +1337,7 @@ const Dashy = ({ user, authLoading }) => {
               onClick={handleCloseModal}
               className="px-6 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
-              Cancel
+              Esci
             </Button>
             <Button
               onClick={handleSaveAppointment}
@@ -1282,9 +1347,21 @@ const Dashy = ({ user, authLoading }) => {
               {appointmentsLoading
                 ? "Saving..."
                 : isEditMode
-                ? "Update Appointment"
-                : "Create Appointment"}
+                ? "Aggiorna appuntamento"
+                : "Crea appuntamento"}
             </Button>
+            {/* Chain Appointment Button: only show when adding, not editing */}
+            {!isEditMode && (
+              <Button
+                variant="secondary"
+                onClick={handleChainAppointment}
+                disabled={appointmentsLoading}
+                className="px-6"
+                type="button"
+              >
+                + Aggiungi subito dopo
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
