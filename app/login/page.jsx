@@ -35,9 +35,7 @@ export default function Login() {
         const errorMessage = error.message;
         // Display the error message to your user, log it, etc.
         console.error("Error signing in:", errorCode, errorMessage);
-        // Clear form on error as well (optional)
-        setEmail("");
-        setPassword("");
+        // Don't clear form on error - let user fix their input
       });
   }
 
@@ -64,6 +62,7 @@ export default function Login() {
           label="Email address"
           name="email"
           type="email"
+          value={email}
           autoComplete="email"
           required
           onChange={(e) => setEmail(e.target.value)}
@@ -72,6 +71,7 @@ export default function Login() {
           label="Password"
           name="password"
           type="password"
+          value={password}
           autoComplete="current-password"
           required
           onChange={(e) => setPassword(e.target.value)}
