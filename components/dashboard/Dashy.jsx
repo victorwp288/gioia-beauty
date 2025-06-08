@@ -916,21 +916,12 @@ const Dashy = ({ user, authLoading }) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Calendar */}
               <div className="lg:col-span-1">
-                <Card className="dark:bg-zinc-700/50">
-                  <CardHeader>
-                    <CardTitle className="dark:text-zinc-100">
-                      Calendar
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <AppointmentCalendar
-                      selectedDate={selectedDate}
-                      onDateChange={setSelectedDate}
-                      appointments={appointments}
-                      onMonthChange={handleMonthChange}
-                    />
-                  </CardContent>
-                </Card>
+                <AppointmentCalendar
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                  appointments={appointments}
+                  onMonthChange={handleMonthChange}
+                />
               </div>
 
               {/* Appointments Table */}
@@ -991,7 +982,7 @@ const Dashy = ({ user, authLoading }) => {
                     ))
                   )}
                 </div>
-                <div className="hidden sm:block">
+                <div className="hidden sm:block h-[70vh] overflow-y-auto rounded-lg">
                   <Card className="dark:bg-zinc-700/50">
                     <CardContent className="p-0">
                       <div className="overflow-x-auto">
