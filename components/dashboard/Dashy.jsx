@@ -513,6 +513,64 @@ const Dashy = ({ user, authLoading }) => {
     }
   };
 
+  // Chain Appointment Handler
+  const handleChainAppointment = async () => {
+    try {
+      if (!validateForm()) {
+        showError("Please fill in all required fields before chaining.");
+        return;
+      }
+
+      const appointmentDate = createAppointmentDate(formData.selectedDate);
+      if (!appointmentDate) {
+        throw new Error("Invalid date selected");
+      }
+
+      const appointmentData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        number: formData.number,
+        appointmentType: formData.appointmentType,
+        startTime: formData.startTime,
+        duration: parseInt(formData.duration),
+        selectedDate: appointmentDate,
+        note: formData.note?.trim() || "",
+        status: "confirmed",
+      };
+
+      // Calculate end time WITHOUT extra time for chaining
+      appointmentData.endTime = calculateEndTime(
+        formData.startTime,
+        appointmentData.duration
+      );
+      appointmentData.totalDuration = appointmentData.duration;
+
+      await notifyAsync(() => createAppointment(appointmentData), {
+        loading: "Creating appointment...",
+        success: "Appointment created! Ready for next.",
+        error: "Failed to create appointment",
+      });
+
+      // Prepare form for next appointment: set startTime to previous endTime, clear client info
+      setFormData((prev) => ({
+        ...prev,
+        name: "",
+        email: "",
+        number: "",
+        note: "",
+        startTime: appointmentData.endTime,
+        // Keep same date, appointmentType, duration
+      }));
+      setFormErrors({});
+      setTimeout(() => {
+        const nameInput = document.getElementById("name");
+        if (nameInput) nameInput.focus();
+      }, 100);
+    } catch (error) {
+      console.error("Error chaining appointment:", error);
+    }
+  };
+
   const handleDeleteAppointment = async (appointment) => {
     const confirmDelete = await showConfirmation({
       title: "Delete Appointment",
@@ -1162,38 +1220,70 @@ const Dashy = ({ user, authLoading }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="appointmentType">Service *</Label>
-                  <Select
-                    value={formData.appointmentType}
-                    onValueChange={handleAppointmentTypeChange}
-                  >
-                    <SelectTrigger
-                      className={`h-10 text-sm ${
-                        formErrors.appointmentType
-                          ? "border-red-500 focus:border-red-500"
-                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                  {/* Use native select on mobile, custom Select on desktop */}
+                  <div className="block sm:hidden">
+                    <select
+                      id="appointmentType"
+                      value={formData.appointmentType}
+                      onChange={(e) =>
+                        handleAppointmentTypeChange(e.target.value)
+                      }
+                      className={`h-10 text-sm w-full rounded-md border focus:outline-none px-3 py-2
+                        ${
+                          formErrors.appointmentType
+                            ? "border-red-500 focus:border-red-500"
+                            : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                        }
+                        dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
                       aria-label="Select service type"
+                      required
                     >
-                      <SelectValue placeholder="Select service" />
-                    </SelectTrigger>
-                    <SelectContent
-                      className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
-                      position="popper"
-                      sideOffset={4}
-                    >
+                      <option value="" disabled>
+                        Select service
+                      </option>
                       {Object.values(APPOINTMENT_TYPES)
                         .filter((type) => type.active)
                         .map((type) => (
-                          <SelectItem
-                            key={type.type}
-                            value={type.type}
-                            className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
-                          >
+                          <option key={type.type} value={type.type}>
                             {type.type}
-                          </SelectItem>
+                          </option>
                         ))}
-                    </SelectContent>
-                  </Select>
+                    </select>
+                  </div>
+                  <div className="hidden sm:block">
+                    <Select
+                      value={formData.appointmentType}
+                      onValueChange={handleAppointmentTypeChange}
+                    >
+                      <SelectTrigger
+                        className={`h-10 text-sm ${
+                          formErrors.appointmentType
+                            ? "border-red-500 focus:border-red-500"
+                            : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                        } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                        aria-label="Select service type"
+                      >
+                        <SelectValue placeholder="Select service" />
+                      </SelectTrigger>
+                      <SelectContent
+                        className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
+                        position="popper"
+                        sideOffset={4}
+                      >
+                        {Object.values(APPOINTMENT_TYPES)
+                          .filter((type) => type.active)
+                          .map((type) => (
+                            <SelectItem
+                              key={type.type}
+                              value={type.type}
+                              className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
+                            >
+                              {type.type}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {formErrors.appointmentType && (
                     <p className="text-sm text-red-500 mt-1">
                       {formErrors.appointmentType}
@@ -1338,6 +1428,17 @@ const Dashy = ({ user, authLoading }) => {
                 ? "Update Appointment"
                 : "Create Appointment"}
             </Button>
+            {!isEditMode && (
+              <Button
+                variant="secondary"
+                onClick={handleChainAppointment}
+                disabled={appointmentsLoading}
+                className="px-6"
+                type="button"
+              >
+                + Add Another Right After
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
