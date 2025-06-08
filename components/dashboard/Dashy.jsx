@@ -891,9 +891,9 @@ const Dashy = ({ user, authLoading }) => {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col lg:flex-row gap-4 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 min-h-0 flex-1">
         {/* Main Content Card with Overflow Fixes */}
-        <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20">
+        <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20 flex-1 min-h-0">
           <CardHeader className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between bg-zinc-50 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-700/60 p-4">
             <div className="flex flex-col gap-1">
               <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
@@ -908,9 +908,9 @@ const Dashy = ({ user, authLoading }) => {
               Nuovo appuntamento
             </Button>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-4">
+          <CardContent className="flex-1 overflow-y-auto p-4 min-h-0 flex flex-col">
             {/* Calendar and Appointments - Responsive Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
               <div className="lg:col-span-1">
                 <AppointmentCalendar
                   selectedDate={selectedDate}
@@ -921,103 +921,105 @@ const Dashy = ({ user, authLoading }) => {
               </div>
 
               {/* Appointments Table */}
-              <div className="lg:col-span-2">
-                <Card className="dark:bg-zinc-700/50">
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <Table className="min-w-full text-sm">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="dark:text-zinc-300">
-                              Type
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              Start
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              End
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              Client
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              Notes
-                            </TableHead>
-                            <TableHead className="dark:text-zinc-300">
-                              Actions
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredAppointments.length === 0 ? (
+              <div className="lg:col-span-2 flex flex-col min-h-0">
+                <Card className="dark:bg-zinc-700/50 flex-1 min-h-0">
+                  <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
+                    <div className="overflow-x-auto flex-1 min-h-0">
+                      <div className="overflow-y-auto max-h-[70vh] min-h-0">
+                        <Table className="min-w-full text-sm">
+                          <TableHeader>
                             <TableRow>
-                              <TableCell
-                                colSpan={6}
-                                className="text-center py-8 text-zinc-400 dark:text-zinc-500"
-                              >
-                                No appointments for this date.
-                              </TableCell>
+                              <TableHead className="dark:text-zinc-300">
+                                Type
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                Start
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                End
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                Client
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                Notes
+                              </TableHead>
+                              <TableHead className="dark:text-zinc-300">
+                                Actions
+                              </TableHead>
                             </TableRow>
-                          ) : (
-                            filteredAppointments.map((appointment) => (
-                              <TableRow
-                                key={appointment.id}
-                                className="hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
-                              >
-                                <TableCell className="dark:text-zinc-200">
-                                  {appointment.appointmentType}
-                                </TableCell>
-                                <TableCell className="dark:text-zinc-200">
-                                  {appointment.startTime}
-                                </TableCell>
-                                <TableCell className="dark:text-zinc-200">
-                                  {appointment.endTime}
-                                </TableCell>
-                                <TableCell className="dark:text-zinc-200">
-                                  <div className="font-medium">
-                                    {appointment.name}
-                                  </div>
-                                  <div className="text-zinc-500 dark:text-zinc-400 text-xs">
-                                    {appointment.email}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="dark:text-zinc-200 max-w-32">
-                                  <div
-                                    className="text-xs text-zinc-600 dark:text-zinc-400 truncate"
-                                    title={appointment.note || "No notes"}
-                                  >
-                                    {appointment.note || "-"}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex gap-1">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        handleEditAppointment(appointment)
-                                      }
-                                      className="bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        handleDeleteAppointment(appointment)
-                                      }
-                                      className="bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredAppointments.length === 0 ? (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={6}
+                                  className="text-center py-8 text-zinc-400 dark:text-zinc-500"
+                                >
+                                  No appointments for this date.
                                 </TableCell>
                               </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
+                            ) : (
+                              filteredAppointments.map((appointment) => (
+                                <TableRow
+                                  key={appointment.id}
+                                  className="hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
+                                >
+                                  <TableCell className="dark:text-zinc-200">
+                                    {appointment.appointmentType}
+                                  </TableCell>
+                                  <TableCell className="dark:text-zinc-200">
+                                    {appointment.startTime}
+                                  </TableCell>
+                                  <TableCell className="dark:text-zinc-200">
+                                    {appointment.endTime}
+                                  </TableCell>
+                                  <TableCell className="dark:text-zinc-200">
+                                    <div className="font-medium">
+                                      {appointment.name}
+                                    </div>
+                                    <div className="text-zinc-500 dark:text-zinc-400 text-xs">
+                                      {appointment.email}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="dark:text-zinc-200 max-w-32">
+                                    <div
+                                      className="text-xs text-zinc-600 dark:text-zinc-400 truncate"
+                                      title={appointment.note || "No notes"}
+                                    >
+                                      {appointment.note || "-"}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleEditAppointment(appointment)
+                                        }
+                                        className="bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleDeleteAppointment(appointment)
+                                        }
+                                        className="bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
