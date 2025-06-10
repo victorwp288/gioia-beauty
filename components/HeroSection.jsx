@@ -17,12 +17,12 @@ function HeroSection() {
       <div className="absolute inset-0 flex items-center">
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 from-10% to-transparent"></div>
         <div className="relative flex flex-col gap-8 p-6 md:pl-12">
-          <h3 className="  text-left text-base font-semibold leading-tight text-white md:w-[60vw] md:text-2xl">
+          <h1 className="  text-left text-base font-semibold leading-tight text-white md:w-[60vw] md:text-2xl">
             Il centro benessere Gioia Beauty si impegna ad offrire
             un&apos;esperienza di bellezza ecosotenibile e vegana, utilizzando
             prodotti di altissima qualità per garantire un servizio eccellente
             rispettando l&apos;ambiente e gli animali.
-          </h3>
+          </h1>
           <div className="flex flex-col gap-6">
             <Link
               href="#booking-section"
