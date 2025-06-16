@@ -70,6 +70,12 @@ export const useOptimizedVacations = (options = {}) => {
         setLastUpdated(Date.now());
         console.log("✅ useOptimizedVacations: State updated successfully");
 
+        // Cache with shorter TTL (5 minutes) for fresher data
+        cacheQuery("vacations", "list", options, vacations, {
+          ttl: 5 * 60 * 1000, // 5 minutes
+          tags: ["vacations"],
+        });
+
         return result;
       } catch (err) {
         if (mountedRef.current) {
@@ -88,7 +94,7 @@ export const useOptimizedVacations = (options = {}) => {
         }
       }
     },
-    [includeExpired]
+    [includeExpired, options, vacations]
   );
 
   // Create vacation period
@@ -536,6 +542,7 @@ export const useOptimizedVacations = (options = {}) => {
     return () => {
       // In development with StrictMode, this prevents the effect from running twice
       // The ref persists across unmount/remount cycles
+      // console.log("🏖️ useOptimizedVacations: Cleanup effect");
     };
   }, [fetchVacations, enableRealTime]);
 

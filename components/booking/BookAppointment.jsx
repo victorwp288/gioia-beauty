@@ -49,6 +49,7 @@ const BookAppointment = () => {
     setSelectedTimeSlot,
     createAppointment,
     loading,
+    fetchVacations,
   } = useAppointmentContext();
 
   const { showSuccess, showError, notifyAsync } = useNotification();
@@ -107,16 +108,6 @@ const BookAppointment = () => {
 
   const initialVisibleSlots = 12;
 
-  // Initialize with next available date
-  useEffect(() => {
-    if (!selectedDate) {
-      const nextDate = getNextBusinessDay(new Date());
-      setSelectedDate(nextDate);
-      form.setValue("selectedDate", nextDate);
-      form.setValue("date", nextDate);
-    }
-  }, [selectedDate, setSelectedDate, form]);
-
   // Initialize appointment type in form
   useEffect(() => {
     if (appointmentType) {
@@ -131,12 +122,14 @@ const BookAppointment = () => {
   const isDisabledDay = (day) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const checkDay = new Date(day);
+    checkDay.setHours(0, 0, 0, 0);
 
+    // Disable if in the past, not a business day, or in vacation period
     return (
-      // Vacation periods
-      // Weekends
-      (day <= today || // Past dates and today
-      !isBusinessDay(day) || isInVacationPeriod(day, vacationPeriods))
+      checkDay < today ||
+      !isBusinessDay(checkDay) ||
+      isInVacationPeriod(checkDay, vacationPeriods)
     );
   };
 
@@ -188,6 +181,8 @@ const BookAppointment = () => {
   // Form submission handler
   const handleSubmit = async (data) => {
     try {
+      // Always fetch latest vacations before booking
+      await fetchVacations();
       // Import unified date utilities
       const { createAppointmentDate } = await import("@/lib/utils/dateUtils");
 
