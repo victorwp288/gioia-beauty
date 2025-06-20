@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import logo from "@/images/logo.png";
+const logo = "/images/logo.webp";
 
 const BurgerMenu = ({ isOpen, setIsOpen, menuItems }) => {
   const linksRef = useRef(null);
@@ -21,6 +21,8 @@ const BurgerMenu = ({ isOpen, setIsOpen, menuItems }) => {
       <button
         className="relative z-40 flex h-8 w-8 flex-col items-center justify-center space-y-1"
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
+        aria-expanded={isOpen}
       >
         <span
           className={`block h-0.5 w-5 bg-black transition-transform duration-300 ease-in-out ${
@@ -46,6 +48,8 @@ const BurgerMenu = ({ isOpen, setIsOpen, menuItems }) => {
       >
         <Image
           src={logo}
+          width={80}
+          height={80}
           className=" absolute left-4 top-4 z-40 w-16 lg:w-20"
           alt="Logo"
           style={{

@@ -35,12 +35,16 @@ const Accordion = ({ title, description, image, children, imagePosition }) => {
           <button
             type="button"
             className="border-0 bg-white text-xs font-bold text-primary no-underline"
+            aria-expanded={isOpen}
+            aria-controls={`accordion-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
+            aria-label={isOpen ? `Chiudi sezione ${title}` : `Scopri di più su ${title}`}
           >
             {isOpen ? "Chiudi ⋀" : "Scopri di più →"}
           </button>
         </div>
       </div>
       <div
+        id={`accordion-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
         className={`overflow-hidden transition duration-300 ease-in-out ${
           isOpen ? "h-auto" : "h-0"
         }`}

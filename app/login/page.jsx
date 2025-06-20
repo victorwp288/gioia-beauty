@@ -7,7 +7,7 @@ import { TextField } from "@/components/Fields";
 import { SlimLayout } from "@/components/SlimLayout";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
-import logo from "@/images/logo.png";
+const logo = "/images/logo.webp";
 import Image from "next/image";
 
 export default function Login() {
@@ -46,6 +46,7 @@ export default function Login() {
           <Image
             alt="logo"
             width={150}
+            height={150}
             src={logo}
             style={{
               maxWidth: "100%",

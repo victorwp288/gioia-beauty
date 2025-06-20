@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import logo from "@/images/logo.png";
+const logo = "/images/logo.webp";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -40,8 +40,11 @@ function Navbar() {
       <Link href="/">
         <Image
           src={logo}
+          width={80}
+          height={80}
           className=" w-16 lg:w-20"
           alt="Logo"
+          priority
           style={{
             maxWidth: "100%",
             height: "auto"

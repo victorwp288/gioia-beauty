@@ -120,6 +120,8 @@ function Technologies() {
             <Image
               alt="left arrow"
               src={leftArrow}
+              width={24}
+              height={24}
               style={{
                 maxWidth: "100%",
                 height: "auto"
@@ -134,6 +136,8 @@ function Technologies() {
             <Image
               alt="right arrow"
               src={rightArrow}
+              width={24}
+              height={24}
               style={{
                 maxWidth: "100%",
                 height: "auto"

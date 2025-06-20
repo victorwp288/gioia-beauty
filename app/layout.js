@@ -1,21 +1,22 @@
-import { Cookie, Inter } from "next/font/google";
+import { Inter, Bricolage_Grotesque, DM_Serif_Display } from "next/font/google";
 import "./globals.css";
-import { Bricolage_Grotesque, DM_Serif_Display } from "next/font/google";
-import "@/styles/tailwind.css";
 import ConditionalLayout from "@/components/layout/ConditionalLayout";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AppointmentProvider } from "@/context/AppointmentContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { ReactScan } from "@/components/scan/ReactScan";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ 
+  subsets: ["latin"],
+  display: "swap",
+  preload: true,
+});
 
 export const metadata = {
   title: {
     template: "%s - Gioia Beauty",
-    default: "Gioia Beauty - Centro Estetico Eco-Sostenibile Roveleto di Cadeo",
+    default: "Gioia Beauty - Centro Estetico Eco-Sostenibile Roveleto",
   },
   description:
     "Centro estetico eco-sostenibile a Roveleto di Cadeo specializzato in trattamenti viso, corpo, manicure, pedicure e massaggi con prodotti vegani e biologici.",
@@ -71,11 +72,12 @@ export const metadata = {
 };
 
 export const bricolage = Bricolage_Grotesque({
-  weight: ["200", "300", "400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"], // Reduced font weights for better performance
   style: "normal",
   display: "swap",
   subsets: ["latin"],
   variable: "--bricolage",
+  preload: true,
 });
 
 export const dmSerif = DM_Serif_Display({
@@ -84,6 +86,7 @@ export const dmSerif = DM_Serif_Display({
   display: "swap",
   subsets: ["latin"],
   variable: "--serif",
+  preload: true,
 });
 
 export default function RootLayout({ children }) {
@@ -92,9 +95,10 @@ export default function RootLayout({ children }) {
       lang="it"
       className={`${bricolage.variable} ${dmSerif.variable} font-bricolage h-full scroll-smooth antialiased`}
     >
-      <ReactScan />
       <head>
         <meta name="msvalidate.01" content="80C0DA0047C69C3845952ED707A5C88C" />
+        <link rel="preconnect" href="https://va.vercel-scripts.com" />
+        <link rel="dns-prefetch" href="https://vercel-scripts.com" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

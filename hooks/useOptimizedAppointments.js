@@ -3,6 +3,33 @@ import { dataManager } from "@/lib/firebase/dataManager";
 import { toast } from "react-toastify";
 import { invalidateTags } from "@/lib/cache/queryCache";
 
+// Helper function to determine if real-time updates should be enabled
+const shouldEnableRealTime = (options, dateRange) => {
+  // If explicitly disabled, respect that
+  if (options.enableRealTime === false) return false;
+  
+  // If explicitly enabled, respect that
+  if (options.enableRealTime === true) return true;
+  
+  // Auto-enable for dashboard context (current month view)
+  if (dateRange?.start && dateRange?.end) {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    const today = new Date();
+    
+    // Enable real-time if date range includes today and spans less than 35 days (month view)
+    const includesCurrentDate = start <= today && end >= today;
+    const daySpan = Math.floor((end - start) / (1000 * 60 * 60 * 24));
+    
+    if (includesCurrentDate && daySpan <= 35) {
+      console.log("🔄 Auto-enabling real-time for current month dashboard view");
+      return true;
+    }
+  }
+  
+  return false;
+};
+
 // Optimized appointments hook with intelligent caching and real-time sync
 export const useOptimizedAppointments = (options = {}) => {
   const [appointments, setAppointments] = useState([]);
@@ -13,12 +40,15 @@ export const useOptimizedAppointments = (options = {}) => {
   // Options
   const {
     dateRange = null,
-    enableRealTime = false,
+    enableRealTime = null, // null = auto-detect, true/false = explicit
     status = null,
     limit = null,
     autoRefresh = false,
     refreshInterval = 300000, // 5 minutes
   } = options;
+  
+  // Determine if real-time should be enabled
+  const realTimeEnabled = shouldEnableRealTime(options, dateRange);
 
   // Refs for tracking component state and cleanup
   const listenerRef = useRef(null);
@@ -213,8 +243,30 @@ export const useOptimizedAppointments = (options = {}) => {
       );
       setLastUpdated(Date.now());
 
-      // Invalidate cache
-      invalidateTags(["appointments"]);
+      // Selective cache invalidation based on appointment date
+      if (updatedData.selectedDate) {
+        let dateObj;
+        if (updatedData.selectedDate instanceof Date) {
+          dateObj = updatedData.selectedDate;
+        } else if (typeof updatedData.selectedDate === 'string') {
+          dateObj = new Date(updatedData.selectedDate);
+        } else if (updatedData.selectedDate?.toDate) {
+          dateObj = updatedData.selectedDate.toDate();
+        }
+        
+        if (dateObj && !isNaN(dateObj.getTime())) {
+          const dateStr = dateObj.toISOString().split("T")[0];
+          const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+          invalidateTags([`date:${dateStr}`, `appointments-${dateStr}`, `month:${monthKey}`]);
+          console.log(`📝 Hook: Selectively invalidated cache for updated appointment on ${dateStr}`);
+        } else {
+          // Fallback to minimal invalidation
+          invalidateTags(["appointments"]);
+        }
+      } else {
+        // Fallback to minimal invalidation
+        invalidateTags(["appointments"]);
+      }
 
       toast.success("Appointment updated successfully");
       return result;
@@ -350,12 +402,13 @@ export const useOptimizedAppointments = (options = {}) => {
     []
   );
 
-  // Setup real-time listener if enabled
+  // Setup real-time listener if enabled (smart detection)
   useEffect(() => {
-    if (enableRealTime && dateRange) {
+    if (realTimeEnabled && dateRange) {
       console.log(
-        "🎯 HOOK DEBUG: Setting up real-time listener for dateRange:",
-        dateRange
+        "🔄 HOOK: Setting up smart real-time listener for dateRange:",
+        dateRange,
+        "(auto-detected dashboard context)"
       );
 
       const unsubscribe = dataManager.setupAppointmentListener(
@@ -369,8 +422,9 @@ export const useOptimizedAppointments = (options = {}) => {
 
           if (updatedAppointments) {
             console.log(
-              "🎯 HOOK DEBUG: Real-time update received:",
-              updatedAppointments.length
+              "🔄 HOOK: Real-time update received:",
+              updatedAppointments.length,
+              "appointments"
             );
             setAppointments(updatedAppointments);
             setLastUpdated(Date.now());
@@ -381,47 +435,51 @@ export const useOptimizedAppointments = (options = {}) => {
       listenerRef.current = unsubscribe;
 
       return () => {
-        console.log("🎯 HOOK DEBUG: Cleaning up real-time listener");
+        console.log("🔄 HOOK: Cleaning up real-time listener");
         if (listenerRef.current) {
           listenerRef.current();
           listenerRef.current = null;
         }
       };
     }
-  }, [enableRealTime, dateRange]);
+  }, [realTimeEnabled, dateRange]);
 
-  // Setup auto-refresh if enabled
+  // Setup auto-refresh if enabled (but not when real-time is active)
   useEffect(() => {
-    if (autoRefresh && !enableRealTime) {
+    if (autoRefresh && !realTimeEnabled) {
+      console.log("📊 HOOK: Setting up auto-refresh polling (real-time disabled)");
+      
       const interval = setInterval(() => {
+        console.log("📊 HOOK: Auto-refresh polling...");
         fetchAppointments();
       }, refreshInterval);
 
       refreshIntervalRef.current = interval;
 
       return () => {
+        console.log("📊 HOOK: Cleaning up auto-refresh polling");
         if (refreshIntervalRef.current) {
           clearInterval(refreshIntervalRef.current);
           refreshIntervalRef.current = null;
         }
       };
     }
-  }, [autoRefresh, enableRealTime, refreshInterval, fetchAppointments]);
+  }, [autoRefresh, realTimeEnabled, refreshInterval, fetchAppointments]);
 
-  // Initial fetch with StrictMode protection
+  // Initial fetch with StrictMode protection and smart loading
   useEffect(() => {
     if (didInitRef.current) {
-      console.log("🎯 HOOK DEBUG: Already initialized, skipping...");
+      console.log("🎯 HOOK: Already initialized, skipping...");
       return;
     }
 
     console.log(
-      "🎯 HOOK DEBUG: Initial fetch effect triggered, enableRealTime:",
-      enableRealTime
+      "🎯 HOOK: Initial fetch effect triggered, realTimeEnabled:",
+      realTimeEnabled
     );
 
-    // Always do initial fetch to get baseline data
-    console.log("🎯 HOOK DEBUG: Calling fetchAppointments in initial effect");
+    // Always do initial fetch to get baseline data, but real-time will update afterward
+    console.log("🎯 HOOK: Calling fetchAppointments for initial data");
     didInitRef.current = true;
     fetchAppointments();
 
@@ -453,8 +511,10 @@ export const useOptimizedAppointments = (options = {}) => {
   }, []);
 
   console.log(
-    "🎯 HOOK DEBUG: Rendering hook with appointments:",
-    appointments.length
+    "🎯 HOOK: Rendering with",
+    appointments.length,
+    "appointments, realTimeEnabled:",
+    realTimeEnabled
   );
 
   return {
@@ -463,6 +523,10 @@ export const useOptimizedAppointments = (options = {}) => {
     loading,
     error,
     lastUpdated,
+
+    // Strategy info
+    realTimeEnabled,
+    usingCache: !realTimeEnabled || (dateRange && appointments.length > 0),
 
     // Actions
     fetchAppointments,

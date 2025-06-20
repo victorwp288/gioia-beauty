@@ -13,7 +13,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 352 24% 77%;
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -82,4 +82,80 @@
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
+
+  /* Zoom-compatible base styles */
+  html {
+    font-size: clamp(14px, 1vw, 18px);
+  }
+
+  /* Improved form field scaling */
+  input, textarea, select, button {
+    min-height: 2.5rem;
+    font-size: inherit;
+    line-height: 1.5;
+  }
+
+  /* Container query support for better zoom handling */
+  @supports (container-type: inline-size) {
+    .container-query {
+      container-type: inline-size;
+    }
+  }
+
+  /* Better touch targets for mobile and zoom */
+  button, [role="button"], input[type="submit"], input[type="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improved text scaling */
+  .text-responsive {
+    font-size: clamp(0.875rem, 2.5vw, 1.125rem);
+    line-height: 1.6;
+  }
+
+  /* Zoom-friendly modal and dialog sizing */
+  [role="dialog"], .modal {
+    max-width: min(90vw, 42rem);
+    max-height: 90vh;
+  }
+
+  /* Custom link styles */
+  .active-link {
+    color: #d2b5b8;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: #d2b5b8;
+    text-underline-offset: 5.5px;
+    text-decoration-thickness: 1.5px;
+    letter-spacing: -0.2px;
+  }
+
+  .link {
+    position: relative;
+  }
+
+  .link::before {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 1.5px;
+    background-color: transparent;
+    transition: background-color 0.3s ease;
+    z-index: -1;
+  }
+
+  .link:hover::before {
+    background-color: #d2b5b8; /* Color of the hover effect */
+  }
+
+  .active-link:hover(.link:hover::before) {
+    background-color: transparent; /* Color of the hover effect */
+  }
+}
+
+.max-h-0 {
+  max-height: 0;
 }

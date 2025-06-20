@@ -1,10 +1,16 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import Dashy from "@/components/dashboard/Dashy";
-import SubscriberList from "@/components/SubscriberList";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
+import { DashboardSkeleton } from "@/components/common/LoadingSkeletons";
+
+// Lazy load dashboard components for better performance
+const DashyComponent = dynamic(() => import("@/components/dashboard/Dashy"), {
+  loading: () => <DashboardSkeleton />,
+  ssr: false, // Dashboard is admin-only, no need for SSR
+});
 
 export default function Dashboard() {
   const router = useRouter();
@@ -39,11 +45,11 @@ export default function Dashboard() {
     };
   }, [router]);
 
-  // Always render Dashy - it will handle its own loading state
-  // This prevents the component from unmounting/remounting
+  // Render lazy-loaded dashboard component
+  // This reduces initial bundle size for non-admin users
   return (
     <div className="min-h-screen">
-      <Dashy user={user} authLoading={authLoading} />
+      <DashyComponent user={user} authLoading={authLoading} />
     </div>
   );
 }

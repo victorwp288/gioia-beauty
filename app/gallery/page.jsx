@@ -90,7 +90,15 @@ const Gallery = () => {
   ];
 
   return (
-    <div className="animate-fadeIn grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 md:pt-16 lg:grid-cols-4">
+    <div className="animate-fadeIn">
+      <div className="container mx-auto px-4 pt-20 pb-8">
+        <h1 className="text-3xl font-bold text-center mb-8">Galleria Gioia Beauty</h1>
+        <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
+          Scopri gli spazi del nostro centro estetico a Roveleto di Cadeo: sale trattamenti moderne, 
+          bagno turco rilassante e attrezzature professionali per la tua bellezza e benessere.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
       {imagesWithDescriptions.map((image, index) => (
         <div key={index} className="overflow-hidden">
           <GalleryClient
@@ -99,6 +107,7 @@ const Gallery = () => {
           />
         </div>
       ))}
+      </div>
     </div>
   );
 };

@@ -55,18 +55,21 @@ const GalleryClient = ({ imagesWithDescriptions, index }) => {
         <button
           className="z-20 absolute md:top-20 top-20 right-0 m-2 p-2 bg-white rounded-full"
           onClick={closeModal}
+          aria-label="Close image gallery"
         >
           <FaTimes />
         </button>
         <button
           className="z-20 absolute top-1/2 left-4 transform -translate-y-1/2 p-2 bg-white rounded-full"
           onClick={goToPrevious}
+          aria-label="Previous image"
         >
           <FaArrowLeft />
         </button>
         <button
           className="z-20 absolute top-1/2 right-4 transform -translate-y-1/2 p-2 bg-white rounded-full"
           onClick={goToNext}
+          aria-label="Next image"
         >
           <FaArrowRight />
         </button>

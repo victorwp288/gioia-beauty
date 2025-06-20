@@ -1,35 +1,35 @@
-import maniPiedi from "@/images/feet.jpg";
-import rituale from "@/images/rituale.jpg";
-import ciglia from "@/images/ciglia.jpg";
-import bagnoTurcoPic from "@/images/bagno-turco.jpg";
+// WebP optimized images from public directory for better performance
+const maniPiedi = "/images/feet.webp";
+const rituale = "/images/rituale.webp";
+const ciglia = "/images/ciglia.webp";
+const bagnoTurcoPic = "/images/bagno-turco.webp";
 import tick from "@/images/tick.svg";
-import cerettaPic from "@/images/ceretta.jpg";
-import makeupPic from "@/images/makeup.jpg";
-import massaggiPic from "@/images/massaggio.jpg";
+const cerettaPic = "/images/ceretta.webp";
+const makeupPic = "/images/makeup.webp";
+const massaggiPic = "/images/massaggio.webp";
 import clock from "@/images/clock.svg";
-import elettroporatore from "@/images/elettroporazione.jpg";
+const elettroporatore = "/images/elettroporazione.webp";
 import whiteTick from "@/images/tick-white.svg";
-import viso from "@/images/viso.jpg";
-import portrait from "@/images/gioia-portrait.jpg";
-import portraitSquare from "@/images/gioia-portrait-square.jpg";
+const viso = "/images/viso.webp";
+const portrait = "/images/gioia-portrait.webp";
+const portraitSquare = "/images/gioia-portrait-square.webp";
 import heart from "@/images/heart.svg";
-import loginPhoto from "@/images/login-photo.jpg";
-import heroPicture from "@/images/hero-picture.jpg";
+const loginPhoto = "/images/login-photo.webp";
+const heroPicture = "/images/hero-picture.webp";
 
-// gallery pictures
-
-import reception1 from "@/images/reception1.jpg";
-import reception2 from "@/images/reception2.jpg";
-import reception3 from "@/images/reception3.jpg";
-import reception4 from "@/images/reception4.jpg";
-import mirror1 from "@/images/mirror1.jpg";
-import mirror2 from "@/images/mirror2.jpg";
-import pressoterapia1 from "@/images/pressoterapia1.jpg";
-import massaggi1 from "@/images/massaggi1.jpg";
-import ossigeno from "@/images/ossigeno.jpg";
-import bagnoturco1 from "@/images/bagnoturco1.jpg";
-import bed from "@/images/bed.jpg";
-import rituali1 from "@/images/rituali1.jpg";
+// WebP optimized gallery pictures
+const reception1 = "/images/reception1.webp";
+const reception2 = "/images/reception2.webp";
+const reception3 = "/images/reception3.webp";
+const reception4 = "/images/reception4.webp";
+const mirror1 = "/images/mirror1.webp";
+const mirror2 = "/images/mirror2.webp";
+const pressoterapia1 = "/images/pressoterapia1.webp";
+const massaggi1 = "/images/massaggi1.webp";
+const ossigeno = "/images/ossigeno.webp";
+const bagnoturco1 = "/images/bagnoturco1.webp";
+const bed = "/images/bed.webp";
+const rituali1 = "/images/rituali1.webp";
 
 export {
   maniPiedi,

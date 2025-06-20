@@ -99,7 +99,7 @@ const PrivacyPolicy = () => {
         degli Utenti.
       </p>
       <br />
-      <h1 className=" text-2xl font-extrabold">COOKIE POLICY</h1>
+      <h2 className=" text-xl font-extrabold">COOKIE POLICY</h2>
       <p className="text-sm">
         Questa Applicazione fa utilizzo di Strumenti di Tracciamento.
       </p>

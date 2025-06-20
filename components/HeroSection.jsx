@@ -13,6 +13,7 @@ function HeroSection() {
         alt="duration of the service"
         fill
         sizes="100vw"
+        priority
       />
       <div className="absolute inset-0 flex items-center">
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 from-10% to-transparent"></div>

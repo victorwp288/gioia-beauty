@@ -150,54 +150,65 @@ const Dashy = ({ user, authLoading }) => {
   // DATA LOADING FUNCTIONS
   // ============================================================================
 
-  // Function to automatically get total database count
+  // Function to get total database count on-demand
   const fetchTotalCount = async () => {
     try {
       setLoadingTotalCount(true);
+      console.log("📊 Dashboard: Fetching total count on-demand...");
+      
       const { dataManager } = await import("@/lib/firebase/dataManager");
       const totalCount = await dataManager.getTotalAppointmentCount();
       setTotalDatabaseCount(totalCount);
+      
+      console.log("📊 Dashboard: Total count fetched:", totalCount);
     } catch (error) {
       console.error("Error getting total count:", error);
-      // Fallback to loaded count if total count fails
       setTotalDatabaseCount(null);
+      showError("Failed to get total appointment count");
     } finally {
       setLoadingTotalCount(false);
     }
   };
 
-  // Function to load older data (expand date range)
+  // Smart extended data loading with cache optimization
   const loadExtendedData = async () => {
     setIsLoadingAllData(true);
     try {
-      console.log(
-        "📊 Dashboard: Loading extended date range (3 months back/forward)..."
-      );
+      console.log("📊 Dashboard: Smart extended data loading...");
 
-      // Expand to 3 months back and 3 months forward (much smaller than before)
+      // First, get total count if we don't have it
+      if (totalDatabaseCount === null) {
+        await fetchTotalCount();
+      }
+
+      // Load 6 months range efficiently (3 months back + 3 forward)
       const today = new Date();
       const threeMonthsAgo = new Date(today);
       threeMonthsAgo.setMonth(today.getMonth() - 3);
       const threeMonthsForward = new Date(today);
       threeMonthsForward.setMonth(today.getMonth() + 3);
 
-      console.log("📊 Dashboard: Extended range:", {
+      const extendedRange = {
+        start: threeMonthsAgo.toISOString(),
+        end: threeMonthsForward.toISOString(),
+      };
+
+      console.log("📊 Dashboard: Loading 6-month range with smart caching:", {
         start: threeMonthsAgo.toISOString().split("T")[0],
         end: threeMonthsForward.toISOString().split("T")[0],
+        strategy: "cache-aware extended loading"
       });
 
+      // Use cache-aware loading - should hit cache for many months
       await fetchAppointments({
-        dateRange: {
-          start: threeMonthsAgo.toISOString(),
-          end: threeMonthsForward.toISOString(),
-        },
+        dateRange: extendedRange,
       });
 
       setShowingAllData(true);
-
-      showSuccess(`Loaded extended range (6 months total).`);
+      showSuccess(`Loaded 6-month range efficiently (using cache where possible).`);
+      
     } catch (error) {
-      console.error("Error loading extended data:", error);
+      console.error("Error in smart extended loading:", error);
       showError("Failed to load extended appointment data");
     } finally {
       setIsLoadingAllData(false);
@@ -670,7 +681,7 @@ const Dashy = ({ user, authLoading }) => {
   // CALENDAR HANDLERS
   // ============================================================================
 
-  // Handle month navigation in calendar - load appointments for the new month
+  // Handle month navigation with cache-first approach
   const handleMonthChange = async (newMonth) => {
     try {
       console.log(
@@ -691,22 +702,26 @@ const Dashy = ({ user, authLoading }) => {
       );
       endOfMonth.setHours(23, 59, 59, 999);
 
-      console.log("📅 Loading appointments for month range:", {
+      const monthRange = {
+        start: startOfMonth.toISOString(),
+        end: endOfMonth.toISOString(),
+      };
+
+      console.log("📅 Smart month loading for range:", {
         start: startOfMonth.toISOString().split("T")[0],
         end: endOfMonth.toISOString().split("T")[0],
+        strategy: "cache-first with selective real-time"
       });
 
-      // Load appointments for the new month
+      // Use cache-first approach - the hook will handle caching and real-time updates
+      // This should hit cache for historical months and enable real-time for current month
       await fetchAppointments({
-        dateRange: {
-          start: startOfMonth.toISOString(),
-          end: endOfMonth.toISOString(),
-        },
+        dateRange: monthRange,
       });
 
-      console.log("✅ Month navigation completed successfully");
+      console.log("✅ Smart month navigation completed - using cache + real-time strategy");
     } catch (error) {
-      console.error("❌ Error loading appointments for new month:", error);
+      console.error("❌ Error in smart month loading:", error);
       showError("Failed to load appointments for the selected month");
     }
   };
@@ -715,7 +730,7 @@ const Dashy = ({ user, authLoading }) => {
   // DATA INITIALIZATION
   // ============================================================================
 
-  // Fetch total count and appointments efficiently on mount
+  // Smart dashboard initialization with minimal database impact
   useEffect(() => {
     const initializeDashboard = async () => {
       if (hasInitializedRef.current) {
@@ -725,35 +740,26 @@ const Dashy = ({ user, authLoading }) => {
 
       try {
         hasInitializedRef.current = true;
-        console.log("📊 Dashboard: Initializing dashboard...");
+        console.log("📊 Dashboard: Smart initialization starting...");
 
-        // Clean up past appointment data to optimize memory for future-only approach
+        // Clean up past appointment data to optimize memory
         const { cleanupPastAppointmentData } = await import(
           "@/lib/cache/appointmentCache"
         );
         cleanupPastAppointmentData();
 
-        // Just get the total count if needed
-        const { dataManager } = await import("@/lib/firebase/dataManager");
-        const { getCachedTotalCount } = await import(
-          "@/lib/cache/appointmentCache"
-        );
+        // Skip total count query initially - it's expensive and not critical
+        // The total count will be populated on-demand when "Show All Data" is clicked
+        console.log("📊 Dashboard: Skipping total count query for faster startup");
+        setLoadingTotalCount(false);
+        setTotalDatabaseCount(null); // Will be fetched on-demand
 
-        const cachedTotalCount = getCachedTotalCount();
+        // The useOptimizedAppointments hook will handle:
+        // 1. Loading current month data with caching
+        // 2. Setting up real-time listeners for current month
+        // 3. Using cached data for navigation to other months
 
-        if (!cachedTotalCount) {
-          console.log("📡 Fetching total count from database...");
-          setLoadingTotalCount(true);
-          const totalCount = await dataManager.getTotalAppointmentCount();
-          setTotalDatabaseCount(totalCount);
-          setLoadingTotalCount(false);
-        } else {
-          console.log("✅ Using cached total count:", cachedTotalCount);
-          setTotalDatabaseCount(cachedTotalCount);
-          setLoadingTotalCount(false);
-        }
-
-        console.log("✅ Dashboard initialization completed");
+        console.log("✅ Smart dashboard initialization completed (minimal DB impact)");
       } catch (error) {
         console.error("❌ Dashboard: Error during initialization:", error);
         hasInitializedRef.current = false; // Reset on error so we can retry
@@ -1140,7 +1146,7 @@ const Dashy = ({ user, authLoading }) => {
                     value={formData.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
                     placeholder="Client name"
-                    className={`h-10 text-sm ${
+                    className={`min-h-[2.5rem] h-auto text-sm ${
                       formErrors.name
                         ? "border-red-500 focus:border-red-500"
                         : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
@@ -1160,7 +1166,7 @@ const Dashy = ({ user, authLoading }) => {
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
                     placeholder="client@example.com (optional)"
-                    className={`h-10 text-sm ${
+                    className={`min-h-[2.5rem] h-auto text-sm ${
                       formErrors.email
                         ? "border-red-500 focus:border-red-500"
                         : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
@@ -1176,27 +1182,48 @@ const Dashy = ({ user, authLoading }) => {
 
               <div>
                 <Label htmlFor="phone">Phone Number</Label>
-                <PhoneInput
-                  country="it"
-                  value={formData.number}
-                  onChange={(value) => handleInputChange("number", value)}
-                  inputStyle={{
-                    width: "100%",
-                    height: "2.5rem",
-                    borderRadius: "0.375rem",
-                    border: "1px solid #d1d5db",
-                    fontSize: "0.875rem",
-                    paddingLeft: "48px",
-                  }}
-                  containerStyle={{
-                    width: "100%",
-                  }}
-                  buttonStyle={{
-                    height: "2.5rem",
-                    borderRadius: "0.375rem 0 0 0.375rem",
-                    border: "1px solid #d1d5db",
-                  }}
-                />
+                <div className="phone-input-container">
+                  <PhoneInput
+                    country="it"
+                    value={formData.number}
+                    onChange={(value) => handleInputChange("number", value)}
+                    inputClass="phone-input-field"
+                    buttonClass="phone-input-button"
+                    containerClass="phone-input-wrapper"
+                  />
+                </div>
+                <style jsx>{`
+                  .phone-input-container :global(.phone-input-wrapper) {
+                    width: 100%;
+                  }
+                  .phone-input-container :global(.phone-input-field) {
+                    width: 100% !important;
+                    min-height: 2.5rem !important;
+                    height: auto !important;
+                    border-radius: 0.375rem !important;
+                    border: 1px solid hsl(var(--border)) !important;
+                    font-size: 0.875rem !important;
+                    padding-left: 3rem !important;
+                    line-height: 1.5 !important;
+                  }
+                  .phone-input-container :global(.phone-input-button) {
+                    min-height: 2.5rem !important;
+                    height: auto !important;
+                    border-radius: 0.375rem 0 0 0.375rem !important;
+                    border: 1px solid hsl(var(--border)) !important;
+                    display: flex !important;
+                    align-items: center !important;
+                  }
+                  @media (min-width: 1024px) {
+                    .phone-input-container :global(.phone-input-field) {
+                      font-size: 1rem !important;
+                      min-height: 2.75rem !important;
+                    }
+                    .phone-input-container :global(.phone-input-button) {
+                      min-height: 2.75rem !important;
+                    }
+                  }
+                `}</style>
               </div>
             </div>
 
@@ -1219,7 +1246,7 @@ const Dashy = ({ user, authLoading }) => {
                       onChange={(e) =>
                         handleAppointmentTypeChange(e.target.value)
                       }
-                      className={`h-10 text-sm w-full rounded-md border focus:outline-none px-3 py-2
+                      className={`min-h-[2.5rem] h-auto text-sm w-full rounded-md border focus:outline-none px-3 py-2
                         ${
                           formErrors.appointmentType
                             ? "border-red-500 focus:border-red-500"
@@ -1247,7 +1274,7 @@ const Dashy = ({ user, authLoading }) => {
                       onValueChange={handleAppointmentTypeChange}
                     >
                       <SelectTrigger
-                        className={`h-10 text-sm ${
+                        className={`min-h-[2.5rem] h-auto text-sm ${
                           formErrors.appointmentType
                             ? "border-red-500 focus:border-red-500"
                             : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
@@ -1294,7 +1321,7 @@ const Dashy = ({ user, authLoading }) => {
                       handleInputChange("duration", e.target.value)
                     }
                     placeholder="e.g. 60"
-                    className={`h-10 text-sm ${
+                    className={`min-h-[2.5rem] h-auto text-sm ${
                       formErrors.duration
                         ? "border-red-500 focus:border-red-500"
                         : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
@@ -1336,7 +1363,7 @@ const Dashy = ({ user, authLoading }) => {
                     onChange={(e) =>
                       handleInputChange("startTime", e.target.value)
                     }
-                    className={`h-10 text-sm ${
+                    className={`min-h-[2.5rem] h-auto text-sm ${
                       formErrors.startTime
                         ? "border-red-500 focus:border-red-500"
                         : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
@@ -1357,7 +1384,7 @@ const Dashy = ({ user, authLoading }) => {
                     onChange={(e) =>
                       handleInputChange("selectedDate", e.target.value)
                     }
-                    className={`h-10 text-sm ${
+                    className={`min-h-[2.5rem] h-auto text-sm ${
                       formErrors.selectedDate
                         ? "border-red-500 focus:border-red-500"
                         : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
@@ -1387,7 +1414,7 @@ const Dashy = ({ user, authLoading }) => {
                   value={formData.note}
                   onChange={(e) => handleInputChange("note", e.target.value)}
                   placeholder="Additional notes (optional)"
-                  className="h-10 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  className="min-h-[2.5rem] h-auto text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 />
               </div>
             </div>

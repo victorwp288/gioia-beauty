@@ -5,7 +5,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 
 export const metadata = {
-  title: "Contatti - Centro Estetico Gioia Beauty Roveleto di Cadeo",
+  title: "Contatti - Gioia Beauty Centro Estetico Roveleto",
   description:
     "Contatta Gioia Beauty per prenotare i tuoi trattamenti estetici. Siamo a Roveleto di Cadeo, Via Emilia 60. Tel: +39 391 421 3634. Email: gioiabeautyy@gmail.com",
   keywords:
@@ -34,9 +34,9 @@ const Contacts = () => {
   const longitude = 9.8514;
   return (
     <div className="animate-fadeIn m-auto mt-24 w-[90vw] md:mt-32 md:w-[70vw]">
-      <h2 className="font-serif text-3xl font-bold tracking-tight md:text-3xl">
-        I nostri contatti
-      </h2>
+      <h1 className="font-serif text-3xl font-bold tracking-tight md:text-3xl">
+        Contatta Gioia Beauty
+      </h1>
       <div className="grid md:grid-cols-2 pt-8 md:gap-0 gap-8">
         <div className="flex flex-col gap-2 md:gap-4">
           <h2 className=" text-xl font-bold tracking-tight md:text-xl">

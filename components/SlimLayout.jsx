@@ -16,10 +16,10 @@ export function SlimLayout({ children }) {
             className="absolute inset-0 h-full w-full object-cover"
             src={loginPhoto}
             alt=""
-            unoptimized
+            fill
+            sizes="50vw"
             style={{
-              maxWidth: "100%",
-              height: "auto"
+              objectFit: "cover"
             }} />
         </div>
       </div>
