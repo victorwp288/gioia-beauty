@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Plus, Edit, Mail, Phone, Database } from "lucide-react";
+import { X, Plus, Edit, Mail, Phone, Database, RefreshCw } from "lucide-react";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 
@@ -86,6 +86,7 @@ const Dashy = ({ user, authLoading }) => {
   const [isLoadingAllData, setIsLoadingAllData] = useState(false);
   const [totalDatabaseCount, setTotalDatabaseCount] = useState(null);
   const [loadingTotalCount, setLoadingTotalCount] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Use global theme context
   const { darkMode, toggleDarkMode } = useTheme();
@@ -726,6 +727,38 @@ const Dashy = ({ user, authLoading }) => {
     }
   };
 
+  // Manual refresh function to bypass cache
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      console.log("🔄 Manual refresh: Bypassing cache...");
+      
+      // Clear cache and force fresh data for current month
+      const today = new Date();
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      
+      const monthRange = {
+        start: startOfMonth.toISOString(),
+        end: endOfMonth.toISOString(),
+      };
+
+      // Force refresh with cache bypass
+      await fetchAppointments({
+        dateRange: monthRange,
+        forceRefresh: true, // This will bypass cache
+      });
+
+      showSuccess("Data refreshed successfully");
+      console.log("✅ Manual refresh completed");
+    } catch (error) {
+      console.error("❌ Error during manual refresh:", error);
+      showError("Failed to refresh data");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // ============================================================================
   // DATA INITIALIZATION
   // ============================================================================
@@ -909,13 +942,26 @@ const Dashy = ({ user, authLoading }) => {
                 {formatDate(selectedDate)}
               </span>
             </div>
-            <Button
-              onClick={handleAddAppointment}
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Nuovo appuntamento
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="flex items-center gap-1 px-3"
+                title="Refresh data"
+              >
+                <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing && <span className="text-xs">Refreshing...</span>}
+              </Button>
+              <Button
+                onClick={handleAddAppointment}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Nuovo appuntamento
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-4">
             {/* Calendar and Appointments - Responsive Layout */}
