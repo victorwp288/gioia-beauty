@@ -80,8 +80,9 @@ function ServicesContainer() {
                       alt="duration of the service"
                       style={{
                         maxWidth: "100%",
-                        height: "auto"
-                      }} />
+                        height: "auto",
+                      }}
+                    />
                     <p className="text-sm font-normal text-gray-500">
                       {service.duration}m
                     </p>
@@ -115,8 +116,9 @@ function ServicesContainer() {
                         alt="duration of the service"
                         style={{
                           maxWidth: "100%",
-                          height: "auto"
-                        }} />
+                          height: "auto",
+                        }}
+                      />
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
                       </p>
@@ -134,8 +136,9 @@ function ServicesContainer() {
                                 alt="duration of the service"
                                 style={{
                                   maxWidth: "100%",
-                                  height: "auto"
-                                }} />
+                                  height: "auto",
+                                }}
+                              />
                               <p className="text-sm font-normal text-gray-500">
                                 +{subcategory.duration}m
                               </p>
@@ -164,8 +167,9 @@ function ServicesContainer() {
                         alt="duration of the service"
                         style={{
                           maxWidth: "100%",
-                          height: "auto"
-                        }} />
+                          height: "auto",
+                        }}
+                      />
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
                       </p>
@@ -183,8 +187,9 @@ function ServicesContainer() {
                                 alt="duration of the service"
                                 style={{
                                   maxWidth: "100%",
-                                  height: "auto"
-                                }} />
+                                  height: "auto",
+                                }}
+                              />
                               <p className="text-sm font-normal text-gray-500">
                                 +{subcategory.duration}m
                               </p>
@@ -224,8 +229,9 @@ function ServicesContainer() {
                       alt="duration of the service"
                       style={{
                         maxWidth: "100%",
-                        height: "auto"
-                      }} />
+                        height: "auto",
+                      }}
+                    />
                     <p className="text-sm font-normal text-gray-500">
                       {service.duration}m
                     </p>
@@ -259,8 +265,9 @@ function ServicesContainer() {
                       alt="duration of the service"
                       style={{
                         maxWidth: "100%",
-                        height: "auto"
-                      }} />
+                        height: "auto",
+                      }}
+                    />
                     {service.duration && (
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
@@ -282,58 +289,54 @@ function ServicesContainer() {
             image={cerettaPic}
             imagePosition="right"
           >
-            <div className="flex flex-col">
-              {ceretta.map((service, index) => (
-                <div
-                  key={index}
-                  className="flex flex-col gap-8 px-6 py-8 md:px-12 md:py-12"
-                >
-                  <div className="flex flex-col gap-2">
-                    <h3 className="font-serif text-[1.3rem] font-bold">
-                      {service.title}
-                    </h3>
-                    <div className="flex items-center gap-1">
-                      {service.duration && (
-                        <p className="text-xs font-normal text-gray-500">
-                          {service.duration}m
-                        </p>
-                      )}
-                    </div>
-                    <p className="text-sm font-light md:w-[50%]">
-                      {service.description}
-                    </p>
-                  </div>
+            <div className="flex flex-col gap-6 px-6 py-8 md:px-12 md:py-12">
+              {/* Header + intro text (like the screenshot) */}
+              <div className="flex flex-col gap-2">
+                <h3 className="font-serif text-[1.3rem] font-bold">
+                  Ceretta lipolitica (classica) / Ceretta brasiliana
+                </h3>
+                <p className="text-sm font-light md:max-w-3xl">
+                  A differenza della ceretta classica, la ceretta brasiliana
+                  lavora una temperatura più bassa, quindi è indicata per pelli
+                  sensibili. È meno dolorosa rispetto alla ceretta normale ed è
+                  indicata per chi ha problemi di peli incarniti e follicolite.
+                </p>
+              </div>
 
-                  {service.subcategories && (
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-7">
-                      {service.subcategories.map((subcategory, subIndex) => (
-                        <div className="flex flex-col gap-2" key={subIndex}>
-                          <div className="flex items-center gap-1">
-                            <Image
-                              src={clock}
-                              width={18}
-                              height={18}
-                              alt="duration of the service"
-                              style={{
-                                maxWidth: "100%",
-                                height: "auto"
-                              }} />
-                            <p className="text-sm font-normal text-gray-500">
-                              {subcategory.duration}m
-                            </p>
-                          </div>
-                          <h4 className="w-[85%] text-sm font-medium text-gray-600">
-                            {subcategory.title}
-                          </h4>
-                        </div>
-                      ))}
+              {/* GRID */}
+              <div
+                className="
+        grid grid-cols-2 gap-x-6 gap-y-8
+        sm:grid-cols-3
+        md:grid-cols-4
+        lg:grid-cols-6
+        xl:grid-cols-7
+      "
+              >
+                {ceretta.map((item, i) => (
+                  <div key={i} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-1">
+                      <Image
+                        src={clock}
+                        width={18}
+                        height={18}
+                        alt="Durata del servizio"
+                        style={{ maxWidth: "100%", height: "auto" }}
+                      />
+                      <span className="text-sm font-normal text-gray-500">
+                        {item.duration}m
+                      </span>
                     </div>
-                  )}
-                </div>
-              ))}
+                    <h4 className="text-sm font-medium text-gray-700">
+                      {item.title}
+                    </h4>
+                  </div>
+                ))}
+              </div>
             </div>
           </Accordion>
         </div>
+
         <div className="min-w-full snap-center">
           <Accordion
             className="w-full flex-shrink-0 md:w-auto"
@@ -353,8 +356,9 @@ function ServicesContainer() {
                       alt="duration of the service"
                       style={{
                         maxWidth: "100%",
-                        height: "auto"
-                      }} />
+                        height: "auto",
+                      }}
+                    />
                     <p className="text-sm font-normal text-gray-500">60m</p>
                   </div>
                   <p className="text-sm font-semibold text-gray-700">
@@ -370,8 +374,9 @@ function ServicesContainer() {
                       alt="duration of the service"
                       style={{
                         maxWidth: "100%",
-                        height: "auto"
-                      }} />
+                        height: "auto",
+                      }}
+                    />
                     <p className="text-sm font-normal text-gray-500">90m</p>
                   </div>
                   <p className="text-sm font-semibold text-gray-700">
@@ -406,8 +411,9 @@ function ServicesContainer() {
                                 alt="duration of the service"
                                 style={{
                                   maxWidth: "100%",
-                                  height: "auto"
-                                }} />
+                                  height: "auto",
+                                }}
+                              />
                               <p className="text-sm font-normal text-gray-500">
                                 {subcategory.duration}m
                               </p>
@@ -449,8 +455,9 @@ function ServicesContainer() {
                         alt="duration of the service"
                         style={{
                           maxWidth: "100%",
-                          height: "auto"
-                        }} />
+                          height: "auto",
+                        }}
+                      />
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
                       </p>
@@ -469,8 +476,9 @@ function ServicesContainer() {
                               alt="duration of the service"
                               style={{
                                 maxWidth: "100%",
-                                height: "auto"
-                              }} />
+                                height: "auto",
+                              }}
+                            />
                             <p className="text-sm font-normal text-gray-500">
                               {subcategory.duration}m
                             </p>
@@ -510,8 +518,9 @@ function ServicesContainer() {
                       alt="duration of the service"
                       style={{
                         maxWidth: "100%",
-                        height: "auto"
-                      }} />
+                        height: "auto",
+                      }}
+                    />
                     {service.duration && (
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
@@ -531,8 +540,9 @@ function ServicesContainer() {
                               alt="subcategory indicator"
                               style={{
                                 maxWidth: "100%",
-                                height: "auto"
-                              }} />
+                                height: "auto",
+                              }}
+                            />
                             {subcategory.duration && (
                               <p className="text-sm font-normal text-gray-500">
                                 {subcategory.duration}m
@@ -578,8 +588,9 @@ metaboliche, in totale relax."
                       alt="duration of the service"
                       style={{
                         maxWidth: "100%",
-                        height: "auto"
-                      }} />
+                        height: "auto",
+                      }}
+                    />
                     {service.duration && (
                       <p className="text-sm font-normal text-gray-500">
                         {service.duration}m
@@ -599,8 +610,9 @@ metaboliche, in totale relax."
                               alt="subcategory indicator"
                               style={{
                                 maxWidth: "100%",
-                                height: "auto"
-                              }} />
+                                height: "auto",
+                              }}
+                            />
                             {subcategory.duration && (
                               <p className="text-sm font-normal text-gray-500">
                                 {subcategory.duration}m
