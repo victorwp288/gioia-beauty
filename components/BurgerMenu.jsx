@@ -50,19 +50,28 @@ const BurgerMenu = ({ isOpen, setIsOpen, menuItems }) => {
           alt="Logo"
           style={{
             maxWidth: "100%",
-            height: "auto"
-          }} />
+            height: "auto",
+          }}
+        />
 
-        {menuItems.map((item) => (
-          <Link key={item.id} href={item.link} passHref>
-            <p
-              className="cursor-pointer  font-serif text-3xl font-semibold normal-case"
-              onClick={() => setIsOpen(false)}
-            >
-              {item.label}
-            </p>
-          </Link>
-        ))}
+        {menuItems.map((item) => {
+          const isShop =
+            (item.label && item.label.toString().toLowerCase() === "shop") ||
+            (item.link && item.link.includes("payhip.com"));
+
+          return (
+            <Link key={item.id} href={item.link} passHref>
+              <p
+                className={`cursor-pointer  font-serif text-3xl font-semibold normal-case ${
+                  isShop ? "text-[#d2b5b8]" : "text-black"
+                }`}
+                onClick={() => setIsOpen(false)}
+              >
+                {item.label}
+              </p>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

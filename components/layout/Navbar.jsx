@@ -33,6 +33,7 @@ function Navbar() {
     { id: 2, link: "/gallery", label: "Gallery" },
     { id: 3, link: "/contacts", label: "Contatti" },
     { id: 4, link: "/#booking-section", label: "Prenota" },
+    { id: 5, link: "https://payhip.com/GioiaBeauty", label: "Shop ♡" },
   ];
 
   return (
@@ -44,8 +45,9 @@ function Navbar() {
           alt="Logo"
           style={{
             maxWidth: "100%",
-            height: "auto"
-          }} />
+            height: "auto",
+          }}
+        />
       </Link>
       <ul className="hidden gap-10 md:flex">
         <li>
@@ -78,6 +80,15 @@ function Navbar() {
             className="link cursor-pointer focus:text-primary active:decoration-primary focus:font-bold"
           >
             PRENOTA
+          </Link>
+        </li>
+        <li>
+          <Link
+            href="https://payhip.com/GioiaBeauty"
+            className="px-6 py-3 font-semibold rounded-sm text-white bg-[#d2b5b8] link cursor-pointer"
+            target="_blank"
+          >
+            SHOP
           </Link>
         </li>
       </ul>
