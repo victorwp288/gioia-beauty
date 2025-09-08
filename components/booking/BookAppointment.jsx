@@ -56,7 +56,7 @@ const BookAppointment = () => {
 
   // Local state (must be declared before hooks that use them)
   const [appointmentType, setAppointmentType] = useState(() => {
-    // Get the first available appointment type from the new data structure
+    // Get the first available appointment type from the generated data structure
     const firstAvailableType = Object.values(APPOINTMENT_TYPES).find(
       (type) => type.active
     );
@@ -76,17 +76,23 @@ const BookAppointment = () => {
     setIsClient(true);
   }, []);
 
+  // Normalize durations to numbers and memoize
+  const normalizedDurations = useMemo(() => {
+    const arr = appointmentType?.durations ?? [];
+    return arr.map((d) => Number(d)).filter((n) => !Number.isNaN(n));
+  }, [appointmentType]);
+
   // Memoize duration to prevent unnecessary hook re-renders
   const currentDuration = useMemo(() => {
-    if (
-      !appointmentType ||
-      !appointmentType.durations ||
-      appointmentType.durations.length === 0
-    ) {
+    if (!normalizedDurations || normalizedDurations.length === 0) {
       return 60; // Default duration if no appointment type selected
     }
-    return selectedVariant || appointmentType.durations[0];
-  }, [selectedVariant, appointmentType]);
+    // prefer selectedVariant if valid, else first duration
+    const fallback = normalizedDurations[0];
+    if (!selectedVariant) return fallback;
+    const n = Number(selectedVariant);
+    return normalizedDurations.includes(n) ? n : fallback;
+  }, [selectedVariant, normalizedDurations]);
 
   // Optimized time slots with real-time updates and caching
   const {
@@ -111,12 +117,21 @@ const BookAppointment = () => {
   // Initialize appointment type in form
   useEffect(() => {
     if (appointmentType) {
-      form.setValue("appointmentType", appointmentType.type);
-      form.setValue("duration", appointmentType.durations?.[0] || 60);
-    }
-  }, [appointmentType, form]);
+      form.setValue("appointmentType", appointmentType.type); // keep human-readable name in the form
+      form.setValue("duration", normalizedDurations?.[0] || 60);
 
-  // Note: Time slots are automatically updated by the useTimeSlots hook when parameters change
+      // If the selected appointment type has only one duration, set the variant value
+      if (normalizedDurations && normalizedDurations.length === 1) {
+        const onlyDuration = normalizedDurations[0];
+        setSelectedVariant(onlyDuration);
+        form.setValue("variant", String(onlyDuration));
+      } else {
+        // Multiple durations -> clear variant until user chooses
+        form.setValue("variant", "");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentType, form, normalizedDurations?.length]);
 
   // Function to check if a day should be disabled
   const isDisabledDay = (day) => {
@@ -133,31 +148,39 @@ const BookAppointment = () => {
     );
   };
 
-  // Handle appointment type change
+  // Handle appointment type change (EXACT MATCH by .type)
   const handleAppointmentTypeChange = (e) => {
-    const selectedType = getAppointmentType(e.target.value);
+    const value = e.target.value; // this is the display name (type)
+    const selectedType = getAppointmentType(value);
     if (selectedType) {
       setAppointmentType(selectedType);
       setSelectedVariant(null); // Reset variant
 
       // Update form values
       form.setValue("appointmentType", selectedType.type);
-      form.setValue("duration", selectedType.durations[0]);
+      form.setValue("duration", selectedType.durations?.[0] ?? 60);
 
-      // If only one duration, auto-select it
-      if (selectedType.durations.length === 1) {
-        setSelectedVariant(selectedType.durations[0]);
-        form.setValue("variant", selectedType.durations[0].toString());
+      // If only one duration, auto-select it; otherwise clear
+      if (selectedType.durations && selectedType.durations.length === 1) {
+        const onlyDuration = Number(selectedType.durations[0]);
+        setSelectedVariant(onlyDuration);
+        form.setValue("variant", String(onlyDuration));
       } else {
-        // Multiple durations, user needs to choose
         form.setValue("variant", "");
       }
+    } else {
+      // Clear if nothing found (shouldn't happen with exact options)
+      setAppointmentType(null);
+      setSelectedVariant(null);
+      form.setValue("appointmentType", "");
+      form.setValue("duration", 60);
+      form.setValue("variant", "");
     }
   };
 
   // Handle duration/variant change
   const handleVariantChange = (e) => {
-    const duration = parseInt(e.target.value);
+    const duration = parseInt(e.target.value, 10);
     setSelectedVariant(duration);
     form.setValue("duration", duration);
     form.setValue("variant", duration.toString());
@@ -201,11 +224,11 @@ const BookAppointment = () => {
 
       // Prepare appointment data
       const appointmentData = {
-        name: data.name.trim(),
-        email: data.email.trim(),
+        name: data.name?.trim(),
+        email: data.email?.trim(),
         number: data.number,
-        appointmentType: data.appointmentType,
-        duration: data.duration,
+        appointmentType: data.appointmentType, // human-readable type
+        duration: Number(data.duration),
         selectedDate: standardizedDate, // Use standardized date
         startTime: data.timeSlot,
         note: data.note?.trim() || "",
@@ -214,8 +237,10 @@ const BookAppointment = () => {
       };
 
       // Calculate end time
-      const [hours, minutes] = data.timeSlot.split(":").map(Number);
-      const totalMinutes = hours * 60 + minutes + data.duration;
+      const [hours, minutes] = String(data.timeSlot)
+        .split(":")
+        .map((n) => parseInt(n, 10));
+      const totalMinutes = hours * 60 + minutes + Number(data.duration || 0);
       const endHours = Math.floor(totalMinutes / 60) % 24;
       const endMinutes = totalMinutes % 60;
       appointmentData.endTime = `${String(endHours).padStart(2, "0")}:${String(
@@ -291,7 +316,7 @@ const BookAppointment = () => {
       setBookingData({
         ...appointmentData,
         formattedDate: formatDate(appointmentData.selectedDate),
-        appointmentTypeDisplay: appointmentType.type,
+        appointmentTypeDisplay: appointmentType?.type,
         durationDisplay: `${appointmentData.duration} minuti`,
       });
 
@@ -482,6 +507,7 @@ const BookAppointment = () => {
                       }`}
                       {...field}
                       onChange={handleAppointmentTypeChange}
+                      value={appointmentType?.type || field.value || ""}
                     >
                       <option value="">Seleziona trattamento</option>
                       {isClient ? (
@@ -527,7 +553,7 @@ const BookAppointment = () => {
             />
 
             {/* Duration/Variant Selection */}
-            {appointmentType && appointmentType.durations && (
+            {appointmentType && normalizedDurations && (
               <FormField
                 control={form.control}
                 name="variant"
@@ -535,32 +561,54 @@ const BookAppointment = () => {
                   <FormItem>
                     <FormLabel>
                       Durata del trattamento*
-                      {appointmentType.durations.length > 1 &&
-                        ` (${appointmentType.durations.length} opzioni)`}
+                      {normalizedDurations.length > 1 &&
+                        ` (${normalizedDurations.length} opzioni)`}
                     </FormLabel>
                     <FormControl>
-                      <select
-                        className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:shadow disabled:cursor-not-allowed disabled:opacity-50 ${
-                          fieldState.error
-                            ? "border-red-500 focus:border-red-500"
-                            : "border-input"
-                        }`}
-                        {...field}
-                        onChange={handleVariantChange}
-                      >
-                        {appointmentType.durations.length > 1 ? (
+                      {normalizedDurations.length === 1 ? (
+                        // If only one duration is available, show a disabled text input
+                        <>
+                          {/* Keep the actual form value in a hidden input so react-hook-form has the value */}
+                          <input
+                            type="hidden"
+                            {...field}
+                            value={String(normalizedDurations[0])}
+                          />
+                          <Input
+                            value={`${normalizedDurations[0]} minuti`}
+                            disabled
+                          />
+                        </>
+                      ) : (
+                        <select
+                          className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:shadow disabled:cursor-not-allowed disabled:opacity-50 ${
+                            fieldState.error
+                              ? "border-red-500 focus:border-red-500"
+                              : "border-input"
+                          }`}
+                          {...field}
+                          onChange={handleVariantChange}
+                          value={selectedVariant ?? ""}
+                        >
                           <option value="">Seleziona durata</option>
-                        ) : null}
-                        {appointmentType.durations.map((duration, index) => (
-                          <option key={index} value={duration}>
-                            {duration} minuti
-                            {appointmentType.variants?.[index] &&
-                              appointmentType.variants[index] !==
-                                appointmentType.type &&
-                              ` - ${appointmentType.variants[index]}`}
-                          </option>
-                        ))}
-                      </select>
+                          {normalizedDurations.map((duration) => (
+                            <option key={duration} value={duration}>
+                              {duration} minuti
+                              {appointmentType.variants?.[
+                                appointmentType.durations.indexOf(duration)
+                              ] &&
+                                appointmentType.variants[
+                                  appointmentType.durations.indexOf(duration)
+                                ] !== appointmentType.type &&
+                                ` - ${
+                                  appointmentType.variants[
+                                    appointmentType.durations.indexOf(duration)
+                                  ]
+                                }`}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -657,9 +705,7 @@ const BookAppointment = () => {
                         backgroundColor: "#ffffff",
                         fontSize: "0.875rem",
                       }}
-                      containerStyle={{
-                        marginTop: "0.5rem",
-                      }}
+                      containerStyle={{ marginTop: "0.5rem" }}
                       buttonStyle={{
                         borderColor: fieldState.error ? "#ef4444" : "#e2e8f1",
                         backgroundColor: "#ffffff",
