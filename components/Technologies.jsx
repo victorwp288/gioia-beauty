@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import { whiteTick } from "./ImagesExports";
 import rightArrow from "@/images/chevron-right.svg";
@@ -9,6 +9,9 @@ import leftArrow from "@/images/chevron-left.svg";
 function Technologies() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [windowWidth, setWindowWidth] = useState(0);
+  const viewportRef = useRef(null);
+  const [dragStartX, setDragStartX] = useState(null);
+  const [dragDelta, setDragDelta] = useState(0);
 
   const isDesktop = windowWidth >= 768;
   const itemsPerView = isDesktop ? 3 : 1;
@@ -72,6 +75,41 @@ function Technologies() {
 
   // Translate by one item width each step (100% / itemsPerView)
   const translatePct = (100 / itemsPerView) * currentIndex;
+  const containerWidth = viewportRef.current?.offsetWidth || 1;
+  const dragPct = dragStartX !== null ? (dragDelta / containerWidth) * 100 : 0;
+  const targetMaxPct = (100 / itemsPerView) * maxIndex;
+  const effectivePct = Math.max(0, Math.min(translatePct - dragPct, targetMaxPct));
+
+  const onTouchStart = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      setDragStartX(e.touches[0].clientX);
+      setDragDelta(0);
+    }
+  };
+
+  const onTouchMove = (e) => {
+    if (dragStartX !== null && e.touches && e.touches.length > 0) {
+      const currentX = e.touches[0].clientX;
+      setDragDelta(currentX - dragStartX);
+    }
+  };
+
+  const endDrag = () => {
+    if (dragStartX === null) return;
+    const width = viewportRef.current?.offsetWidth || 1;
+    const itemWidth = width / itemsPerView;
+    const threshold = itemWidth * 0.2;
+    const delta = dragDelta;
+
+    if (delta <= -threshold) {
+      setCurrentIndex((prev) => Math.min(prev + 1, maxIndex));
+    } else if (delta >= threshold) {
+      setCurrentIndex((prev) => Math.max(prev - 1, 0));
+    }
+
+    setDragStartX(null);
+    setDragDelta(0);
+  };
 
   return (
     <div className="m-auto md:w-[70vw] md:py-12 py-6">
@@ -82,10 +120,17 @@ function Technologies() {
         </h2>
       </div>
       <div className="relative">
-        <div className="overflow-hidden">
+        <div
+          ref={viewportRef}
+          className="overflow-hidden touch-pan-y"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={endDrag}
+          onTouchCancel={endDrag}
+        >
           <div
-            className="flex transition-transform duration-300 ease-out will-change-transform"
-            style={{ transform: `translateX(-${translatePct}%)` }}
+            className={`flex will-change-transform ${dragStartX === null ? "transition-transform duration-300 ease-out" : ""}`}
+            style={{ transform: `translateX(-${effectivePct}%)` }}
           >
             {technologies.map((tech, index) => (
               <div
