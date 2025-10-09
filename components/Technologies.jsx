@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { whiteTick } from "./ImagesExports";
 import rightArrow from "@/images/chevron-right.svg";
@@ -9,32 +9,9 @@ import leftArrow from "@/images/chevron-left.svg";
 function Technologies() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [windowWidth, setWindowWidth] = useState(0);
-  const scrollContainerRef = useRef(null);
 
-  const handleScroll = () => {
-    const scrollPosition = scrollContainerRef.current.scrollLeft;
-    const containerWidth = scrollContainerRef.current.offsetWidth;
-    const newIndex = Math.round(scrollPosition / containerWidth);
-    setCurrentIndex(newIndex);
-  };
-
-  const scrollTo = (index) => {
-    const scrollContainer = scrollContainerRef.current;
-    const containerWidth = scrollContainer.offsetWidth;
-    scrollContainer.scrollTo({
-      left: index * containerWidth,
-      behavior: "smooth",
-    });
-  };
-
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    scrollContainer.addEventListener("scroll", handleScroll);
-
-    return () => {
-      scrollContainer.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
+  const isDesktop = windowWidth >= 768;
+  const itemsPerView = isDesktop ? 3 : 1;
 
   useEffect(() => {
     const handleResize = () => {
@@ -50,6 +27,16 @@ function Technologies() {
   }, []);
 
   const technologies = [
+    {
+      title: "Laser",
+      description:
+        "Il laser eraser presente in istituto è la prima tecnologia laser a matrice tridimensionale che ottimizza la tripla lunghezza d’onda assicurando un trattamento unico e performante. Massima potenza, totale sicurezza e zero dolore.",
+    },
+    {
+      title: "LPG",
+      description:
+        "Cellu m6 Alliance effettua un massaggio meccanico sulla superficie della pelle per stimolare in modo naturale e sicuro le cellule. Stimola la produzione di collagene, elastina e acido ialuronico, la pelle risulta più giovane, compatta e luminosa. Attiva la lipolisi per levigare la cellulite, rimodellare e snellire la figura.",
+    },
     {
       title: "Elettroporatore",
       description:
@@ -67,6 +54,25 @@ function Technologies() {
     },
   ];
 
+  const maxIndex = useMemo(() => {
+    return Math.max(technologies.length - itemsPerView, 0);
+  }, [technologies.length, itemsPerView]);
+
+  // Clamp index when viewport changes between mobile/desktop
+  useEffect(() => {
+    setCurrentIndex((prev) => Math.min(prev, maxIndex));
+  }, [maxIndex]);
+
+  const goTo = (idx) => {
+    setCurrentIndex((prev) => Math.max(0, Math.min(idx, maxIndex)));
+  };
+
+  const next = () => goTo(currentIndex + 1);
+  const prev = () => goTo(currentIndex - 1);
+
+  // Translate by one item width each step (100% / itemsPerView)
+  const translatePct = (100 / itemsPerView) * currentIndex;
+
   return (
     <div className="m-auto md:w-[70vw] md:py-12 py-6">
       <div className="m-auto w-[90vw] md:w-[70vw] flex flex-col gap-2 py-4 pb-6 md:gap-4 md:py-4">
@@ -76,68 +82,65 @@ function Technologies() {
         </h2>
       </div>
       <div className="relative">
-        <div
-          ref={scrollContainerRef}
-          className="flex snap-x snap-mandatory overflow-x-scroll no-scrollbar md:grid md:grid-cols-3 md:gap-14 md:py-0"
-        >
-          {technologies.map((tech, index) => (
-            <div
-              key={index}
-              className={`snap-center text-white flex-col gap-2 flex min-w-[100vw] py-4 md:min-w-0 ${
-                currentIndex === 0 && index === 0 ? "pl-6 md:pl-0" : ""
-              } ${
-                currentIndex === technologies.length - 1 &&
-                index === technologies.length - 1
-                  ? "pl-8 "
-                  : ""
-              } ${
-                currentIndex > 0 && currentIndex < technologies.length - 1
-                  ? "pl-8 pr-2"
-                  : ""
-              }`}
-            >
-              <div className="flex flex-col gap-2">
-                <Image
-                  src={whiteTick}
-                  width={26}
-                  height={26}
-                  alt="technology indicator"
-                  style={{
-                    maxWidth: "100%",
-                    height: "auto"
-                  }} />
-                <h2 className="text-lg font-semibold">{tech.title}</h2>
+        <div className="overflow-hidden">
+          <div
+            className="flex transition-transform duration-300 ease-out will-change-transform"
+            style={{ transform: `translateX(-${translatePct}%)` }}
+          >
+            {technologies.map((tech, index) => (
+              <div
+                key={index}
+                className="flex-shrink-0 basis-full md:basis-1/3"
+              >
+                <div className="text-white flex flex-col gap-2 px-6 py-4 md:px-7">
+                  <Image
+                    src={whiteTick}
+                    width={26}
+                    height={26}
+                    alt="technology indicator"
+                    style={{
+                      maxWidth: "100%",
+                      height: "auto",
+                    }}
+                  />
+                  <h2 className="text-lg font-semibold">{tech.title}</h2>
+                  <p className="text-sm w-[90%]">{tech.description}</p>
+                </div>
               </div>
-              <p className="text-sm w-[90%]">{tech.description}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-        {windowWidth < 768 && currentIndex > 0 && (
+
+        {currentIndex > 0 && (
           <button
-            onClick={() => scrollTo(currentIndex - 1)}
-            className="absolute left-2 top-1/2 text-white rounded-full"
+            onClick={prev}
+            aria-label="Previous"
+            className="absolute left-2 md:-left-10 top-1/2 -translate-y-1/2 text-white rounded-full"
           >
             <Image
               alt="left arrow"
               src={leftArrow}
               style={{
                 maxWidth: "100%",
-                height: "auto"
-              }} />
+                height: "auto",
+              }}
+            />
           </button>
         )}
-        {windowWidth < 768 && currentIndex < technologies.length - 1 && (
+        {currentIndex < maxIndex && (
           <button
-            onClick={() => scrollTo(currentIndex + 1)}
-            className="absolute right-2 top-1/2 text-white rounded-full"
+            onClick={next}
+            aria-label="Next"
+            className="absolute right-2 md:-right-10 top-1/2 -translate-y-1/2 text-white rounded-full"
           >
             <Image
               alt="right arrow"
               src={rightArrow}
               style={{
                 maxWidth: "100%",
-                height: "auto"
-              }} />
+                height: "auto",
+              }}
+            />
           </button>
         )}
       </div>
