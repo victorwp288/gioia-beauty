@@ -647,7 +647,7 @@ metaboliche, in totale relax."
           className="underline text-zinc-400 w-fit cursor-pointer text-center  text-sm font-semibold"
           target="_blank"
           href={
-            "https://drive.google.com/file/d/1syZzcDt0su9ZMX1wDMI0s_iwZW8IJo6a/view?usp=sharing"
+            "https://drive.google.com/file/d/1oedvGetaKE9CnPKI_5sXbty-ithxrj15/view?usp=sharing"
           }
         >
           SCOPRI IL LISTINO PREZZI →
