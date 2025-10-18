@@ -13,6 +13,9 @@ import {
   clock,
   bagnoTurcoPic,
   viso,
+  laserPicture,
+  lpgPicture,
+  massaggi1,
 } from "@/components/ImagesExports";
 import manicure from "@/data/manicureData";
 import pedicure from "@/data/pedicureData";
@@ -24,6 +27,8 @@ import makeup from "@/data/makeupData";
 import trattamentiViso from "@/data/trattamentiVisoData";
 import trattamentiCorpo from "@/data/trattamentiCorpoData";
 import bagnoTurco from "@/data/bagnoTurcoData";
+import lpg from "@/data/lpgData";
+import laser from "@/data/laserData";
 import Link from "next/link";
 
 function ServicesContainer() {
@@ -58,6 +63,85 @@ function ServicesContainer() {
         ref={scrollContainerRef}
         className="flex snap-x snap-mandatory gap-4 overflow-x-auto md:flex-col md:overflow-x-visible"
       >
+        <div className="min-w-full snap-center">
+          <Accordion
+            className="w-full flex-shrink-0 md:w-auto"
+            title="LPG Endermologie"
+            description="LPG Endermologie è un trattamento estetico non invasivo che stimola naturalmente la pelle attraverso un massaggio meccanico mirato. Favorisce la riattivazione della circolazione, il drenaggio dei liquidi, la riduzione della cellulite e il rassodamento dei tessuti, migliorando tono e compattezza della pelle."
+            image={lpgPicture}
+            imagePosition="right"
+          >
+            <div className="grid gap-8 px-6 py-8 md:grid-cols-3 md:px-12 md:py-12">
+              {lpg.map((service, index) => (
+                <div className="flex flex-col gap-2" key={index}>
+                  <h3 className="font-serif text-[1.3rem] font-bold">
+                    {service.title}
+                  </h3>
+                  <div className="flex items-center gap-1">
+                    <Image
+                      src={clock}
+                      width={18}
+                      height={18}
+                      alt="duration of the service"
+                      style={{
+                        maxWidth: "100%",
+                        height: "auto",
+                      }}
+                    />
+                    <p className="text-sm font-normal text-gray-500">
+                      {service.duration}m
+                    </p>
+                  </div>
+                  <p className="text-sm font-light">{service.description}</p>
+                </div>
+              ))}
+            </div>
+          </Accordion>
+        </div>
+
+        <div className="min-w-full snap-center">
+          <Accordion
+            className="w-full flex-shrink-0 md:w-auto"
+            title="Laser"
+            description="La prima tecnologia laser a matrice tridimensionale, che ottimizza la tripla lunghezza d’onda assicurando un trattamento unico e performante"
+            image={laserPicture}
+            imagePosition="left"
+          >
+            <div className="flex flex-col gap-6 px-6 py-8 md:px-12 md:py-12">
+              {/* GRID */}
+              <div
+                className="
+        grid grid-cols-2 gap-x-6 gap-y-8
+        sm:grid-cols-3
+        md:grid-cols-4
+        lg:grid-cols-6
+        xl:grid-cols-7
+      "
+              >
+                {laser.map((item, i) => (
+                  <div key={i} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-1">
+                      <Image
+                        src={clock}
+                        width={18}
+                        height={18}
+                        alt="Durata del servizio"
+                        style={{ maxWidth: "100%", height: "auto" }}
+                      />
+                      <span className="text-sm font-normal text-gray-500">
+                        {item.duration}m
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-medium text-gray-700">
+                      {item.title}
+                    </h4>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Accordion>
+        </div>
+
         <div className="min-w-full snap-center">
           <Accordion
             className="w-full flex-shrink-0 md:w-auto"
@@ -102,7 +186,7 @@ function ServicesContainer() {
             imagePosition="left"
           >
             <div className="grid gap-12 px-6 pb-4 md:grid-cols-2 md:px-12 md:py-12">
-              <div className=" flex flex-col gap-10  pt-8">
+              <div className=" flex flex-col gap-10">
                 {manicure.map((service, index) => (
                   <div className="flex flex-col gap-2" key={index}>
                     <h3 className="font-serif text-[1.3rem] font-bold">
@@ -571,7 +655,7 @@ efficacia cosmetologica indicati per rimodellare, tonificare e
 trattare tutti gli inestetismi del corpo. Permettono una
 detossinazione profonda e un riequilibrio delle funzioni
 metaboliche, in totale relax."
-            image={viso}
+            image={massaggi1}
             imagePosition="right"
           >
             <div className="grid grid-cols-1 gap-8 px-6 py-8 md:grid-cols-2 md:px-12 md:py-12">

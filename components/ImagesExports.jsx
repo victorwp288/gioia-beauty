@@ -15,6 +15,8 @@ import portraitSquare from "@/images/gioia-portrait-square.jpg";
 import heart from "@/images/heart.svg";
 import loginPhoto from "@/images/login-photo.jpg";
 import heroPicture from "@/images/hero-picture.jpg";
+import laserPicture from "@/images/laserPicture.jpg";
+import lpgPicture from "@/images/lpgPicture.jpg";
 
 // gallery pictures
 
@@ -61,4 +63,6 @@ export {
   bagnoturco1,
   bed,
   rituali1,
+  laserPicture,
+  lpgPicture,
 };

@@ -19,7 +19,7 @@ const Accordion = ({ title, description, image, children, imagePosition }) => {
         onClick={toggleAccordion}
       >
         <div className="w-full md:basis-[50%]">
-          <div className="relative w-full h-64 md:h-60">
+          <div className="relative w-full h-64 md:h-75">
             <Image
               src={image}
               fill
