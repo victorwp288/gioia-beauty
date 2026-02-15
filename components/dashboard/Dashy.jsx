@@ -988,10 +988,10 @@ const Dashy = ({ user, authLoading }) => {
               Oggi: {filteredAppointments.length}
             </span>
             <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
-              Caricati: {appointments.length}
+              Questo mese: {appointments.length}
             </span>
             <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
-              Totale DB:{" "}
+              Totale:{" "}
               {loadingTotalCount
                 ? "..."
                 : (totalDatabaseCount ?? appointments.length)}
@@ -1094,14 +1094,12 @@ const Dashy = ({ user, authLoading }) => {
               {/* Calendar and Appointments - Responsive Layout */}
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
                 {/* Calendar */}
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/70 md:p-4">
-                  <AppointmentCalendar
-                    selectedDate={selectedDate}
-                    onDateChange={setSelectedDate}
-                    appointments={appointments}
-                    onMonthChange={handleMonthChange}
-                  />
-                </div>
+                <AppointmentCalendar
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                  appointments={appointments}
+                  onMonthChange={handleMonthChange}
+                />
 
                 {/* Appointments Table */}
                 <div className="min-w-0 flex flex-col">
@@ -1135,9 +1133,7 @@ const Dashy = ({ user, authLoading }) => {
                           )}
                           {appointment.note && (
                             <div className="mt-1 text-xs leading-[1.25] text-zinc-600 dark:text-zinc-400">
-                              <span className="font-semibold">
-                                Note:
-                              </span>{" "}
+                              <span className="font-semibold">Note:</span>{" "}
                               {appointment.note}
                             </div>
                           )}
