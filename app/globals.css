@@ -83,3 +83,46 @@
     scrollbar-width: none; /* Firefox */
   }
 }
+
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lightbox-overlay {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes lightbox-in {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.65s cubic-bezier(0.18, 0.79, 0.34, 1) both;
+}
+
+.animate-lightbox-overlay {
+  animation: lightbox-overlay 220ms ease-out both;
+}
+
+.animate-lightbox-in {
+  animation: lightbox-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}

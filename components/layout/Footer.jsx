@@ -2,7 +2,7 @@ import Link from "next/link";
 
 function Footer() {
   return (
-    <div className="pl-6 pb-10 md:pl-64 md:pr-64 text-slate-400  md:mt-12 text-sm">
+    <div className="relative z-0 pl-6 pb-10 text-sm text-slate-400 md:mt-12 md:pl-64 md:pr-64">
       <div className="grid md:grid-cols-3 pt-8 md:gap-0 gap-8">
         <div className="flex flex-col gap-2 md:gap-4">
           <div>

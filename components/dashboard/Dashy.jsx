@@ -1,27 +1,19 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Plus, Edit, Mail, Phone, Database } from "lucide-react";
+import { Clock3, Database, Edit, Mail, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 
 // UI Components
-import { CardTitle, CardHeader, CardContent, Card } from "@/components/ui/card";
-import {
-  TableHead,
-  TableRow,
-  TableHeader,
-  TableCell,
-  TableBody,
-  Table,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +24,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Import Link for navigation
 import Link from "next/link";
@@ -43,30 +43,24 @@ import { useTheme } from "@/context/ThemeContext";
 
 // Utilities
 import {
-  APPOINTMENT_TYPES,
-  APPOINTMENT_STATUS_LABELS,
   APPOINTMENT_STATUS_COLORS,
+  APPOINTMENT_STATUS_LABELS,
+  APPOINTMENT_TYPES,
   getAppointmentType,
 } from "@/lib/utils/constants";
 import {
-  formatDate,
-  formatTime,
-  isToday,
-  isSameDate,
   appointmentDateMatches,
-  parseDate,
-  formatDateString,
   createAppointmentDate,
+  formatDate,
   formatDateForInput,
   getTodayFormatted,
 } from "@/lib/utils/dateUtils";
 import { calculateEndTime } from "@/lib/utils/timeUtils";
 
 // Separate Components
+import SubscriberList from "../SubscriberList";
 import AppointmentCalendar from "./AppointmentCalendar";
 import VacationManager from "./VacationManager";
-import SubscriberList from "../SubscriberList";
-import { useOptimizedTimeSlots } from "@/hooks/useOptimizedTimeSlots";
 
 const Dashy = ({ user, authLoading }) => {
   // ⚠️ ALL HOOKS MUST BE CALLED FIRST - Rules of Hooks
@@ -77,6 +71,14 @@ const Dashy = ({ user, authLoading }) => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isVacationModalOpen, setIsVacationModalOpen] = useState(false);
   const [isSubscriberModalOpen, setIsSubscriberModalOpen] = useState(false);
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [blockFormData, setBlockFormData] = useState({
+    selectedDate: getTodayFormatted(),
+    startTime: "",
+    duration: "120",
+    note: "",
+  });
+  const [blockFormErrors, setBlockFormErrors] = useState({});
 
   // Form validation state
   const [formErrors, setFormErrors] = useState({});
@@ -130,14 +132,14 @@ const Dashy = ({ user, authLoading }) => {
       try {
         const matches = appointmentDateMatches(
           appointment.selectedDate,
-          selectedDate
+          selectedDate,
         );
         return matches;
       } catch (error) {
         console.error(
           "🔍 Dashboard: Error filtering appointment",
           appointment.id,
-          error
+          error,
         );
         return false;
       }
@@ -171,7 +173,7 @@ const Dashy = ({ user, authLoading }) => {
     setIsLoadingAllData(true);
     try {
       console.log(
-        "📊 Dashboard: Loading extended date range (3 months back/forward)..."
+        "📊 Dashboard: Loading extended date range (3 months back/forward)...",
       );
 
       // Expand to 3 months back and 3 months forward (much smaller than before)
@@ -195,10 +197,10 @@ const Dashy = ({ user, authLoading }) => {
 
       setShowingAllData(true);
 
-      showSuccess(`Loaded extended range (6 months total).`);
+      showSuccess("Intervallo esteso caricato (6 mesi totali).");
     } catch (error) {
       console.error("Error loading extended data:", error);
-      showError("Failed to load extended appointment data");
+      showError("Impossibile caricare i dati estesi degli appuntamenti");
     } finally {
       setIsLoadingAllData(false);
     }
@@ -267,7 +269,7 @@ const Dashy = ({ user, authLoading }) => {
     const errors = {};
 
     if (!formData.name?.trim()) {
-      errors.name = "Name is required";
+      errors.name = "Nome obbligatorio";
     }
 
     // Email is now optional, but if provided, it should be valid
@@ -275,30 +277,30 @@ const Dashy = ({ user, authLoading }) => {
       formData.email?.trim() &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())
     ) {
-      errors.email = "Please enter a valid email address";
+      errors.email = "Inserisci un indirizzo email valido";
     }
 
     if (!formData.appointmentType) {
-      errors.appointmentType = "Service is required";
+      errors.appointmentType = "Servizio obbligatorio";
     }
 
     if (!formData.startTime) {
-      errors.startTime = "Start time is required";
+      errors.startTime = "Orario di inizio obbligatorio";
     }
 
     if (!formData.duration) {
-      errors.duration = "Duration is required";
+      errors.duration = "Durata obbligatoria";
     } else {
       const durationNum = parseInt(formData.duration);
       if (isNaN(durationNum) || durationNum < 5) {
-        errors.duration = "Duration must be at least 5 minutes";
+        errors.duration = "La durata minima e' di 5 minuti";
       } else if (durationNum > 300) {
-        errors.duration = "Duration cannot exceed 300 minutes (5 hours)";
+        errors.duration = "La durata non puo' superare 300 minuti (5 ore)";
       }
     }
 
     if (!formData.selectedDate) {
-      errors.selectedDate = "Date is required";
+      errors.selectedDate = "Data obbligatoria";
     }
 
     setFormErrors(errors);
@@ -319,10 +321,148 @@ const Dashy = ({ user, authLoading }) => {
     // Set today's date as default using timezone-safe method
     setFormData((prev) => ({
       ...prev,
-      selectedDate: getTodayFormatted(),
+      selectedDate: formatDateForInput(selectedDate) || getTodayFormatted(),
     }));
 
     setIsAddModalOpen(true);
+  };
+
+  const resetBlockForm = () => {
+    setBlockFormData({
+      selectedDate: getTodayFormatted(),
+      startTime: "",
+      duration: "120",
+      note: "",
+    });
+    setBlockFormErrors({});
+  };
+
+  const handleOpenBlockModal = () => {
+    setBlockFormData({
+      selectedDate: formatDateForInput(selectedDate) || getTodayFormatted(),
+      startTime: "",
+      duration: "120",
+      note: "",
+    });
+    setBlockFormErrors({});
+    setIsBlockModalOpen(true);
+  };
+
+  const handleBlockInputChange = (field, value) => {
+    setBlockFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    if (blockFormErrors[field]) {
+      setBlockFormErrors((prev) => ({
+        ...prev,
+        [field]: null,
+      }));
+    }
+  };
+
+  const validateBlockForm = () => {
+    const errors = {};
+
+    if (!blockFormData.selectedDate) {
+      errors.selectedDate = "Data obbligatoria";
+    }
+
+    if (!blockFormData.startTime) {
+      errors.startTime = "Orario di inizio obbligatorio";
+    }
+
+    if (!blockFormData.duration) {
+      errors.duration = "Durata obbligatoria";
+    } else {
+      const durationNum = parseInt(blockFormData.duration, 10);
+      if (isNaN(durationNum) || durationNum < 5) {
+        errors.duration = "La durata minima e' di 5 minuti";
+      } else if (durationNum > 480) {
+        errors.duration = "La durata non puo' superare 480 minuti (8 ore)";
+      }
+    }
+
+    if (
+      blockFormData.startTime &&
+      blockFormData.duration &&
+      !calculateEndTime(
+        blockFormData.startTime,
+        parseInt(blockFormData.duration, 10),
+      )
+    ) {
+      errors.startTime = "Orario di inizio non valido";
+    }
+
+    setBlockFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const formatBlockPresetDuration = (minutes) => {
+    if (minutes > 60) {
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+
+      if (remainingMinutes === 0) {
+        return `${hours}h`;
+      }
+
+      return `${hours}h${remainingMinutes}m`;
+    }
+
+    return `${minutes}m`;
+  };
+
+  const handleSaveTimeBlock = async () => {
+    try {
+      if (!validateBlockForm()) {
+        showError("Compila data, orario e durata del blocco.");
+        return;
+      }
+
+      const blockDate = createAppointmentDate(blockFormData.selectedDate);
+      if (!blockDate) {
+        throw new Error("Invalid date selected for block");
+      }
+
+      const durationMinutes = parseInt(blockFormData.duration, 10);
+      const endTime = calculateEndTime(
+        blockFormData.startTime,
+        durationMinutes,
+      );
+      if (!endTime) {
+        throw new Error("Invalid time range for block");
+      }
+
+      const blockAppointment = {
+        name: "Blocco Orario",
+        email: "",
+        number: "",
+        appointmentType: "Blocco Orario",
+        startTime: blockFormData.startTime,
+        endTime,
+        duration: durationMinutes,
+        totalDuration: durationMinutes,
+        selectedDate: blockDate,
+        note: blockFormData.note?.trim() || "Blocco creato da dashboard",
+        status: "confirmed",
+        isTimeBlock: true,
+        source: "admin_dashboard",
+      };
+
+      await notifyAsync(() => createAppointment(blockAppointment), {
+        loading: "Creazione blocco orario...",
+        success: "Blocco orario creato con successo!",
+        error: "Impossibile creare il blocco orario",
+      });
+
+      setSelectedDate(blockDate);
+      setIsBlockModalOpen(false);
+      resetBlockForm();
+    } catch (error) {
+      console.error("Error creating time block:", error);
+    }
   };
 
   const handleEditAppointment = (appointment) => {
@@ -346,7 +486,7 @@ const Dashy = ({ user, authLoading }) => {
         if (!displayDate) {
           console.warn(
             "Could not format appointment date, using today's date:",
-            appointmentDate
+            appointmentDate,
           );
           displayDate = getTodayFormatted();
         }
@@ -358,7 +498,7 @@ const Dashy = ({ user, authLoading }) => {
       // Fallback to today's date using timezone-safe method
       displayDate = getTodayFormatted();
       showError(
-        "Warning: Could not parse appointment date, using today's date instead."
+        "Attenzione: impossibile leggere la data dell'appuntamento, uso la data di oggi.",
       );
     }
 
@@ -384,16 +524,16 @@ const Dashy = ({ user, authLoading }) => {
       if (!validateForm()) {
         // Collect missing required fields
         const missingFields = [];
-        if (formErrors.name) missingFields.push("Name");
-        if (formErrors.appointmentType) missingFields.push("Service");
-        if (formErrors.startTime) missingFields.push("Start Time");
-        if (formErrors.duration) missingFields.push("Duration");
-        if (formErrors.selectedDate) missingFields.push("Date");
+        if (formErrors.name) missingFields.push("Nome");
+        if (formErrors.appointmentType) missingFields.push("Servizio");
+        if (formErrors.startTime) missingFields.push("Orario di inizio");
+        if (formErrors.duration) missingFields.push("Durata");
+        if (formErrors.selectedDate) missingFields.push("Data");
 
         // Show error notification
         showError(
-          `Please fill in all required fields: ${missingFields.join(", ")}`,
-          { duration: 6000 }
+          `Compila tutti i campi obbligatori: ${missingFields.join(", ")}`,
+          { duration: 6000 },
         );
 
         // Scroll to first error field
@@ -432,7 +572,7 @@ const Dashy = ({ user, authLoading }) => {
       const extraTime = selectedType?.extraTime?.[0] || 0;
       appointmentData.endTime = calculateEndTime(
         formData.startTime,
-        appointmentData.duration + extraTime
+        appointmentData.duration + extraTime,
       );
       appointmentData.totalDuration = appointmentData.duration + extraTime;
 
@@ -440,16 +580,16 @@ const Dashy = ({ user, authLoading }) => {
         await notifyAsync(
           () => updateAppointment(selectedAppointment.id, appointmentData),
           {
-            loading: "Updating appointment...",
-            success: "Appointment updated successfully!",
-            error: "Failed to update appointment",
-          }
+            loading: "Aggiornamento appuntamento...",
+            success: "Appuntamento aggiornato con successo!",
+            error: "Impossibile aggiornare l'appuntamento",
+          },
         );
       } else {
         await notifyAsync(() => createAppointment(appointmentData), {
-          loading: "Creating appointment...",
-          success: "Appointment created successfully!",
-          error: "Failed to create appointment",
+          loading: "Creazione appuntamento...",
+          success: "Appuntamento creato con successo!",
+          error: "Impossibile creare l'appuntamento",
         });
 
         // Send confirmation email for new appointments
@@ -467,20 +607,20 @@ const Dashy = ({ user, authLoading }) => {
                 } else if (typeof appointmentData.selectedDate === "string") {
                   const parsedDate = new Date(appointmentData.selectedDate);
                   return isNaN(parsedDate.getTime())
-                    ? "Unknown Date"
+                    ? "Data non disponibile"
                     : formatDate(parsedDate);
                 } else if (appointmentData.selectedDate?.toDate) {
                   return formatDate(appointmentData.selectedDate.toDate());
                 } else if (appointmentData.selectedDate?.seconds) {
                   return formatDate(
-                    new Date(appointmentData.selectedDate.seconds * 1000)
+                    new Date(appointmentData.selectedDate.seconds * 1000),
                   );
                 } else {
-                  return "Unknown Date";
+                  return "Data non disponibile";
                 }
               } catch (error) {
                 console.error("Error formatting date for email:", error);
-                return "Unknown Date";
+                return "Data non disponibile";
               }
             })(),
             appointmentType: appointmentData.appointmentType,
@@ -495,7 +635,7 @@ const Dashy = ({ user, authLoading }) => {
           if (!response.ok) {
             console.warn(
               "Failed to send confirmation email:",
-              response.statusText
+              response.statusText,
             );
           } else {
             console.log("✅ Confirmation email sent successfully");
@@ -517,7 +657,7 @@ const Dashy = ({ user, authLoading }) => {
   const handleChainAppointment = async () => {
     try {
       if (!validateForm()) {
-        showError("Please fill in all required fields before chaining.");
+        showError("Compila tutti i campi obbligatori prima di concatenare.");
         return;
       }
 
@@ -541,14 +681,14 @@ const Dashy = ({ user, authLoading }) => {
       // Calculate end time WITHOUT extra time for chaining
       appointmentData.endTime = calculateEndTime(
         formData.startTime,
-        appointmentData.duration
+        appointmentData.duration,
       );
       appointmentData.totalDuration = appointmentData.duration;
 
       await notifyAsync(() => createAppointment(appointmentData), {
-        loading: "Creating appointment...",
-        success: "Appointment created! Ready for next.",
-        error: "Failed to create appointment",
+        loading: "Creazione appuntamento...",
+        success: "Appuntamento creato! Pronto per il prossimo.",
+        error: "Impossibile creare l'appuntamento",
       });
 
       // Prepare form for next appointment: set startTime to previous endTime, clear client info
@@ -573,10 +713,10 @@ const Dashy = ({ user, authLoading }) => {
 
   const handleDeleteAppointment = async (appointment) => {
     const confirmDelete = await showConfirmation({
-      title: "Delete Appointment",
-      message: `Are you sure you want to permanently delete ${appointment.name}'s appointment?\n\nThis action cannot be undone.`,
-      confirmText: "Yes, Delete",
-      cancelText: "No, Keep It",
+      title: "Elimina appuntamento",
+      message: `Vuoi eliminare definitivamente l'appuntamento di ${appointment.name}?\n\nQuesta azione non puo' essere annullata.`,
+      confirmText: "Si, elimina",
+      cancelText: "No, mantieni",
       type: "warning",
       allowClose: false,
     });
@@ -584,10 +724,10 @@ const Dashy = ({ user, authLoading }) => {
     if (confirmDelete === "confirm") {
       // Second confirmation for permanent deletion
       const finalConfirm = await showConfirmation({
-        title: "Confirm Permanent Deletion",
-        message: `Are you absolutely sure you want to permanently delete ${appointment.name}'s appointment?\n\nThis will:\n• Remove the appointment from the database\n• Send a cancellation notification to the client\n• This action cannot be undone`,
-        confirmText: "Yes, Delete Permanently",
-        cancelText: "No, Cancel",
+        title: "Conferma eliminazione definitiva",
+        message: `Sei sicuro di voler eliminare definitivamente l'appuntamento di ${appointment.name}?\n\nQuesto comportera':\n• Rimozione dell'appuntamento dal database\n• Invio di una notifica di cancellazione al cliente\n• Azione irreversibile`,
+        confirmText: "Si, elimina definitivamente",
+        cancelText: "No, annulla",
         type: "error",
         allowClose: false,
       });
@@ -597,6 +737,11 @@ const Dashy = ({ user, authLoading }) => {
           await notifyAsync(
             async () => {
               await deleteAppointment(appointment.id);
+
+              // Skip cancellation email when there's no recipient (e.g. manual time blocks)
+              if (!appointment.email?.trim()) {
+                return;
+              }
 
               // Send cancellation email
               const emailData = {
@@ -614,20 +759,20 @@ const Dashy = ({ user, authLoading }) => {
                     } else if (typeof appointmentDate === "string") {
                       const parsedDate = new Date(appointmentDate);
                       return isNaN(parsedDate.getTime())
-                        ? "Unknown Date"
+                        ? "Data non disponibile"
                         : formatDate(parsedDate);
                     } else if (appointmentDate?.toDate) {
                       return formatDate(appointmentDate.toDate());
                     } else if (appointmentDate?.seconds) {
                       return formatDate(
-                        new Date(appointmentDate.seconds * 1000)
+                        new Date(appointmentDate.seconds * 1000),
                       );
                     } else {
-                      return "Unknown Date";
+                      return "Data non disponibile";
                     }
                   } catch (error) {
                     console.error("Error formatting date for email:", error);
-                    return "Unknown Date";
+                    return "Data non disponibile";
                   }
                 })(),
               };
@@ -639,14 +784,14 @@ const Dashy = ({ user, authLoading }) => {
               });
 
               if (!response.ok) {
-                throw new Error("Failed to send cancellation email");
+                throw new Error("Impossibile inviare l'email di cancellazione");
               }
             },
             {
-              loading: "Deleting appointment and sending notification...",
-              success: "Appointment deleted and notification sent!",
-              error: "Failed to delete appointment",
-            }
+              loading: "Eliminazione appuntamento...",
+              success: "Appuntamento eliminato con successo!",
+              error: "Impossibile eliminare l'appuntamento",
+            },
           );
         } catch (error) {
           console.error("Error deleting appointment:", error);
@@ -675,19 +820,19 @@ const Dashy = ({ user, authLoading }) => {
     try {
       console.log(
         "📅 Calendar month changed to:",
-        newMonth.toISOString().split("T")[0]
+        newMonth.toISOString().split("T")[0],
       );
 
       // Get the start and end of the new month
       const startOfMonth = new Date(
         newMonth.getFullYear(),
         newMonth.getMonth(),
-        1
+        1,
       );
       const endOfMonth = new Date(
         newMonth.getFullYear(),
         newMonth.getMonth() + 1,
-        0
+        0,
       );
       endOfMonth.setHours(23, 59, 59, 999);
 
@@ -707,7 +852,7 @@ const Dashy = ({ user, authLoading }) => {
       console.log("✅ Month navigation completed successfully");
     } catch (error) {
       console.error("❌ Error loading appointments for new month:", error);
-      showError("Failed to load appointments for the selected month");
+      showError("Impossibile caricare gli appuntamenti del mese selezionato");
     }
   };
 
@@ -728,16 +873,14 @@ const Dashy = ({ user, authLoading }) => {
         console.log("📊 Dashboard: Initializing dashboard...");
 
         // Clean up past appointment data to optimize memory for future-only approach
-        const { cleanupPastAppointmentData } = await import(
-          "@/lib/cache/appointmentCache"
-        );
+        const { cleanupPastAppointmentData } =
+          await import("@/lib/cache/appointmentCache");
         cleanupPastAppointmentData();
 
         // Just get the total count if needed
         const { dataManager } = await import("@/lib/firebase/dataManager");
-        const { getCachedTotalCount } = await import(
-          "@/lib/cache/appointmentCache"
-        );
+        const { getCachedTotalCount } =
+          await import("@/lib/cache/appointmentCache");
 
         const cachedTotalCount = getCachedTotalCount();
 
@@ -803,7 +946,7 @@ const Dashy = ({ user, authLoading }) => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 dark:border-gray-100"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-300">
-            Checking authentication...
+            Verifica autenticazione...
           </p>
         </div>
       </div>
@@ -816,7 +959,7 @@ const Dashy = ({ user, authLoading }) => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600 dark:text-gray-300">
-            Redirecting to login...
+            Reindirizzamento al login...
           </p>
         </div>
       </div>
@@ -825,620 +968,802 @@ const Dashy = ({ user, authLoading }) => {
 
   // ✅ Main dashboard content (only when authenticated)
   return (
-    <div className="w-full min-h-screen flex flex-col gap-4 bg-background dark:bg-zinc-900 p-4 overflow-x-hidden">
-      {/* Top bar with break, newsletter, and dark mode toggle */}
-      <div className="mb-2 flex gap-2 items-center justify-end bg-white/80 dark:bg-zinc-800/80 rounded-lg shadow-sm px-3 py-2 sm:px-4 sm:py-2 z-30 relative border border-zinc-200 dark:border-zinc-700/60">
-        <div className="flex items-center gap-2 ml-auto">
-          <Button
-            onClick={() => setIsVacationModalOpen(true)}
-            className="flex items-center gap-2 hidden sm:flex"
-          >
-            <Plus className="h-4 w-4" />
-            Imposta break
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => setIsSubscriberModalOpen(true)}
-            className="flex items-center gap-2 dark:bg-gray-600 hidden sm:flex"
-          >
-            <Mail className="h-4 w-4" />
-            Iscritti newsletter
-          </Button>
-          <Button
-            asChild
-            variant="secondary"
-            className="flex items-center gap-2 dark:bg-gray-600 hidden sm:flex"
-          >
-            <Link href="/export">
-              <Database className="h-4 w-4" />
-              Esporta dati
-            </Link>
-          </Button>
-          {/* Dark mode toggle */}
-          <div className="flex items-center gap-2 ml-2">
-            <span className="text-xs text-zinc-600 dark:text-zinc-300">
-              Dark mode
-            </span>
-            <button
-              onClick={() => toggleDarkMode()}
-              className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
-                darkMode ? "bg-zinc-700" : "bg-zinc-300"
-              }`}
-              aria-label="Toggle dark mode"
-            >
-              <span
-                className={`w-4 h-4 bg-white dark:bg-zinc-200 rounded-full shadow transform transition-transform duration-300 ${
-                  darkMode ? "translate-x-6" : "translate-x-0"
-                }`}
-              />
-            </button>
-          </div>
-        </div>
+    <div className="relative min-h-screen overflow-x-hidden bg-[#f4f6fa] p-4 dark:bg-zinc-950 md:p-6">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-16 top-20 h-72 w-72 rounded-full bg-sky-300/20 blur-3xl dark:bg-sky-500/10" />
+        <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-indigo-300/15 blur-3xl dark:bg-indigo-500/10" />
       </div>
 
-      {/* Newsletter Subscriber List Dialog */}
-      <Dialog
-        open={isSubscriberModalOpen}
-        onOpenChange={setIsSubscriberModalOpen}
-      >
-        <DialogContent className="max-w-lg w-full p-0 dark:border-none dark:bg-zinc-900">
-          <div className="p-4">
-            <DialogHeader>
-              <DialogTitle>Iscrizioni newsletter</DialogTitle>
-            </DialogHeader>
-            <SubscriberList onClose={() => setIsSubscriberModalOpen(false)} />
+      <div className="relative mx-auto flex w-full max-w-[1680px] flex-col gap-4">
+        {/* Top bar with break, newsletter, and dark mode toggle */}
+        <div className="z-30 grid gap-3 rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-3 shadow-sm backdrop-blur-sm dark:border-zinc-700/70 dark:bg-zinc-900/75 md:grid-cols-[1fr_auto] md:items-center md:px-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+              Dashboard Operativo
+            </span>
+            <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+              Data: {formatDate(selectedDate)}
+            </span>
+            <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+              Oggi: {filteredAppointments.length}
+            </span>
+            <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+              Caricati: {appointments.length}
+            </span>
+            <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+              Totale DB:{" "}
+              {loadingTotalCount
+                ? "..."
+                : (totalDatabaseCount ?? appointments.length)}
+            </span>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      <div className="flex flex-col lg:flex-row gap-4 min-h-0">
-        {/* Main Content Card with Overflow Fixes */}
-        <Card className="bg-white dark:bg-zinc-800 rounded-lg lg:overflow-x-auto overflow-y-visible border border-zinc-200 dark:border-zinc-700/60 mt-4 lg:mt-0 z-20">
-          <CardHeader className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between bg-zinc-50 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-700/60 p-4">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">
-                Dashboard
-              </h1>
-              <span className="text-s text-zinc-500 dark:text-zinc-400 font-normal">
-                {formatDate(selectedDate)}
-              </span>
-            </div>
+          <div className="flex items-center justify-end gap-2">
             <Button
-              onClick={handleAddAppointment}
-              className="flex items-center gap-2"
+              onClick={() => setIsVacationModalOpen(true)}
+              className="hidden items-center gap-2 sm:flex"
             >
               <Plus className="h-4 w-4" />
-              Nuovo appuntamento
+              Imposta pausa
             </Button>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-4">
-            {/* Calendar and Appointments - Responsive Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Calendar */}
-              <div className="lg:col-span-1">
-                <AppointmentCalendar
-                  selectedDate={selectedDate}
-                  onDateChange={setSelectedDate}
-                  appointments={appointments}
-                  onMonthChange={handleMonthChange}
+            <Button
+              variant="secondary"
+              onClick={() => setIsSubscriberModalOpen(true)}
+              className="hidden items-center gap-2 dark:bg-gray-600 sm:flex"
+            >
+              <Mail className="h-4 w-4" />
+              Iscritti newsletter
+            </Button>
+            <Button
+              asChild
+              variant="secondary"
+              className="hidden items-center gap-2 dark:bg-gray-600 sm:flex"
+            >
+              <Link href="/export">
+                <Database className="h-4 w-4" />
+                Esporta dati
+              </Link>
+            </Button>
+            <div className="ml-2 flex items-center gap-2">
+              <span className="text-xs text-zinc-600 dark:text-zinc-300">
+                Modalita scura
+              </span>
+              <button
+                onClick={() => toggleDarkMode()}
+                className={`flex h-6 w-12 items-center rounded-full p-1 transition-colors duration-300 ${
+                  darkMode ? "bg-zinc-700" : "bg-zinc-300"
+                }`}
+                aria-label="Attiva o disattiva modalita scura"
+              >
+                <span
+                  className={`h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-300 dark:bg-zinc-200 ${
+                    darkMode ? "translate-x-6" : "translate-x-0"
+                  }`}
                 />
-              </div>
+              </button>
+            </div>
+          </div>
+        </div>
 
-              {/* Appointments Table */}
-              <div className="lg:col-span-2 flex flex-col min-h-0">
-                {/* Responsive Table: Card/List view on mobile, Table on desktop */}
-                <div className="block sm:hidden space-y-3">
-                  {filteredAppointments.length === 0 ? (
-                    <div className="text-center py-8 text-zinc-400 dark:text-zinc-500">
-                      No appointments for this date.
-                    </div>
-                  ) : (
-                    filteredAppointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 flex flex-col gap-1 shadow-sm"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-base">
-                            {appointment.appointmentType}
-                          </span>
-                        </div>
-                        <div className="text-m text-zinc-500 dark:text-zinc-400">
-                          {appointment.startTime} - {appointment.endTime}
-                        </div>
-                        <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                          {appointment.name}
-                        </div>
-                        {appointment.email && (
-                          <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                            {appointment.email}
-                          </div>
-                        )}
-                        {appointment.note && (
-                          <div className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
-                            <span className="font-semibold">Note:</span>{" "}
-                            {appointment.note}
-                          </div>
-                        )}
-                        <div className="flex gap-2 mt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditAppointment(appointment)}
-                            className="flex-1 bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteAppointment(appointment)}
-                            className="flex-1 bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+        {/* Newsletter Subscriber List Dialog */}
+        <Dialog
+          open={isSubscriberModalOpen}
+          onOpenChange={setIsSubscriberModalOpen}
+        >
+          <DialogContent className="max-w-lg w-full p-0 dark:border-none dark:bg-zinc-900">
+            <div className="p-4">
+              <DialogHeader>
+                <DialogTitle>Iscrizioni newsletter</DialogTitle>
+              </DialogHeader>
+              <SubscriberList onClose={() => setIsSubscriberModalOpen(false)} />
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <div className="min-h-0">
+          {/* Main Content Card with Overflow Fixes */}
+          <Card className="z-20 mt-1 w-full border border-zinc-200 bg-white/95 shadow-lg shadow-zinc-900/5 dark:border-zinc-700/60 dark:bg-zinc-900/90">
+            <CardHeader className="flex flex-col gap-2 border-b border-zinc-200 bg-zinc-50/90 p-4 dark:border-zinc-700/60 dark:bg-zinc-900/80 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-1">
+                <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">
+                  Dashboard
+                </h1>
+                <span className="text-sm font-normal text-zinc-500 dark:text-zinc-400">
+                  {formatDate(selectedDate)}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  onClick={handleOpenBlockModal}
+                  variant="outline"
+                  className="flex items-center gap-2 border-zinc-300 bg-white/80 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/80 dark:hover:bg-zinc-700"
+                >
+                  <Clock3 className="h-4 w-4" />
+                  Blocco rapido
+                </Button>
+                <Button
+                  onClick={handleAddAppointment}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nuovo appuntamento
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6">
+              {/* Calendar and Appointments - Responsive Layout */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+                {/* Calendar */}
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/70 md:p-4">
+                  <AppointmentCalendar
+                    selectedDate={selectedDate}
+                    onDateChange={setSelectedDate}
+                    appointments={appointments}
+                    onMonthChange={handleMonthChange}
+                  />
                 </div>
-                <div className="hidden sm:block h-[70vh] overflow-y-auto rounded-lg">
-                  <Card className="dark:bg-zinc-700/50">
-                    <CardContent className="p-0">
-                      <div className="overflow-x-auto">
-                        <Table className="min-w-full text-sm">
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="dark:text-zinc-300">
-                                Type
-                              </TableHead>
-                              <TableHead className="dark:text-zinc-300">
-                                Start
-                              </TableHead>
-                              <TableHead className="dark:text-zinc-300">
-                                End
-                              </TableHead>
-                              <TableHead className="dark:text-zinc-300">
-                                Client
-                              </TableHead>
-                              <TableHead className="dark:text-zinc-300">
-                                Notes
-                              </TableHead>
-                              <TableHead className="dark:text-zinc-300">
-                                Actions
-                              </TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {filteredAppointments.length === 0 ? (
+
+                {/* Appointments Table */}
+                <div className="min-w-0 flex flex-col">
+                  {/* Responsive Table: Card/List view on mobile, Table on desktop */}
+                  <div className="block sm:hidden space-y-3">
+                    {filteredAppointments.length === 0 ? (
+                      <div className="text-center py-8 text-zinc-400 dark:text-zinc-500">
+                        Nessun appuntamento per questa data.
+                      </div>
+                    ) : (
+                      filteredAppointments.map((appointment) => (
+                        <div
+                          key={appointment.id}
+                          className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800"
+                        >
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+                              {appointment.appointmentType}
+                            </p>
+                            <p className="max-w-[230px] break-words text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-100">
+                              {appointment.name}
+                            </p>
+                            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                              {appointment.startTime} - {appointment.endTime}
+                            </p>
+                          </div>
+                          {appointment.email && (
+                            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                              {appointment.email}
+                            </div>
+                          )}
+                          {appointment.note && (
+                            <div className="mt-1 text-xs leading-[1.25] text-zinc-600 dark:text-zinc-400">
+                              <span className="font-semibold">
+                                Note:
+                              </span>{" "}
+                              {appointment.note}
+                            </div>
+                          )}
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditAppointment(appointment)}
+                              className="flex-1 bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleDeleteAppointment(appointment)
+                              }
+                              className="flex-1 bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="hidden max-h-[68vh] min-h-[420px] overflow-y-auto rounded-lg border border-zinc-200 bg-white/60 sm:block dark:border-zinc-700 dark:bg-zinc-900/30">
+                    <Card className="border-0 bg-transparent shadow-none dark:bg-transparent">
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <Table className="min-w-full text-sm">
+                            <TableHeader>
                               <TableRow>
-                                <TableCell
-                                  colSpan={6}
-                                  className="text-center py-8 text-zinc-400 dark:text-zinc-500"
-                                >
-                                  No appointments for this date.
-                                </TableCell>
+                                <TableHead className="w-[200px] dark:text-zinc-300">
+                                  Servizio
+                                </TableHead>
+                                <TableHead className="dark:text-zinc-300">
+                                  Inizio
+                                </TableHead>
+                                <TableHead className="dark:text-zinc-300">
+                                  Fine
+                                </TableHead>
+                                <TableHead className="w-[200px] dark:text-zinc-300">
+                                  Cliente
+                                </TableHead>
+                                <TableHead className="dark:text-zinc-300">
+                                  Note
+                                </TableHead>
+                                <TableHead className="dark:text-zinc-300">
+                                  Azioni
+                                </TableHead>
                               </TableRow>
-                            ) : (
-                              filteredAppointments.map((appointment) => (
-                                <TableRow
-                                  key={appointment.id}
-                                  className="hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
-                                >
-                                  <TableCell className="dark:text-zinc-200">
-                                    {appointment.appointmentType}
-                                  </TableCell>
-                                  <TableCell className="dark:text-zinc-200">
-                                    {appointment.startTime}
-                                  </TableCell>
-                                  <TableCell className="dark:text-zinc-200">
-                                    {appointment.endTime}
-                                  </TableCell>
-                                  <TableCell className="dark:text-zinc-200">
-                                    <div className="font-medium">
-                                      {appointment.name}
-                                    </div>
-                                    <div className="text-zinc-500 dark:text-zinc-400 text-xs">
-                                      {appointment.email}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="dark:text-zinc-200 max-w-32">
-                                    <div
-                                      className="text-xs text-zinc-600 dark:text-zinc-400 truncate"
-                                      title={appointment.note || "No notes"}
-                                    >
-                                      {appointment.note || "-"}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-1">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          handleEditAppointment(appointment)
-                                        }
-                                        className="bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
-                                      >
-                                        <Edit className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          handleDeleteAppointment(appointment)
-                                        }
-                                        className="bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                    </div>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredAppointments.length === 0 ? (
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={6}
+                                    className="text-center py-8 text-zinc-400 dark:text-zinc-500"
+                                  >
+                                    Nessun appuntamento per questa data.
                                   </TableCell>
                                 </TableRow>
-                              ))
-                            )}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
+                              ) : (
+                                filteredAppointments.map((appointment) => (
+                                  <TableRow
+                                    key={appointment.id}
+                                    className="hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
+                                  >
+                                    <TableCell className="w-[170px] align-top dark:text-zinc-200">
+                                      <div className="max-w-[170px] break-words whitespace-normal leading-[1.15]">
+                                        {appointment.appointmentType}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="dark:text-zinc-200">
+                                      {appointment.startTime}
+                                    </TableCell>
+                                    <TableCell className="dark:text-zinc-200">
+                                      {appointment.endTime}
+                                    </TableCell>
+                                    <TableCell className="dark:text-zinc-200">
+                                      <div className="font-medium">
+                                        {appointment.name}
+                                      </div>
+                                      <div className="text-zinc-500 dark:text-zinc-400 text-xs">
+                                        {appointment.email}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="dark:text-zinc-200 max-w-32">
+                                      <div
+                                        className="max-w-32 break-words whitespace-normal text-xs leading-[1.2] text-zinc-600 dark:text-zinc-400"
+                                        title={
+                                          appointment.note || "Nessuna nota"
+                                        }
+                                      >
+                                        {appointment.note || "-"}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleEditAppointment(appointment)
+                                          }
+                                          className="bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleDeleteAppointment(appointment)
+                                          }
+                                          className="bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Add/Edit Appointment Modal */}
-      <Dialog
-        open={isAddModalOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleCloseModal();
-          } else {
-            setIsAddModalOpen(true);
-          }
-        }}
-      >
-        <DialogContent
-          className="max-w-2xl max-h-[90vh] overflow-y-auto"
-          onOpenAutoFocus={(e) => {
-            // Prevent auto focus issues with Select components
-            e.preventDefault();
-            // Focus the first input instead
-            setTimeout(() => {
-              const nameInput = document.getElementById("name");
-              if (nameInput) nameInput.focus();
-            }, 100);
+        {/* Quick Time Block Modal */}
+        <Dialog
+          open={isBlockModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsBlockModalOpen(false);
+              resetBlockForm();
+            } else {
+              setIsBlockModalOpen(true);
+            }
           }}
         >
-          <DialogHeader>
-            <DialogTitle>
-              {isEditMode ? "Edit Appointment" : "Add New Appointment"}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditMode
-                ? "Make changes to the appointment details below."
-                : "Fill in the details to create a new appointment."}
-            </DialogDescription>
-          </DialogHeader>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Aggiungi blocco orario</DialogTitle>
+              <DialogDescription>
+                Blocca velocemente una fascia oraria per impedire prenotazioni
+                online in quel periodo.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="grid gap-6 py-4">
-            {/* Client Information Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Client Information
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="name">Name *</Label>
+                  <Label htmlFor="blockDate">Data *</Label>
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                    placeholder="Client name"
-                    className={`h-10 text-sm ${
-                      formErrors.name
-                        ? "border-red-500 focus:border-red-500"
-                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                    id="blockDate"
+                    type="date"
+                    value={blockFormData.selectedDate}
+                    onChange={(e) =>
+                      handleBlockInputChange("selectedDate", e.target.value)
+                    }
+                    className={
+                      blockFormErrors.selectedDate ? "border-red-500" : ""
+                    }
                   />
-                  {formErrors.name && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {formErrors.name}
+                  {blockFormErrors.selectedDate && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {blockFormErrors.selectedDate}
                     </p>
                   )}
                 </div>
+
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="blockStartTime">Orario inizio *</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    placeholder="client@example.com (optional)"
-                    className={`h-10 text-sm ${
-                      formErrors.email
-                        ? "border-red-500 focus:border-red-500"
-                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                    id="blockStartTime"
+                    type="time"
+                    value={blockFormData.startTime}
+                    onChange={(e) =>
+                      handleBlockInputChange("startTime", e.target.value)
+                    }
+                    className={
+                      blockFormErrors.startTime ? "border-red-500" : ""
+                    }
                   />
-                  {formErrors.email && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {formErrors.email}
+                  {blockFormErrors.startTime && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {blockFormErrors.startTime}
                     </p>
                   )}
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="phone">Phone Number</Label>
-                <PhoneInput
-                  country="it"
-                  value={formData.number}
-                  onChange={(value) => handleInputChange("number", value)}
-                  inputStyle={{
-                    width: "100%",
-                    height: "2.5rem",
-                    borderRadius: "0.375rem",
-                    border: "1px solid #d1d5db",
-                    fontSize: "0.875rem",
-                    paddingLeft: "48px",
-                  }}
-                  containerStyle={{
-                    width: "100%",
-                  }}
-                  buttonStyle={{
-                    height: "2.5rem",
-                    borderRadius: "0.375rem 0 0 0.375rem",
-                    border: "1px solid #d1d5db",
-                  }}
+                <Label htmlFor="blockDuration">Durata (minuti) *</Label>
+                <Input
+                  id="blockDuration"
+                  type="number"
+                  min="5"
+                  max="480"
+                  step="5"
+                  value={blockFormData.duration}
+                  onChange={(e) =>
+                    handleBlockInputChange("duration", e.target.value)
+                  }
+                  placeholder="Es: 120"
+                  className={blockFormErrors.duration ? "border-red-500" : ""}
+                />
+                {blockFormErrors.duration && (
+                  <p className="mt-1 text-xs text-red-500">
+                    {blockFormErrors.duration}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[30, 60, 90, 120].map((minutes) => (
+                    <button
+                      key={minutes}
+                      type="button"
+                      onClick={() =>
+                        handleBlockInputChange("duration", String(minutes))
+                      }
+                      className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      {formatBlockPresetDuration(minutes)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="blockNote">Nota (opzionale)</Label>
+                <Input
+                  id="blockNote"
+                  value={blockFormData.note}
+                  onChange={(e) =>
+                    handleBlockInputChange("note", e.target.value)
+                  }
+                  placeholder="Es: visita medica / pausa lunga"
                 />
               </div>
             </div>
 
-            {/* Service Details Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Service Details
-                </h3>
+            <DialogFooter className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsBlockModalOpen(false);
+                  resetBlockForm();
+                }}
+              >
+                Annulla
+              </Button>
+              <Button type="button" onClick={handleSaveTimeBlock}>
+                Crea blocco
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add/Edit Appointment Modal */}
+        <Dialog
+          open={isAddModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseModal();
+            } else {
+              setIsAddModalOpen(true);
+            }
+          }}
+        >
+          <DialogContent
+            className="max-w-2xl max-h-[90vh] overflow-y-auto"
+            onOpenAutoFocus={(e) => {
+              // Prevent auto focus issues with Select components
+              e.preventDefault();
+              // Focus the first input instead
+              setTimeout(() => {
+                const nameInput = document.getElementById("name");
+                if (nameInput) nameInput.focus();
+              }, 100);
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {isEditMode
+                  ? "Modifica appuntamento"
+                  : "Aggiungi nuovo appuntamento"}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditMode
+                  ? "Modifica i dettagli dell'appuntamento qui sotto."
+                  : "Compila i dettagli per creare un nuovo appuntamento."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-6 py-4">
+              {/* Client Information Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    Informazioni cliente
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Nome *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) =>
+                        handleInputChange("name", e.target.value)
+                      }
+                      placeholder="Nome cliente"
+                      className={`h-10 text-sm ${
+                        formErrors.name
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                    />
+                    {formErrors.name && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {formErrors.name}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        handleInputChange("email", e.target.value)
+                      }
+                      placeholder="cliente@example.com (opzionale)"
+                      className={`h-10 text-sm ${
+                        formErrors.email
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                    />
+                    {formErrors.email && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {formErrors.email}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="phone">Numero di telefono</Label>
+                  <PhoneInput
+                    country="it"
+                    value={formData.number}
+                    onChange={(value) => handleInputChange("number", value)}
+                    inputStyle={{
+                      width: "100%",
+                      height: "2.5rem",
+                      borderRadius: "0.375rem",
+                      border: "1px solid #d1d5db",
+                      fontSize: "0.875rem",
+                      paddingLeft: "48px",
+                    }}
+                    containerStyle={{
+                      width: "100%",
+                    }}
+                    buttonStyle={{
+                      height: "2.5rem",
+                      borderRadius: "0.375rem 0 0 0.375rem",
+                      border: "1px solid #d1d5db",
+                    }}
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="appointmentType">Service *</Label>
-                  {/* Use native select on mobile, custom Select on desktop */}
-                  <div className="block sm:hidden">
-                    <select
-                      id="appointmentType"
-                      value={formData.appointmentType}
-                      onChange={(e) =>
-                        handleAppointmentTypeChange(e.target.value)
-                      }
-                      className={`h-10 text-sm w-full rounded-md border focus:outline-none px-3 py-2
+              {/* Service Details Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    Dettagli servizio
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="appointmentType">Servizio *</Label>
+                    {/* Use native select on mobile, custom Select on desktop */}
+                    <div className="block sm:hidden">
+                      <select
+                        id="appointmentType"
+                        value={formData.appointmentType}
+                        onChange={(e) =>
+                          handleAppointmentTypeChange(e.target.value)
+                        }
+                        className={`h-10 text-sm w-full rounded-md border focus:outline-none px-3 py-2
                         ${
                           formErrors.appointmentType
                             ? "border-red-500 focus:border-red-500"
                             : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
                         }
                         dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
-                      aria-label="Select service type"
-                      required
-                    >
-                      <option value="" disabled>
-                        Select service
-                      </option>
-                      {Object.values(APPOINTMENT_TYPES)
-                        .filter((type) => type.active)
-                        .map((type) => (
-                          <option key={type.type} value={type.type}>
-                            {type.type}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="hidden sm:block">
-                    <Select
-                      value={formData.appointmentType}
-                      onValueChange={handleAppointmentTypeChange}
-                    >
-                      <SelectTrigger
-                        className={`h-10 text-sm ${
-                          formErrors.appointmentType
-                            ? "border-red-500 focus:border-red-500"
-                            : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                        } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
-                        aria-label="Select service type"
+                        aria-label="Seleziona il tipo di servizio"
+                        required
                       >
-                        <SelectValue placeholder="Select service" />
-                      </SelectTrigger>
-                      <SelectContent
-                        className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
-                        position="popper"
-                        sideOffset={4}
-                      >
+                        <option value="" disabled>
+                          Seleziona servizio
+                        </option>
                         {Object.values(APPOINTMENT_TYPES)
                           .filter((type) => type.active)
                           .map((type) => (
-                            <SelectItem
-                              key={type.type}
-                              value={type.type}
-                              className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
-                            >
+                            <option key={type.type} value={type.type}>
                               {type.type}
-                            </SelectItem>
+                            </option>
                           ))}
-                      </SelectContent>
-                    </Select>
+                      </select>
+                    </div>
+                    <div className="hidden sm:block">
+                      <Select
+                        value={formData.appointmentType}
+                        onValueChange={handleAppointmentTypeChange}
+                      >
+                        <SelectTrigger
+                          className={`h-10 text-sm ${
+                            formErrors.appointmentType
+                              ? "border-red-500 focus:border-red-500"
+                              : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                          } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                          aria-label="Seleziona il tipo di servizio"
+                        >
+                          <SelectValue placeholder="Seleziona servizio" />
+                        </SelectTrigger>
+                        <SelectContent
+                          className="max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50"
+                          position="popper"
+                          sideOffset={4}
+                        >
+                          {Object.values(APPOINTMENT_TYPES)
+                            .filter((type) => type.active)
+                            .map((type) => (
+                              <SelectItem
+                                key={type.type}
+                                value={type.type}
+                                className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150 focus:bg-gray-100 dark:focus:bg-gray-700"
+                              >
+                                {type.type}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {formErrors.appointmentType && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {formErrors.appointmentType}
+                      </p>
+                    )}
                   </div>
-                  {formErrors.appointmentType && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {formErrors.appointmentType}
-                    </p>
-                  )}
+                  <div>
+                    <Label htmlFor="duration">Durata (minuti) *</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min="5"
+                      max="300"
+                      step="5"
+                      value={formData.duration}
+                      onChange={(e) =>
+                        handleInputChange("duration", e.target.value)
+                      }
+                      placeholder="es. 60"
+                      className={`h-10 text-sm ${
+                        formErrors.duration
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                    />
+                    {formData.appointmentType && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Suggerita:{" "}
+                        {getAppointmentType(
+                          formData.appointmentType,
+                        )?.durations?.join(", ") || "N/D"}{" "}
+                        minuti
+                      </p>
+                    )}
+                    {formErrors.duration && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {formErrors.duration}
+                      </p>
+                    )}
+                  </div>
                 </div>
+              </div>
+
+              {/* Scheduling Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    Pianificazione
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="startTime">Orario di inizio *</Label>
+                    <Input
+                      id="startTime"
+                      type="time"
+                      value={formData.startTime}
+                      onChange={(e) =>
+                        handleInputChange("startTime", e.target.value)
+                      }
+                      className={`h-10 text-sm ${
+                        formErrors.startTime
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                    />
+                    {formErrors.startTime && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {formErrors.startTime}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="selectedDate">Data *</Label>
+                    <Input
+                      id="selectedDate"
+                      type="date"
+                      value={formData.selectedDate}
+                      onChange={(e) =>
+                        handleInputChange("selectedDate", e.target.value)
+                      }
+                      className={`h-10 text-sm ${
+                        formErrors.selectedDate
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
+                      } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                    />
+                    {formErrors.selectedDate && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {formErrors.selectedDate}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Information Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    Informazioni aggiuntive
+                  </h3>
+                </div>
+
                 <div>
-                  <Label htmlFor="duration">Duration (minutes) *</Label>
+                  <Label htmlFor="note">Note</Label>
                   <Input
-                    id="duration"
-                    type="number"
-                    min="5"
-                    max="300"
-                    step="5"
-                    value={formData.duration}
-                    onChange={(e) =>
-                      handleInputChange("duration", e.target.value)
-                    }
-                    placeholder="e.g. 60"
-                    className={`h-10 text-sm ${
-                      formErrors.duration
-                        ? "border-red-500 focus:border-red-500"
-                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
+                    id="note"
+                    value={formData.note}
+                    onChange={(e) => handleInputChange("note", e.target.value)}
+                    placeholder="Note aggiuntive (opzionale)"
+                    className="h-10 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                   />
-                  {formData.appointmentType && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Suggested:{" "}
-                      {getAppointmentType(
-                        formData.appointmentType
-                      )?.durations?.join(", ") || "N/A"}{" "}
-                      minutes
-                    </p>
-                  )}
-                  {formErrors.duration && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {formErrors.duration}
-                    </p>
-                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Scheduling Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Scheduling
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="startTime">Start Time *</Label>
-                  <Input
-                    id="startTime"
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) =>
-                      handleInputChange("startTime", e.target.value)
-                    }
-                    className={`h-10 text-sm ${
-                      formErrors.startTime
-                        ? "border-red-500 focus:border-red-500"
-                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
-                  />
-                  {formErrors.startTime && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {formErrors.startTime}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="selectedDate">Date *</Label>
-                  <Input
-                    id="selectedDate"
-                    type="date"
-                    value={formData.selectedDate}
-                    onChange={(e) =>
-                      handleInputChange("selectedDate", e.target.value)
-                    }
-                    className={`h-10 text-sm ${
-                      formErrors.selectedDate
-                        ? "border-red-500 focus:border-red-500"
-                        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500/20"
-                    } dark:border-gray-600 dark:bg-gray-700 dark:text-white`}
-                  />
-                  {formErrors.selectedDate && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {formErrors.selectedDate}
-                    </p>
-                  )}
-                </div>
+              {/* Helper text for required fields */}
+              <div className="text-center pt-2">
+                <p className="text-sm text-muted-foreground">
+                  I campi contrassegnati con * sono obbligatori
+                </p>
               </div>
             </div>
 
-            {/* Additional Information Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-600">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Additional Information
-                </h3>
-              </div>
-
-              <div>
-                <Label htmlFor="note">Notes</Label>
-                <Input
-                  id="note"
-                  value={formData.note}
-                  onChange={(e) => handleInputChange("note", e.target.value)}
-                  placeholder="Additional notes (optional)"
-                  className="h-10 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-            </div>
-
-            {/* Helper text for required fields */}
-            <div className="text-center pt-2">
-              <p className="text-sm text-muted-foreground">
-                Fields marked with * are required
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter className="flex gap-2 pt-4">
-            <Button
-              variant="outline"
-              onClick={handleCloseModal}
-              className="px-6 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveAppointment}
-              disabled={appointmentsLoading}
-              className="px-6"
-            >
-              {appointmentsLoading
-                ? "Saving..."
-                : isEditMode
-                ? "Update Appointment"
-                : "Create Appointment"}
-            </Button>
-            {!isEditMode && (
+            <DialogFooter className="flex gap-2 pt-4">
               <Button
-                variant="secondary"
-                onClick={handleChainAppointment}
+                variant="outline"
+                onClick={handleCloseModal}
+                className="px-6 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Annulla
+              </Button>
+              <Button
+                onClick={handleSaveAppointment}
                 disabled={appointmentsLoading}
                 className="px-6"
-                type="button"
               >
-                + Add Another Right After
+                {appointmentsLoading
+                  ? "Salvataggio..."
+                  : isEditMode
+                    ? "Aggiorna appuntamento"
+                    : "Crea appuntamento"}
               </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              {!isEditMode && (
+                <Button
+                  variant="secondary"
+                  onClick={handleChainAppointment}
+                  disabled={appointmentsLoading}
+                  className="px-6"
+                  type="button"
+                >
+                  + Aggiungi subito dopo
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      {/* Vacation Manager Modal */}
-      <VacationManager
-        isOpen={isVacationModalOpen}
-        onClose={() => setIsVacationModalOpen(false)}
-      />
+        {/* Vacation Manager Modal */}
+        <VacationManager
+          isOpen={isVacationModalOpen}
+          onClose={() => setIsVacationModalOpen(false)}
+        />
+      </div>
     </div>
   );
 };

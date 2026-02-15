@@ -1,7 +1,5 @@
-import Image from "next/image";
 import GalleryClient from "@/components/GalleryClient";
 import {
-  heroPicture,
   reception1,
   reception2,
   reception3,
@@ -38,68 +36,96 @@ export const metadata = {
 };
 
 const Gallery = () => {
-  const imagesWithDescriptions = [
+  const galleryImages = [
     {
       src: reception1,
-      description: "Reception",
+      title: "Reception",
+      category: "Spazi",
     },
     {
       src: reception2,
-      description: "Reception",
+      title: "Reception",
+      category: "Spazi",
     },
     {
       src: reception3,
-      description: "Reception",
+      title: "Reception",
+      category: "Spazi",
     },
     {
       src: reception4,
-      description: "",
+      title: "Ingresso",
+      category: "Spazi",
     },
     {
       src: mirror1,
-      description: "",
+      title: "Dettagli Beauty",
+      category: "Spazi",
     },
     {
       src: mirror2,
-      description: "",
+      title: "Postazione",
+      category: "Spazi",
     },
     {
       src: pressoterapia1,
-      description: "Pressoterapia",
+      title: "Pressoterapia",
+      category: "Tecnologie",
     },
     {
       src: massaggi1,
-      description: "",
+      title: "Area Relax",
+      category: "Trattamenti",
     },
     {
       src: ossigeno,
-      description: "Ossigeno Dermo Infusione",
+      title: "Ossigeno Dermo Infusione",
+      category: "Tecnologie",
     },
     {
       src: bagnoturco1,
-      description: "Bagno turco",
+      title: "Bagno Turco",
+      category: "Trattamenti",
     },
     {
       src: bed,
-      description: "",
+      title: "Cabina Trattamenti",
+      category: "Trattamenti",
     },
     {
       src: rituali1,
-      description: "Rituale Himalaya",
+      title: "Rituale Himalaya",
+      category: "Trattamenti",
     },
   ];
 
   return (
-    <div className="animate-fadeIn grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 md:pt-16 lg:grid-cols-4">
-      {imagesWithDescriptions.map((image, index) => (
-        <div key={index} className="overflow-hidden">
-          <GalleryClient
-            imagesWithDescriptions={imagesWithDescriptions}
-            index={index} // Pass the current index here
-          />
+    <main className="relative overflow-x-hidden bg-[#f8f5f2] pb-16 pt-24 md:pt-32">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-24 top-24 h-64 w-64 rounded-full bg-[#d8b8bc]/35 blur-3xl" />
+        <div className="absolute right-0 top-8 h-72 w-72 rounded-full bg-[#97a6af]/25 blur-3xl" />
+      </div>
+
+      <div className="mx-auto w-[92vw] max-w-7xl">
+        <div className="animate-fadeIn text-center">
+          <p className="text-sm font-medium uppercase tracking-[0.28em] text-[#a18488]">
+            Gioia Beauty
+          </p>
+          <h1 className="mt-4 font-serif text-4xl text-[#3f3a37] md:text-5xl">
+            Galleria
+          </h1>
+          <p className="mx-auto mt-4 max-w-2xl text-sm text-[#6f6663] md:text-base">
+            Scopri i nostri ambienti, le tecnologie e l&apos;atmosfera del
+            centro. Una selezione di immagini pensata per raccontare la tua
+            esperienza in Gioia Beauty.
+          </p>
         </div>
-      ))}
-    </div>
+
+        <div className="mt-12">
+          <GalleryClient images={galleryImages} />
+        </div>
+      </div>
+    </main>
   );
 };
 

@@ -7,14 +7,18 @@ import Footer from "@/components/layout/Footer";
 
 export default function ConditionalLayout({ children }) {
   const pathname = usePathname();
-  const hideLayoutPaths = ["/dashboard", "/login"]; // Add your paths here
-
+  const hideLayoutPaths = ["/dashboard", "/login"];
   const hideLayout = hideLayoutPaths.includes(pathname);
+
+  if (hideLayout) {
+    return <>{children}</>;
+  }
+
   return (
-    <>
-      {!hideLayout && <Navbar />}
-      {children}
-      {!hideLayout && <Footer />}
-    </>
+    <div className="flex min-h-screen flex-col">
+      <Navbar />
+      <div className="flex-1">{children}</div>
+      <Footer />
+    </div>
   );
 }

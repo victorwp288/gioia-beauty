@@ -143,7 +143,7 @@ const AppointmentCalendar = ({
 
       {selectedDate && (
         <div className="text-sm text-muted-foreground">
-          Selected: {formatDate(selectedDate)}
+          Selezionata: {formatDate(selectedDate)}
           {(() => {
             try {
               // Fix timezone issue: use local date instead of UTC
@@ -160,7 +160,7 @@ const AppointmentCalendar = ({
               if (appointmentsForDate && appointmentsForDate.length > 0) {
                 return (
                   <span className="ml-2 text-blue-600 dark:text-blue-400">
-                    ({appointmentsForDate.length} appointments)
+                    ({appointmentsForDate.length} appuntamenti)
                   </span>
                 );
               }
