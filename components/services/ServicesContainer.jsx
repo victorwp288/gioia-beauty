@@ -1,35 +1,35 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
 import Accordion from "@/components/common/Accordion";
-import Image from "next/image";
 import {
-  maniPiedi,
-  rituale,
-  ciglia,
-  tick,
-  cerettaPic,
-  makeupPic,
-  massaggiPic,
-  clock,
   bagnoTurcoPic,
-  viso,
+  cerettaPic,
+  ciglia,
+  clock,
   laserPicture,
   lpgPicture,
+  makeupPic,
+  maniPiedi,
   massaggi1,
+  massaggiPic,
+  rituale,
+  tick,
+  viso,
 } from "@/components/ImagesExports";
-import manicure from "@/data/manicureData";
-import pedicure from "@/data/pedicureData";
-import cigliaSopracciglia from "@/data/cigliaSopraccigliaData";
-import massaggi from "@/data/massaggiData";
-import ceretta from "@/data/cerettaData";
-import rituali from "@/data/ritualiData";
-import makeup from "@/data/makeupData";
-import trattamentiViso from "@/data/trattamentiVisoData";
-import trattamentiCorpo from "@/data/trattamentiCorpoData";
 import bagnoTurco from "@/data/bagnoTurcoData";
-import lpg from "@/data/lpgData";
+import ceretta from "@/data/cerettaData";
+import cigliaSopracciglia from "@/data/cigliaSopraccigliaData";
 import laser from "@/data/laserData";
+import lpg from "@/data/lpgData";
+import makeup from "@/data/makeupData";
+import manicure from "@/data/manicureData";
+import massaggi from "@/data/massaggiData";
+import pedicure from "@/data/pedicureData";
+import rituali from "@/data/ritualiData";
+import trattamentiCorpo from "@/data/trattamentiCorpoData";
+import trattamentiViso from "@/data/trattamentiVisoData";
+import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 function ServicesContainer() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -731,7 +731,7 @@ metaboliche, in totale relax."
           className="underline text-zinc-400 w-fit cursor-pointer text-center  text-sm font-semibold"
           target="_blank"
           href={
-            "https://drive.google.com/file/d/1oedvGetaKE9CnPKI_5sXbty-ithxrj15/view?usp=sharing"
+            "https://drive.google.com/file/d/1oedvGetaKE9CnPKI_5sXbty-ithxrj15/view?usp=drive_link"
           }
         >
           SCOPRI IL LISTINO PREZZI →
