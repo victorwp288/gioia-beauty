@@ -3,7 +3,7 @@
 > From CS-student side project to a serious small-business website (and portfolio piece).
 > Written 2026-07-08. No code has been changed yet — this document is the plan.
 >
-> **Progress tracking:** the `- [ ]` checkboxes below are the single source of truth for progress — tick them (`- [x]`) only when an item is done *and verified*. Session-by-session detail lives in `docs/WORKLOG.md`; workflow rules live in `AGENTS.md`. All work happens on the `refactor` branch.
+> **Progress tracking:** the `- [ ]` checkboxes below are the single source of truth for progress — tick them (`- [x]`) only when an item is done *and verified*. Session-by-session detail lives in `docs/WORKLOG.md`; workflow rules live in `AGENTS.md`. All work happens on the `refactor` branch (sole exception: items marked 🚨 HOTFIX ship via `hotfix/*` branches off `main`).
 
 ---
 
@@ -22,7 +22,7 @@
 ### The damage report (found during audit)
 
 **🚨 ACTIVE PRODUCTION INCIDENT (found via Vercel runtime logs, 2026-07-08)**
-`/api/send` has failed **31 times since February** (3 affected users, most recent occurrence *today*) with Resend 422: *"Invalid `to` field"*. Real customers have booked and silently received no confirmation email — every failure was swallowed by a `console.warn`. Root cause chain: three different client components (`useBookingForm.js:176`, `BookAppointment.jsx:296`, `Dashy.jsx:629`) each build their own email payload; the API route validates nothing; admin-created appointments (and time-blocks) can carry an empty/malformed email straight into Resend. **This gets a hotfix before any refactor — see Phase 0.**
+`/api/send` has failed **31 times since February** (3 affected users, most recent occurrence *today*) with Resend 422: *"Invalid `to` field"*. Real customers have booked and silently received no confirmation email — every failure was swallowed by a `console.warn`. Confirmed facts: three different client components (`useBookingForm.js:176`, `BookAppointment.jsx:296`, `Dashy.jsx:629`) each build their own email payload, and the API route validates nothing before calling Resend. Most likely entry point (to confirm while fixing): admin-created appointments in Dashy, whose email field can be empty/malformed and is posted unguarded. **This gets a hotfix before any refactor — see Phase 0.**
 
 **🔴 Security / correctness**
 1. **All Firestore reads/writes happen client-side** (`hooks/`, `lib/firebase/`, even `components/NewsletterSignup.jsx` calls `addDoc` directly). The entire security model rests on Firestore rules — which, since guests can create appointments, are almost certainly wide open on the `customers` collection. Anyone can read/modify/delete bookings from the browser console.
@@ -38,14 +38,14 @@
 - Timezone is implicit everywhere (`new Date(...)`, `toISOString().split("T")[0]`) — the salon runs on Europe/Rome, the code runs on UTC-ish. Off-by-one-day bugs around midnight/DST are latent, not hypothetical.
 - The booking flow spans `useBookingForm` → `AppointmentContext` → `appointmentHook` → `dataManager` → Firestore, with caching layers interleaved — five hops for one insert.
 - Past appointments: there's a `status` field and range queries, but no defined lifecycle (what marks an appointment completed?) and no retention policy. Old bookings must stay viewable/editable — today they just accumulate.
-- **Three independent booking-submission implementations**: `useBookingForm.submitBooking` (apparently dead — `BookAppointment` imports the hook but ships its own `handleSubmit`), `BookAppointment.jsx`, and `Dashy.jsx` — each with its own copy of `calculateEndTime`, its own date-formatting IIFE handling the four `selectedDate` formats, and its own hand-built `/api/send` payload. The inline Zod schema in `useBookingForm` also duplicates (and diverges from — no trim/lowercase) the proper `emailSchema` in `lib/utils/validationSchemas.js`. This divergence is exactly how the production 422s happened.
+- **Three independent booking-submission implementations**: `useBookingForm.submitBooking` (apparently dead — `BookAppointment` imports the hook but ships its own `handleSubmit`), `BookAppointment.jsx`, and `Dashy.jsx` — each with its own copy of `calculateEndTime`, its own date-formatting IIFE handling the four `selectedDate` formats, and its own hand-built `/api/send` payload. The inline Zod schema in `useBookingForm` also duplicates (and diverges from — no trim/lowercase) the proper `emailSchema` in `lib/utils/validationSchemas.js`. This class of divergence — several validation paths, none authoritative — is what let the production 422s through.
 - Admin "block time" entries are stored as fake appointments in the `customers` collection — the model needs a first-class `type: "block"` (or a separate concept) instead.
 - The booking min-date rule (`new Date(new Date().setHours(0,0,0,0) + 86400000)`) is evaluated **once at module load** — a browser tab left open across midnight validates against yesterday's boundary. The "no same-day booking" business rule deserves to be an explicit named constant, not arithmetic in a schema.
 
 **💸 Firestore read/write waste (the scar tissue is visible)**
 The code is full of battle scars from the excessive-reads era: `enableRealTime: false // DISABLED: Reduce Firebase reads`, disabled auto-refresh, "smart date ranges", and a hardcoded `if (appointments.length < 1614)` sanity check. But structural read-bombs remain:
 - **`AppointmentProvider` wraps the entire public site** in `app/layout.js` — every visitor to the gallery or contacts page mounts the whole appointment/vacation machinery, and the vacations hook auto-fetches on mount. Booking machinery should exist only on the booking page.
-- **Dashboard's `fetchAllAppointments` loads the entire collection** (1,600+ docs = 1,600+ billed reads per click), plus a separate full count query on dashboard mount.
+- **Dashboard's `fetchAllAppointments` loads the entire collection** (1,600+ docs = 1,600+ billed reads per invocation). (Credit where due: the total count already uses `getCountFromServer` aggregation, and `getAppointments` throws without a `dateRange` — the discipline exists, but the "load all" path bypasses it.)
 - **Slot preloading fires up to 7 extra per-day appointment queries** every time a user picks a date (`useOptimizedTimeSlots` preload loop) — an "optimization" that multiplies reads.
 - **`/export` reads every collection in full, client-side** — and is only client-side auth-gated like the dashboard.
 - Availability requires shipping raw appointment documents (with other customers' PII!) to every booking visitor's browser, because slot math runs client-side.
@@ -127,7 +127,7 @@ UI form (react-hook-form + zod)
     → email side-effect (Resend)          (after commit; failure logged, never blocks the booking)
 ```
 
-**Canonical data model** (fixes the wonk at the source; one-time migration script normalizes existing documents):
+**Canonical data model** (fixes the wonk at the source; reached via an *additive* migration in Phase 1 — canonical fields added alongside legacy ones, legacy fields dropped in Phase 3 once nothing reads them):
 
 ```ts
 // Zod schema = single source of truth for type + validation
@@ -161,7 +161,7 @@ Ordered so that each phase is independently shippable, security lands before ref
 ### Phase 0 — Hygiene & quick wins (½–1 day)
 *Zero-risk deletions and setup. Do this in one PR — except the hotfix, which ships alone, first.*
 
-- [ ] **🚨 HOTFIX (ship immediately, before everything else):** validate the request body in `/api/send` and `/api/cancel` with the existing `emailSchema` (trim/lowercase/format); skip the customer email cleanly when the address is absent (admin-created bookings and time-blocks legitimately may not have one) while still sending the admin copy; return a distinguishable status so callers stop warn-and-forgetting. Stops the 5-month stream of silently lost confirmation emails.
+- [ ] **🚨 HOTFIX (ship immediately, before everything else):** validate the request body in `/api/send` and `/api/cancel` with the existing `emailSchema` (trim/lowercase/format); skip the customer email cleanly when the address is absent (admin-created bookings legitimately may not have one) while still sending the admin copy; return a distinguishable status so callers stop warn-and-forgetting. Stops the 5-month stream of silently lost confirmation emails. **Branch flow exception:** this ships from a `hotfix/*` branch cut from `main`, PR'd directly to `main` so it reaches production immediately — then merge `main` back into `refactor`. Everything else in this plan rides the `refactor` branch.
 - [ ] Archive/delete the stale `gioia-beauty-astro` Vercel project; confirm apex→www redirect direction.
 - [ ] Delete `repomix-output.txt`; add it to `.gitignore`. (Consider `git filter-repo` to purge from history since the repo is public.)
 - [ ] Remove `<ReactScan />` from `app/layout.js`; move `react-scan` to devDependencies (keep the `npm run scan` workflow).
@@ -170,7 +170,7 @@ Ordered so that each phase is independently shippable, security lands before ref
 - [ ] Move Firebase web config from `lib/firebase/config.js` hardcode to `NEXT_PUBLIC_*` env vars; create `.env.example`; strip hardcoded keys from `scripts/*` (env vars there too).
 - [ ] Add Prettier + config; add `lint-staged` + a pre-commit hook (husky or lefthook).
 - [ ] Rewrite `README.md`: what the site is, architecture sketch, setup steps, env vars, deploy notes.
-- [ ] Add `CLAUDE.md` / `docs/` skeleton and this masterplan.
+- [x] Add `CLAUDE.md` / `docs/` skeleton and this masterplan. *(Done 2026-07-08 in the planning session: AGENTS.md + CLAUDE.md symlink + docs/MASTERPLAN.md + docs/WORKLOG.md.)*
 - [ ] Run `knip` (or `npx unimported`) to inventory dead files — *inventory only*, deletion happens in Phase 3 when we know which data layer survives.
 
 **Done when:** repo is clean, documented, and installs from scratch with `.env.example` as the guide.
@@ -178,15 +178,16 @@ Ordered so that each phase is independently shippable, security lands before ref
 ### Phase 1 — Security & reliability (2–4 days) ⚠️ *highest priority*
 *The only phase that matters if the owner's business gets attacked or double-booked.*
 
+- [ ] **Lay down a minimal `tsconfig.json` first** (`strict: true`, `allowJs: true`, replacing `jsconfig.json`) so every *new* file in this phase is born TypeScript — the server data layer, availability logic, and schemas below shouldn't be written in JS only to be migrated a week later. Converting *existing* files remains Phase 2's job.
 - [ ] **Write and deploy strict Firestore security rules.** Target end-state: client SDK can read only what the public site genuinely needs (arguably nothing), and can write nothing. Admin dashboard + booking go through the server.
 - [ ] **Introduce a server-side data layer**: Next.js route handlers (or server actions) using `firebase-admin`, validated with Zod at the boundary. Endpoints: `POST /api/bookings`, `DELETE /api/bookings/:id`, `GET /api/availability?date=`, newsletter subscribe/unsubscribe, admin CRUD.
 - [ ] **Make booking creation transactional**: inside a Firestore transaction, re-check slot availability server-side, then write. Kills the double-booking race.
-- [ ] **Migrate appointment documents to the canonical model** (see "The booking core" above): one migration script, run against emulator first, that normalizes `selectedDate`'s four formats into `date` + `startMinutes` and backfills `status`. Old bookings stay fully viewable/editable.
+- [ ] **Migrate appointment documents to the canonical model — additively** (see "The booking core" above): a migration script (run against emulator first) that *adds* canonical `date` + `startMinutes` fields computed from `selectedDate`'s four formats and backfills `status`, while **keeping the legacy fields in place** — the existing client code still reads `selectedDate`/`startTime` until Phase 3 replaces it. New server-side writes populate both shapes during the transition. Legacy fields are dropped by a second, trivial migration at the end of Phase 3 once no reader remains. Old bookings stay fully viewable/editable throughout.
 - [ ] **Fix the domain's email authentication**: delete the duplicate/legacy DMARC record (keep exactly one), remove the stale `brevo-code` TXT, verify Resend's SPF/DKIM records in the Resend dashboard, then move DMARC from `p=none` → `p=quarantine` once a couple weeks of reports look clean. (Booking confirmations landing in spam = lost business.)
-- [ ] **Protect `/dashboard` server-side**: Firebase session cookies + `middleware.ts` verifying them; client-side redirect stays as UX sugar only.
+- [ ] **Protect `/dashboard` server-side**: Firebase session cookies, with the authoritative verification in the server layer (route handlers / server components via `firebase-admin`). Note: `firebase-admin` does **not** run in Edge middleware — if `middleware.ts` is used at all, it does only an edge-compatible JWT check (e.g. `jose` against Google's public certs) or a cheap cookie-presence redirect; it must not be the only gate. Client-side redirect stays as UX sugar only.
 - [ ] **Secure the email endpoints**: they become internal calls from the booking endpoints (never client-invoked with raw payloads); add rate limiting (Upstash Ratelimit or Vercel WAF rules) on all public POSTs.
 - [ ] **`GET /api/availability` returns computed slots, never appointment documents.** This simultaneously fixes the current GDPR-relevant leak (raw customer docs shipped to every booking visitor's browser for client-side slot math) and caps the read cost of the busiest public query. Server caches per-day availability, invalidated on booking writes.
-- [ ] **Dashboard reads go on a diet**: paginated/windowed queries per view instead of `fetchAllAppointments` (1,600+ reads/click today); totals via `getCountFromServer` aggregation; kill the 7-day slot-preload loop. Set a GCP budget alert on the Firebase project.
+- [ ] **Dashboard reads go on a diet**: paginated/windowed queries per view instead of `fetchAllAppointments` (1,600+ reads per invocation today); keep totals on `getCountFromServer` aggregation (already the case — don't regress it); kill the 7-day slot-preload loop. Set a GCP budget alert on the Firebase project.
 - [ ] Rebuild `/export` as an authenticated server endpoint (admin session required) instead of a client page that full-scans every collection.
 - [ ] Stop logging PII; add a `/api/health` endpoint.
 - [ ] **Set up backups**: scheduled Firestore export (Cloud Scheduler → GCS bucket), or minimally a documented + cron'd version of the existing export scripts.
@@ -195,17 +196,17 @@ Ordered so that each phase is independently shippable, security lands before ref
 **Done when:** browser console can no longer touch Firestore; two simultaneous bookings of the same slot produce exactly one appointment; dashboard 401s without a valid session; nightly backup exists.
 
 ### Phase 2 — TypeScript migration (3–5 days)
-- [ ] `tsconfig.json` with `strict: true`, `allowJs: true`; rename `jsconfig.json` away.
-- [ ] Define the **domain types first** in `types/`: `Appointment`, `Service`, `BookingOption`, `Vacation`, `Subscriber`, `TimeSlot` — derived from Zod schemas (`z.infer`) so runtime validation and types share one source of truth.
+- [ ] Harden the `tsconfig.json` introduced in Phase 1 as migration proceeds (it already exists — Phase 2 converts the *existing* `.js`/`.jsx` files).
+- [ ] Define the **domain types first** in `types/`: `Appointment`, `Service`, `BookingOption`, `Vacation`, `Subscriber`, `TimeSlot` — derived from Zod schemas (`z.infer`) so runtime validation and types share one source of truth (some will already exist from Phase 1's server layer).
 - [ ] Migrate in dependency order: `lib/utils/` → `lib/firebase/` + API routes → `hooks/` → `context/` → `components/` → `app/`.
-- [ ] Convert `data/*Data.js` to a single typed, Zod-validated services module (`data/services.ts`). This makes the next "nuovo listino" a safe edit.
+- [ ] Convert `data/*Data.js` to a single typed, Zod-validated services catalog at `lib/services/` (its final Phase 3 home — no point moving it twice). This makes the next "nuovo listino" a safe edit.
 - [ ] CI gate: `tsc --noEmit` must pass (added in Phase 5's CI, or add a minimal Action now).
 
 **Done when:** zero `.js`/`.jsx` under `app/ components/ hooks/ lib/ context/ data/`; `strict` passes with no `any` escape hatches in the data layer.
 
 ### Phase 3 — Data-layer consolidation (3–5 days) 🔥 *biggest LOC reduction*
 - [ ] Adopt **TanStack Query**. Delete `lib/cache/queryCache.js`, `lib/cache/appointmentCache.js`, `lib/utils/performance.js`.
-- [ ] Collapse `useAppointments`/`useOptimizedAppointments` (and the vacations/timeslots pairs) into **one** hook family backed by the Phase 1 API endpoints via TanStack Query.
+- [ ] **Delete the dead legacy hook family outright** — `useAppointments`, `useTimeSlots`, `useVacations`, `useFirestore` are verified unimported (only a commented-out reference in `AppointmentContext.jsx:14`). Then rebuild the surviving `useOptimizedX` family as **one** TanStack Query hook family backed by the Phase 1 API endpoints.
 - [ ] Dismantle `AppointmentContext.jsx` (1,019 lines) — most of it becomes queries/mutations; context keeps only genuinely global UI state, if any. (Today it also holds a *shadow copy* of appointment state in a reducer that the context value then overrides with hook state — two sources of truth where most reducer actions are invisible no-ops.)
 - [ ] **Remove booking machinery from the root layout** — `AppointmentProvider` currently mounts (and the vacations hook auto-fetches) for every visitor on every page. Booking state lives on the booking page; the gallery page should cost zero Firestore reads.
 - [ ] **One booking submission path.** Collapse the three implementations (`useBookingForm.submitBooking`, `BookAppointment.handleSubmit`, Dashy's) into a single `POST /api/bookings` client call; one `calculateEndTime`, one schema (from `lib/validation/`), email sending moved server-side into the endpoint (with the admin/no-email case handled explicitly).
@@ -214,6 +215,7 @@ Ordered so that each phase is independently shippable, security lands before ref
 - [ ] Split `Dashy.jsx` into route-level pieces (`app/dashboard/appointments/`, `/vacations/`, `/newsletter/` or component modules) — *structure only, no visual changes yet*.
 - [ ] Consolidate duplicate UI libs: one date picker (`react-day-picker`), one icon set (`lucide-react`), Radix-only dialogs/drawers. Only where visually identical; anything visible waits for Phase 7.
 - [ ] Delete the dead files inventoried in Phase 0.
+- [ ] **Drop the legacy appointment fields** (`selectedDate`, denormalized `startTime`/`endTime` string pair, etc.) with the second migration promised in Phase 1 — only after every reader has moved to the canonical `date` + `startMinutes` model. This closes the dual-field transition window.
 - [ ] **File/folder reconsolidation** — end-state layout (moves happen here, when files are already being rewritten, so git history churn is paid once):
 
 ```
@@ -254,7 +256,7 @@ tests/  e2e/          # vitest colocated or here; playwright in e2e/
 **Done when:** a thrown error in the booking flow appears in Sentry with a readable stack trace within a minute, downtime triggers an email, and there's one place to answer "how's the site doing this month?"
 
 ### Phase 5 — CI/CD & testing (2–3 days)
-- [ ] **GitHub Actions**: `lint` + `tsc --noEmit` + `vitest` + `next build` on every PR; branch protection on `main`.
+- [ ] **GitHub Actions**: `lint` + `tsc --noEmit` + `vitest` + `next build` on every PR **and every push to `refactor`** (agents push there without PRs); branch protection on `main`.
 - [ ] **Vitest + Testing Library**: unit tests for slot computation (already started in Phase 3), Zod schemas, date/time utils (`timeUtils`, `dateUtils` — 980 combined lines of untested date math today).
 - [ ] **Playwright** E2E: the golden path (open site → pick service → pick slot → book → confirmation) against a Firebase emulator or a seeded test project; run on PRs.
 - [ ] Dependabot/Renovate for dependency updates.
@@ -265,7 +267,7 @@ tests/  e2e/          # vitest colocated or here; playwright in e2e/
 ### Phase 6 — SEO & performance polish (2–3 days)
 *Foundations are good; this is refinement, not rescue.*
 
-- [ ] Per-page `metadata` exports (gallery, contacts, policy currently inherit the root's).
+- [ ] Audit and refine per-page `metadata` (gallery, contacts, policy already export their own — *verified* — but review descriptions, per-page OG images, and canonical URLs rather than assuming the defaults are right).
 - [ ] Consider `app/servizi/[category]/` static pages per service category — currently services live in one page, so "manicure roveleto di cadeo"-type queries have no dedicated landing page. (Renders existing content/UI; new routes are additive, not a UI change.)
 - [ ] `next.config` hardening: security headers (CSP, HSTS, X-Frame-Options), image config, `@next/bundle-analyzer`.
 - [ ] Bundle diet: dynamic-import Leaflet/map and gallery lightbox; verify tree-shaking after the Phase 3 dep consolidation; audit `Images.jsx`/`ImagesExports.jsx` for eager-loaded images.
@@ -306,7 +308,7 @@ tests/  e2e/          # vitest colocated or here; playwright in e2e/
 | Phase | Theme | Effort | Risk to prod | Depends on |
 |---|---|---|---|---|
 | 0 | Hygiene | 0.5–1 d | none | — |
-| 1 | Security & reliability | 2–4 d | medium (rules lockdown must ship with server layer) | 0 |
+| 1 | Security & reliability | 4–6 d | medium (rules lockdown must ship with server layer) | 0 |
 | 2 | TypeScript | 3–5 d | low | 1 |
 | 3 | Data-layer consolidation | 3–5 d | medium | 1, 2 |
 | 4 | Observability | 1–2 d | none | 1 |
@@ -314,10 +316,12 @@ tests/  e2e/          # vitest colocated or here; playwright in e2e/
 | 6 | SEO & perf | 2–3 d | low | 3 |
 | 7 | Dashboard revamp | 3–6 d | low (admin-only) | 3, 5 |
 
-Total: roughly **3–4 weeks** of focused part-time work. Phases 4 and 6 can be shuffled freely; 0→1→2→3 is the load-bearing spine.
+Total: roughly **4–5 weeks** of focused part-time work. Phases 4 and 6 can be shuffled freely; 0→1→2→3 is the load-bearing spine.
+
+Note on Phase 1 sizing: it's deliberately the heaviest phase — security rules, the server data layer, and the additive data migration must land together (rule 4 below), so it doesn't split well. If it needs cutting, the DNS/email items and backups can trail as a fast follow; the rules+server-layer+transaction trio cannot.
 
 **Rules of engagement**
-1. One phase = one or few PRs; `main` stays deployable at every merge.
+1. All work accumulates on the **`refactor` branch**; Victor merges `refactor` → `main` via PR at phase boundaries (or whenever a coherent chunk is approved), so `main` stays deployable at every merge. Sole exception: urgent production fixes (the Phase 0 email hotfix) ship on a `hotfix/*` branch cut from `main`, then `main` is merged back into `refactor`.
 2. Public UI is pixel-frozen through Phase 6 (screenshot-diff spot checks when touching shared components).
 3. The booking flow gets manually smoke-tested on the production site after every deploy until Playwright covers it.
 4. Firestore rules lockdown (Phase 1) deploys in the same release as the server data layer — never before, never after.

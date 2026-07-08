@@ -13,7 +13,7 @@ This is a real business, not a demo: bugs lose bookings, and Firestore reads cos
 **At session start:**
 1. Read this file, then the newest entry in `docs/WORKLOG.md` — its "Next" line is usually your task.
 2. Check `docs/MASTERPLAN.md` for the current phase (first phase with unchecked boxes).
-3. `git checkout refactor && git pull` — **all work happens on the `refactor` branch.** Never commit to `main`; merging to `main` happens only via PR reviewed by Victor.
+3. `git checkout refactor && git pull` — **all work happens on the `refactor` branch.** Never commit to `main`; merging to `main` happens only via PR reviewed by Victor. *Sole exception:* urgent production fixes explicitly marked as hotfixes in the masterplan (e.g. the Phase 0 email hotfix) go on a `hotfix/<name>` branch cut from `main` and PR straight to `main`; afterwards merge `main` back into `refactor`.
 
 **At session end (do not skip, even if the task is unfinished):**
 1. Verify: `npm run build` passes; the affected flow works (see checklist at the bottom).
@@ -29,7 +29,7 @@ Small, coherent commits over one mega-commit — Victor reviews the branch diff 
 
 ## Stack
 
-- Next.js 14 (App Router), **JavaScript** (TS migration is planned, Phase 2 — don't add stray `.ts` files before it)
+- Next.js 14 (App Router), **JavaScript** today. From masterplan Phase 1 onward, *new* files are TypeScript (a minimal strict `tsconfig` lands at the start of Phase 1); *converting existing* `.js`/`.jsx` files is Phase 2 — don't convert ahead of that phase.
 - Tailwind 3 + shadcn/ui (`components/ui/`)
 - Firebase: Auth + Firestore, **client SDK** (server-side data layer is planned, Phase 1)
 - Resend for email (`/api/send`, `/api/cancel`), deployed on Vercel (project `gioia-beauty`)
@@ -42,7 +42,7 @@ npm run build    # production build — run before considering any change done
 npm run lint     # eslint (next lint)
 ```
 
-There are no tests yet (planned, Phase 5). Verification = `npm run build` + manually exercising the affected flow.
+There are no tests yet — Vitest arrives with masterplan Phase 3 (slot-logic extraction), CI with Phase 5. Until then, verification = `npm run build` + manually exercising the affected flow. Once `npm test` exists, run it too.
 
 ## Hard rules
 
@@ -61,7 +61,7 @@ app/            routes; layout.js wraps EVERYTHING in AppointmentProvider (known
   dashboard/    admin SPA — renders components/dashboard/Dashy.jsx (1,767-line god component)
 components/     booking/, dashboard/, layout/, common/, ui/ (shadcn) + loose root-level strays
 context/        AppointmentContext (1,019 lines), NotificationContext, ThemeContext
-hooks/          TWO parallel families: useX and useOptimizedX — the "Optimized" ones are canonical
+hooks/          TWO parallel families: useX (dead code — verified unimported) and useOptimizedX (canonical)
 lib/firebase/   config, dataManager (926 lines, main data access), vacations, subscribers
 lib/cache/      hand-rolled caches (queryCache, appointmentCache) — do NOT extend; slated for deletion
 lib/utils/      timeUtils, dateUtils, constants, validationSchemas (zod — the canonical schemas)
@@ -74,7 +74,7 @@ scripts/        one-off newsletter migration scripts (not part of the app)
 - **`selectedDate` exists in 4 formats in the DB** (date string, ISO string, Date, Firestore Timestamp). Runtime normalization branches handle this in several places. Don't add a fifth format; new writes should follow whatever the masterplan's canonical model says at the current phase.
 - **Three booking-submission implementations exist**: `hooks/useBookingForm.js` (`submitBooking` — believed dead), `components/booking/BookAppointment.jsx` (the real public path), `components/dashboard/Dashy.jsx` (admin path). Each has its own `calculateEndTime` copy. If you touch booking, check all three.
 - **The "transaction" in `dataManager.createAppointmentSafe` does not prevent double-booking** — its conflict check queries outside the transaction's read set. Don't trust it; don't replicate the pattern.
-- **Zod schemas are duplicated**: the canonical ones live in `lib/utils/validationSchemas.js`; `useBookingForm.js` has a divergent inline copy (no email trim/lowercase — this caused real production email failures). Prefer the canonical ones.
+- **Zod schemas are duplicated**: the canonical ones live in `lib/utils/validationSchemas.js`; `useBookingForm.js` has a divergent inline copy (no email trim/lowercase). This many-validators-none-authoritative pattern let real production email failures through — always prefer the canonical schemas.
 - **Admin "time blocks" are stored as fake appointments** in the `customers` collection — code iterating appointments must expect entries without a real customer/email.
 - **Email sending is fire-and-forget from the client** with failures swallowed by `console.warn`. `/api/send` and `/api/cancel` accept unvalidated input (hotfix planned in Phase 0).
 - `enableRealTime` / `autoRefresh` flags are deliberately `false` to control Firestore reads. Don't switch them on.
@@ -86,7 +86,7 @@ scripts/        one-off newsletter migration scripts (not part of the app)
 - **Appointment type / variant** = a service (e.g. Manicure) and its booking option; defined in `data/*Data.js`, aggregated by `lib/utils/constants.js` into `APPOINTMENT_TYPES`.
 - **Vacation** = salon closure period (`vacations` collection); booking must be impossible inside one.
 - **Extra time** = buffer minutes appended after a service; included in the stored end time.
-- Business hours live in `lib/utils/constants.js` (`BUSINESS_HOURS`); closed Sundays/Mondays.
+- Business hours live in `lib/utils/constants.js` (`BUSINESS_HOURS`); open Mon–Fri (varying hours), closed Sat + Sun.
 
 ## Verification checklist before "done"
 
