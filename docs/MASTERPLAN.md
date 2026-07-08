@@ -138,11 +138,13 @@ Appointment {
   date: string                 // "YYYY-MM-DD" — calendar day in Europe/Rome, no Timestamp ambiguity
   startMinutes: number         // minutes since midnight local — 570 = 09:30; trivially sortable/comparable
   durationMinutes: number      // includes extraTime, denormalized from catalog AT BOOKING TIME (price-list history stays intact)
-  status: "confirmed" | "completed" | "cancelled" | "no_show"
-  client: { name; email; phone; note? }
+  status: "confirmed" | "completed" | "cancelled" | "no_show" | "block"  // "block" = admin time-block; no client, no lifecycle
+  client: { name; email; phone; note? }   // absent for blocks; email validated-or-absent, never ""
   createdAt / updatedAt: Timestamp   // server timestamps
 }
 ```
+
+> Exact legacy formats (the four `selectedDate` shapes with examples), field-by-field gotchas, and the dual-field transition rules live in **`docs/DATA-MODEL.md`** — required reading before writing the migration or any transition-era reader.
 
 Decisions encoded here:
 - **Local calendar day + minutes-since-midnight** instead of `Timestamp` kills the timezone/DST/off-by-one class of bugs for a single-location business. All date math goes through one `lib/booking/time.ts` module pinned to `Europe/Rome`.

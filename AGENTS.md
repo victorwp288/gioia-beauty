@@ -71,7 +71,7 @@ scripts/        one-off newsletter migration scripts (not part of the app)
 
 ## Known landmines (verified, don't rediscover them the hard way)
 
-- **`selectedDate` exists in 4 formats in the DB** (date string, ISO string, Date, Firestore Timestamp). Runtime normalization branches handle this in several places. Don't add a fifth format; new writes should follow whatever the masterplan's canonical model says at the current phase.
+- **`selectedDate` exists in 4 formats in the DB** (date string, ISO string, Date, Firestore Timestamp). Runtime normalization branches handle this in several places. Don't add a fifth format; new writes follow the canonical model. **Exact formats with examples + transition rules: `docs/DATA-MODEL.md`** — read it before touching appointment data.
 - **Three booking-submission implementations exist**: `hooks/useBookingForm.js` (`submitBooking` — believed dead), `components/booking/BookAppointment.jsx` (the real public path), `components/dashboard/Dashy.jsx` (admin path). Each has its own `calculateEndTime` copy. If you touch booking, check all three.
 - **The "transaction" in `dataManager.createAppointmentSafe` does not prevent double-booking** — its conflict check queries outside the transaction's read set. Don't trust it; don't replicate the pattern.
 - **Zod schemas are duplicated**: the canonical ones live in `lib/utils/validationSchemas.js`; `useBookingForm.js` has a divergent inline copy (no email trim/lowercase). This many-validators-none-authoritative pattern let real production email failures through — always prefer the canonical schemas.
