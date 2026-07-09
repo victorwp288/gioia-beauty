@@ -269,7 +269,6 @@ $$;
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.owner_scope_hash(uuid)
   from public, anon, authenticated, service_role, app_runtime, gioia_migrator;
@@ -285,5 +284,7 @@ revoke all on function gioia_private.record_domain_change(
 revoke all on function gioia_private.enqueue_schedule_emails(
   gioia_private.schedule_entries, text, date, smallint
 ) from public, anon, authenticated, service_role, app_runtime, gioia_migrator;
+
+revoke gioia_mutator from postgres;
 
 commit;

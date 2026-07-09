@@ -143,7 +143,6 @@ $$;
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.owner_reschedule_block(
   uuid, text, bytea, uuid, integer, date, smallint, smallint, smallint
@@ -151,5 +150,7 @@ revoke all on function gioia_private.owner_reschedule_block(
 grant execute on function gioia_private.owner_reschedule_block(
   uuid, text, bytea, uuid, integer, date, smallint, smallint, smallint
 ) to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;

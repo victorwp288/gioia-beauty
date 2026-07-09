@@ -236,7 +236,6 @@ $$;
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.subscribe_public_newsletter(
   bytea, text, bytea, text
@@ -256,5 +255,7 @@ grant execute on function gioia_private.confirm_public_newsletter(
 grant execute on function gioia_private.unsubscribe_public_newsletter(
   uuid, bytea, text, bytea
 ) to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;

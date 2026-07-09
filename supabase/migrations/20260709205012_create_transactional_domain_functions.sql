@@ -134,7 +134,6 @@ comment on function gioia_private.assert_vacation_span_clear(date, date) is
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.assert_enabled_owner(uuid)
   from public, anon, authenticated, service_role, app_runtime, gioia_migrator;
@@ -144,5 +143,7 @@ revoke all on function gioia_private.assert_schedule_date_open(date)
   from public, anon, authenticated, service_role, app_runtime, gioia_migrator;
 revoke all on function gioia_private.assert_vacation_span_clear(date, date)
   from public, anon, authenticated, service_role, app_runtime, gioia_migrator;
+
+revoke gioia_mutator from postgres;
 
 commit;

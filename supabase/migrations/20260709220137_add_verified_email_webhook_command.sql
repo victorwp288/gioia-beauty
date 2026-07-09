@@ -172,7 +172,6 @@ comment on function gioia_private.process_verified_email_webhook(
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.process_verified_email_webhook(
   text, text, text, bytea, timestamptz
@@ -180,5 +179,7 @@ revoke all on function gioia_private.process_verified_email_webhook(
 grant execute on function gioia_private.process_verified_email_webhook(
   text, text, text, bytea, timestamptz
 ) to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;

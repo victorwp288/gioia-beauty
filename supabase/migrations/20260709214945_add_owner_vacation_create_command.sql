@@ -116,7 +116,6 @@ $$;
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.owner_create_vacation(
   uuid, text, bytea, date, date, text
@@ -124,5 +123,7 @@ revoke all on function gioia_private.owner_create_vacation(
 grant execute on function gioia_private.owner_create_vacation(
   uuid, text, bytea, date, date, text
 ) to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;

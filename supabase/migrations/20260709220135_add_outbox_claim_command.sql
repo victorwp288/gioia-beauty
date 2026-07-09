@@ -197,11 +197,12 @@ comment on function gioia_private.claim_email_outbox(text, smallint, smallint) i
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.claim_email_outbox(text, smallint, smallint)
   from public, anon, authenticated, service_role, app_runtime, gioia_migrator;
 grant execute on function gioia_private.claim_email_outbox(text, smallint, smallint)
   to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;

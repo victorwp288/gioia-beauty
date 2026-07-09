@@ -72,6 +72,21 @@ export function validateMigrationSql(filename, sql) {
       "migration role switching must target the explicit postgres principal",
     );
   }
+  if (/set\s+local\s+role\s+gioia_mutator\b/i.test(sql)) {
+    const normalizedSql = sql.toLowerCase();
+    const membershipRevoke = normalizedSql.lastIndexOf(
+      "revoke gioia_mutator from postgres;",
+    );
+    const finalFunctionAcl = Math.max(
+      normalizedSql.lastIndexOf("revoke all on function"),
+      normalizedSql.lastIndexOf("grant execute on function"),
+    );
+    if (membershipRevoke < finalFunctionAcl) {
+      errors.push(
+        "mutator membership must remain until function ACL changes are complete",
+      );
+    }
+  }
 
   for (const block of securityDefinerBlocks(sql)) {
     if (!/set\s+search_path\s*=\s*''/i.test(block)) {

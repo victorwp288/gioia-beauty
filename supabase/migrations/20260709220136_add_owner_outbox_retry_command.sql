@@ -77,7 +77,6 @@ $$;
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.retry_email_outbox_as_owner(
   uuid, text, bytea, uuid, integer
@@ -85,5 +84,7 @@ revoke all on function gioia_private.retry_email_outbox_as_owner(
 grant execute on function gioia_private.retry_email_outbox_as_owner(
   uuid, text, bytea, uuid, integer
 ) to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;

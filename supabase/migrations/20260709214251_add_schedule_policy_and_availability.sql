@@ -261,7 +261,6 @@ $$;
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.rome_today()
   from public, anon, authenticated, service_role, app_runtime, gioia_migrator;
@@ -277,5 +276,7 @@ revoke all on function gioia_private.get_public_availability(date, text, text)
   from public, anon, authenticated, service_role, gioia_migrator;
 grant execute on function gioia_private.get_public_availability(date, text, text)
   to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;

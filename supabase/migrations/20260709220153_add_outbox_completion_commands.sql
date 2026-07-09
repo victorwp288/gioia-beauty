@@ -140,7 +140,6 @@ comment on function gioia_private.complete_email_outbox_failure(
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.complete_email_outbox_success(
   uuid, integer, text, text
@@ -154,5 +153,7 @@ grant execute on function gioia_private.complete_email_outbox_success(
 grant execute on function gioia_private.complete_email_outbox_failure(
   uuid, integer, text, text, boolean
 ) to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;

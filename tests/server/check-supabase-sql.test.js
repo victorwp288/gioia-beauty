@@ -75,6 +75,27 @@ describe("Supabase SQL static validation", () => {
     ).toBe(true);
   });
 
+  it("keeps mutator membership through owner-only function ACL changes", () => {
+    const unsafe = [
+      "begin;",
+      "grant gioia_mutator to postgres;",
+      "set local role gioia_mutator;",
+      "create function gioia_private.example() returns void",
+      "language sql as $$ select null $$;",
+      "reset role;",
+      "revoke gioia_mutator from postgres;",
+      "revoke all on function gioia_private.example() from public;",
+      "commit;",
+    ].join("\n");
+
+    expect(
+      validateMigrationSql(
+        "20260709220005_early_membership_revoke.sql",
+        unsafe,
+      ).some((error) => error.includes("function ACL changes")),
+    ).toBe(true);
+  });
+
   it("requires bounded, planned pgTAP files", () => {
     expect(
       validateDatabaseTestSql(

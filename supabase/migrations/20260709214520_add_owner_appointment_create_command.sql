@@ -143,7 +143,6 @@ $$;
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.owner_create_appointment(
   uuid, text, bytea, date, smallint, text, text, text, text, text, text
@@ -151,5 +150,7 @@ revoke all on function gioia_private.owner_create_appointment(
 grant execute on function gioia_private.owner_create_appointment(
   uuid, text, bytea, date, smallint, text, text, text, text, text, text
 ) to app_runtime;
+
+revoke gioia_mutator from postgres;
 
 commit;
