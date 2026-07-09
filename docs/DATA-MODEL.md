@@ -2,6 +2,8 @@
 
 Required reading before appointment, migration, availability, auth, export, or retention work. Production procedures are governed by `docs/PRODUCTION-SAFETY.md`.
 
+The executable behavioral decisions for time, occupancy, buffers, vacations, rescheduling, and idempotency are in `docs/BOOKING-RULES.md`.
+
 ## 1. Source: legacy Firestore
 
 Collection `customers` holds appointments and time blocks. A representative document:
@@ -28,12 +30,12 @@ Collection `customers` holds appointments and time blocks. A representative docu
 
 ### Date representations
 
-| # | Representation | Example | At rest? |
-|---|---|---|---|
-| 1 | Date-only string | `"2024-06-14"` | Yes |
-| 2 | Full ISO string | `"2025-03-14T00:00:00.000Z"` | Yes |
-| 3 | Firestore Timestamp | `Timestamp(...)` | Yes |
-| 4 | JavaScript `Date` | `Date Fri Mar 14 ...` | **No; memory/cache representation only** |
+| #   | Representation      | Example                      | At rest?                                 |
+| --- | ------------------- | ---------------------------- | ---------------------------------------- |
+| 1   | Date-only string    | `"2024-06-14"`               | Yes                                      |
+| 2   | Full ISO string     | `"2025-03-14T00:00:00.000Z"` | Yes                                      |
+| 3   | Firestore Timestamp | `Timestamp(...)`             | Yes                                      |
+| 4   | JavaScript `Date`   | `Date Fri Mar 14 ...`        | **No; memory/cache representation only** |
 
 Migration rules:
 
@@ -58,34 +60,42 @@ The exact SQL is defined by reviewed migrations. Zod schemas validate applicatio
 ### `service_categories`
 
 ```text
-id                  text primary key
-name_it             text not null
-sort_order          integer not null
-active              boolean not null
+id               text primary key
+display_name_it  text not null
+sort_order       smallint not null unique
+active           boolean not null
+version          integer not null
+created_at       timestamptz not null
+updated_at       timestamptz not null
 ```
 
 ### `services`
 
 ```text
-id                  text primary key       -- explicit stable ID, never derived at runtime from display text
-name_it             text not null
-category_id         text not null references service_categories(id)
-active              boolean not null
-created_at          timestamptz not null
-updated_at          timestamptz not null
+id               text primary key       -- explicit stable ID, never derived from display text
+category_id      text not null references service_categories(id)
+display_name_it  text not null
+description_it   text null
+sort_order       smallint not null
+active           boolean not null
+version          integer not null
+created_at       timestamptz not null
+updated_at       timestamptz not null
 ```
 
 ### `service_variants`
 
 ```text
-id                       text primary key
-service_id               text not null references services(id)
-name_it                  text not null
-service_duration_minutes integer not null
-buffer_minutes           integer not null
-price_cents              integer null      -- null until verified real price data exists
-currency                 text null
-active                   boolean not null
+id                text primary key
+service_id        text not null references services(id)
+display_name_it   text not null
+sort_order        smallint not null
+duration_minutes  smallint not null
+buffer_minutes    smallint not null
+price_cents       integer null      -- null until verified real price data exists
+currency          char(3) null
+active            boolean not null
+version           integer not null
 unique (service_id, id)
 ```
 
@@ -96,40 +106,37 @@ The versioned repository catalog manifest is the only authoring source. Reviewed
 One table holds appointments and owner-created blocks so one database invariant can protect the occupied schedule.
 
 ```text
-id                         uuid primary key
-schema_version             integer not null
-kind                       appointment | block
-status                     confirmed | completed | cancelled | no_show | active
-date                       date not null                -- salon-local Europe/Rome calendar date
-start_minutes              integer not null             -- 0..1439
-service_duration_minutes   integer not null
-buffer_minutes             integer not null
-occupied_minutes           integer generated/validated  -- service + buffer
-service_id                 text null
-variant_id                 text null
-service_name_snapshot      text null
-variant_name_snapshot      text null
-price_cents_snapshot       integer null
-currency_snapshot          text null
-source                     public | admin | migration
-client_name                text null
-client_email               text null                     -- normalized address or null, never empty
-client_phone               text null
-client_note                text null
-internal_note              text null
-idempotency_key            text null
-idempotency_operation      text null
-idempotency_principal      text null
-request_fingerprint        text null
-legacy_firestore_id        text null unique
-cancelled_at               timestamptz null
-cancelled_by               client | admin | system | null
-cancellation_reason        text null
-created_at                 timestamptz not null
-updated_at                 timestamptz not null
-timestamp_provenance       source | import_time
-imported_at                timestamptz null
-unique (idempotency_operation, idempotency_principal, idempotency_key)
+id                        uuid primary key
+schema_version            smallint not null
+kind                      appointment | block
+status                    confirmed | completed | cancelled | no_show | active
+source                    public | admin | migration
+local_date                date not null          -- Europe/Rome calendar date
+start_minutes             smallint not null      -- 0..1439
+service_duration_minutes  smallint not null
+buffer_minutes            smallint not null
+occupied_span             int4range generated    -- [start, start + duration + buffer)
+service_id                text null
+variant_id                text null
+service_name_snapshot     text null
+variant_name_snapshot     text null
+price_cents_snapshot      integer null
+currency_snapshot         char(3) null
+client_name               text null
+client_email              citext null            -- normalized address or null, never empty
+client_phone              text null
+client_note               text null
+internal_note             text null
+created_by                uuid null references auth.users(id)
+legacy_firestore_id       text null unique
+timestamp_provenance      source | import_time
+imported_at               timestamptz null
+cancelled_at              timestamptz null
+cancelled_by              client | admin | system | migration | null
+cancellation_reason       text null
+version                   integer not null
+created_at                timestamptz not null
+updated_at                timestamptz not null
 foreign key (service_id, variant_id) references service_variants(service_id, id)
 ```
 
@@ -138,11 +145,31 @@ Structural checks enforce:
 - appointments require a matching service/variant pair, client name, and status in `confirmed | completed | cancelled | no_show`; email/phone optionality follows the separately approved public/admin schemas;
 - blocks have no client/service requirement, use owner-visible block notes, and status only in `active | cancelled`;
 - `start_minutes`, durations, and occupied end remain within the calendar day/business override rules;
-- cancelled entries do not consume availability;
-- active appointment/block intervals on the same date cannot overlap;
-- identical idempotent retries return the original result; reuse of the same operation/principal/key with a different request fingerprint returns 409 rather than inserting or reusing the wrong booking.
+- completed appointments remain occupancy evidence; cancelled/no-show appointments and cancelled blocks do not consume availability;
+- a GiST exclusion constraint rejects overlapping occupied ranges on the same date; and
+- terminal rows permit only owner edits to non-occupancy contact/note fields. Identity, provenance, status, occupied interval, catalog snapshot, and cancellation evidence stay immutable.
 
-Use a Postgres exclusion constraint over an integer range, or a single reviewed transactional database function with equivalent protection. Pure TypeScript availability is not the final conflict authority.
+Transactional command functions also lock each affected salon date in `schedule_day_locks` before checking vacations or changing occupancy. Pure TypeScript availability is never the final conflict authority.
+
+### `command_requests`
+
+```text
+id                                  uuid primary key
+operation                           text not null
+principal_scope_hash                bytea not null    -- HMAC/digest output only; no raw IP/account value
+principal_scope_algorithm_version   smallint not null
+idempotency_key                     text not null
+request_fingerprint                 bytea not null
+request_fingerprint_algorithm_version smallint not null
+state                               in_progress | completed | failed
+resource_kind / resource_id         bounded result identity or null
+http_status / error_code            bounded replay outcome or null
+response_snapshot                   jsonb null        -- code + opaque resource UUID only
+expires_at / created_at / completed_at timestamptz
+unique (operation, principal_scope_hash, idempotency_key)
+```
+
+Identical retries replay the stored redacted outcome. Reusing the same operation/principal/key with a different request fingerprint raises `PT409`; a concurrent in-progress duplicate also returns conflict instead of executing twice.
 
 ### `vacations`
 
@@ -151,17 +178,22 @@ id                    uuid primary key
 schema_version        integer not null
 start_date            date not null
 end_date              date not null
+date_span             daterange generated
+status                active | cancelled
 reason                text null
 created_by            uuid null references auth.users(id) on delete set null
 source                admin | migration
 legacy_firestore_id   text null unique
-created_at            timestamptz not null
-updated_at            timestamptz not null
 timestamp_provenance  source | import_time
 imported_at           timestamptz null
+cancelled_at          timestamptz null
+cancelled_by          uuid null references auth.users(id)
+version               integer not null
+created_at            timestamptz not null
+updated_at            timestamptz not null
 ```
 
-For migrated vacations, `created_by` is nullable and `source = migration`; the importer never invents an owner UUID. New admin-created rows require the authenticated owner ID. The product decision for a vacation overlapping existing bookings must be explicit: reject, warn-and-confirm, or allow with an owner workflow. Vacation creation and booking creation must share a locking/invariant strategy so concurrent operations cannot slip past each other.
+For migrated vacations, `created_by` is nullable and `source = migration`; the importer never invents an owner UUID. New owner-created rows require the authenticated owner ID. Active vacations cannot overlap one another. The approved policy rejects a vacation that overlaps occupied schedule rows, and vacation/booking/reschedule functions share ordered date locks so concurrent operations cannot slip past each other.
 
 ### `newsletter_subscribers`
 
@@ -181,6 +213,7 @@ created_at             timestamptz not null
 updated_at             timestamptz not null
 timestamp_provenance   source | import_time
 imported_at             timestamptz null
+version                 integer not null
 ```
 
 The `citext` extension plus a database check requiring `email = btrim(email)` enforce canonical case-insensitive uniqueness; normalization is not a caller-controlled second column. Legacy rows without provable consent become `legacy_unverified` with null consent provenance and are not marketed to until reconfirmed or owner/legal review establishes a documented basis. Public subscribe/unsubscribe responses do not reveal whether an address exists. Unsubscribe uses a signed, expiring/single-purpose token; an arbitrary email address is not authorization.
@@ -188,27 +221,30 @@ The `citext` extension plus a database check requiring `email = btrim(email)` en
 ### `email_outbox`
 
 ```text
-id                  uuid primary key
-aggregate_kind      schedule_entry | subscriber
-aggregate_id        uuid not null
-recipient_kind      customer | admin | subscriber
-recipient_address   citext not null
-template_kind       booking | cancellation | reschedule | newsletter_confirmation
-template_data       jsonb not null       -- immutable minimal render snapshot
-idempotency_key    text not null unique
-status             pending | sending | sent | failed | bounced | complained
-provider_message_id text null
-attempt_count      integer not null
-next_attempt_at    timestamptz null
-locked_at           timestamptz null
-locked_by           text null
-lease_expires_at    timestamptz null
-last_error_code    text null
-created_at         timestamptz not null
-updated_at         timestamptz not null
+id                    uuid primary key
+aggregate_kind        schedule_entry | subscriber
+aggregate_id          uuid not null
+aggregate_version     integer not null
+recipient_kind        customer | owner | subscriber
+recipient_address     citext not null
+template_kind         booking_* | cancellation_* | reschedule_* | newsletter_confirmation
+template_data         jsonb not null       -- immutable minimal render snapshot
+idempotency_key       text not null unique
+status                pending | sending | sent | failed | dead_letter | bounced | complained
+provider_message_id   text null unique
+attempt_count         smallint not null
+next_attempt_at       timestamptz not null
+locked_at             timestamptz null
+locked_by             text null
+lease_expires_at      timestamptz null
+last_error_code       text null
+sent_at               timestamptz null
+version               integer not null
+created_at            timestamptz not null
+updated_at            timestamptz not null
 ```
 
-Outbox rows and the booking/status/subscriber change commit together. Provider calls happen after commit. A signed Vercel Cron worker claims bounded batches with a database lease/`FOR UPDATE SKIP LOCKED`; expired leases are recoverable, provider idempotency prevents duplicate sends where supported, and dead letters alert the operator. Signed Resend webhooks are replay-deduplicated by provider event ID before state changes. Recipient/template snapshots are encrypted/retained only as long as delivery and audit require. Reports/errors contain identifiers and codes, not PII payloads.
+Outbox rows and the booking/status/subscriber change commit together. Provider calls happen after commit. A signed Vercel Cron worker claims bounded batches with a database lease/`FOR UPDATE SKIP LOCKED`; expired leases are recoverable, provider idempotency prevents duplicate sends where supported, and dead letters alert the operator. Signed Resend webhooks are replay-deduplicated by provider event ID before state changes. Reports/errors contain identifiers and codes, not PII payloads. Field-level retention/anonymization and any additional encryption beyond managed database/storage encryption remain explicit privacy launch gates.
 
 ### `email_webhook_events`
 
@@ -216,41 +252,49 @@ Outbox rows and the booking/status/subscriber change commit together. Provider c
 provider_event_id   text primary key
 provider_message_id text null
 event_kind          delivered | bounced | complained | other
+payload_sha256      bytea not null
+signature_verified boolean not null true
 received_at         timestamptz not null
 processed_at        timestamptz null
+processing_error_code text null
 ```
 
 ### `domain_change_log`
 
 ```text
-sequence_id          bigint generated always as identity primary key
-entity_type          schedule_entry | vacation | subscriber
-entity_id            uuid not null
-action               create | update | reschedule | cancel | block | subscribe | unsubscribe
-entity_version       integer not null
-request_id           text null
-actor_kind           public | admin | migration | system
-changed_fields       text[] not null              -- names only; no PII values
-occurred_at          timestamptz not null
+sequence_id         bigint generated always as identity primary key
+aggregate_kind      schedule_entry | vacation | subscriber
+aggregate_id        uuid not null
+aggregate_version   integer not null
+change_kind         create | update | reschedule | cancel | block | subscribe | unsubscribe
+schema_version      smallint not null
+source              public | admin | migration | system
+command_request_id  uuid null
+migration_run_id    uuid null
+actor_user_id       uuid null references auth.users(id)
+changed_fields      text[] not null              -- names only; no PII values
+changed_at          timestamptz not null
 ```
 
 This append-only, PII-minimized sequence provides an auditable high-water mark for rollback/reverse-sync. It does not replace database backups. Mutation functions write the domain row and change-log entry atomically.
+
+### Migration evidence
+
+`migration_runs`, `migration_records`, and `migration_quarantine` are isolated to the `gioia_migrator` role. They record source-manifest hashes, one disposition per source ID, target/checksum evidence, aggregate reconciliation, and explicit quarantine reason codes without storing customer payloads. Imported target rows retain `legacy_firestore_id` and timestamp provenance.
 
 ### Auth and authorization
 
 - Supabase Auth contains the single owner/admin identity; invite/reset rather than attempting to migrate Firebase password hashes.
 - Authorization uses owner-controlled `app_metadata` or an explicit server-side allowlist. Never authorize from editable `user_metadata`.
-- Business operations remain behind server routes using a least-privilege pooled `app_runtime` Postgres role against a private schema. `anon`/`authenticated` have no business-table grants; RLS/Data API denial protects browser exposure but does not constrain a privileged service secret.
+- Business operations remain behind server routes using a least-privilege pooled `app_runtime` Postgres role against the private `gioia_private` schema. It can execute only allowlisted definer functions and has no table privileges. `anon`, `authenticated`, and `service_role` have neither business-table nor business-function access.
+- `app_runtime` is committed as `NOLOGIN`. A TEST/Production operator separately provisions its strong password/login capability and transaction-pooler secret; the application never connects as `postgres`.
 
-## 3. Business rules that must be decided before implementation
+## 3. Booking and privacy decisions
 
-- Minimum lead time: no same-day booking or an hour-based rule—one canonical rule only.
-- Maximum advance window.
-- Slot alignment increment.
-- Whether buffers belong after the service only and whether they are customer-visible.
-- Which admin overrides are allowed for hours, vacations, lead time, and conflicts.
-- Whether a vacation can overlap existing confirmed appointments.
-- Persisted versus derived `completed` semantics.
+The executable booking decisions are versioned in `docs/BOOKING-RULES.md` and the `booking_policy` singleton: Europe/Rome, next-day public minimum, 60-day maximum, 15-minute alignment, post-service hidden buffers, no conflict override, vacation rejection, and explicit owner completion.
+
+Privacy/operations decisions that remain launch gates:
+
 - Retention/anonymization periods for customer details, notes, newsletter consent, logs, and backups.
 - Whether notes may contain health/sensitive data; the UI should discourage collection that is not necessary.
 

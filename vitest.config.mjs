@@ -17,8 +17,26 @@ export default defineConfig({
   },
   test: {
     clearMocks: true,
-    environment: "node",
-    include: ["tests/**/*.test.{js,jsx}"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "node",
+          environment: "node",
+          exclude: ["tests/ui/**"],
+          include: ["tests/**/*.test.{js,jsx,ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "dom",
+          environment: "jsdom",
+          include: ["tests/ui/**/*.test.{js,jsx,ts,tsx}"],
+          setupFiles: ["./tests/setup/dom.ts"],
+        },
+      },
+    ],
     restoreMocks: true,
   },
 });

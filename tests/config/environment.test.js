@@ -7,12 +7,49 @@ import {
 } from "@/config/environment.mjs";
 
 function validate(overrides = {}, command = "application") {
-  return validateEnvironment({ APP_ENV: "local", ...overrides }, { command });
+  const env = { APP_ENV: "local", EMAIL_TRANSPORT: "fake", ...overrides };
+  env.NEXT_PUBLIC_APP_ENV ??= env.APP_ENV;
+  return validateEnvironment(env, { command });
+}
+
+function previewEnvironment(overrides = {}) {
+  return {
+    APP_ENV: "preview",
+    VERCEL_ENV: "preview",
+    SUPABASE_PROJECT_REF: GREENFIELD_SUPABASE_REF,
+    NEXT_PUBLIC_SUPABASE_URL: `https://${GREENFIELD_SUPABASE_REF}.supabase.co`,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+      "sb_publishable_synthetic_value_123456",
+    SUPABASE_DATABASE_URL:
+      `postgresql://app_runtime.${GREENFIELD_SUPABASE_REF}:` +
+      "synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres",
+    BOOKING_HMAC_SECRET: "synthetic-preview-booking-hmac-secret-000000000000",
+    ...overrides,
+  };
 }
 
 describe("environment isolation", () => {
   it("accepts a minimal local environment", () => {
     expect(validate()).toEqual({ ok: true, appEnv: "local", errors: [] });
+  });
+
+  it("requires the non-delivering transport outside Production", () => {
+    expect(validate({ EMAIL_TRANSPORT: "resend" }).errors).toContain(
+      "EMAIL_TRANSPORT must be fake in local",
+    );
+  });
+
+  it("requires the public environment marker to match the server marker", () => {
+    expect(
+      validateEnvironment({
+        APP_ENV: "local",
+        NEXT_PUBLIC_APP_ENV: "test",
+        EMAIL_TRANSPORT: "fake",
+      }).ok,
+    ).toBe(false);
+    expect(
+      validateEnvironment({ APP_ENV: "local", EMAIL_TRANSPORT: "fake" }).errors,
+    ).toContain("NEXT_PUBLIC_APP_ENV is required by the browser runtime");
   });
 
   it.each([
@@ -64,13 +101,26 @@ describe("environment isolation", () => {
     expect(result.errors[0]).toContain("must never be exposed to the browser");
   });
 
+  it("requires strong server-only booking HMAC material remotely", () => {
+    const missing = previewEnvironment({ BOOKING_HMAC_SECRET: undefined });
+    const short = previewEnvironment({ BOOKING_HMAC_SECRET: "too-short" });
+
+    expect(validate(missing).errors).toContain(
+      "preview requires BOOKING_HMAC_SECRET",
+    );
+    expect(validate(short).errors).toContain(
+      "BOOKING_HMAC_SECRET must contain at least 32 bytes",
+    );
+  });
+
+  it("rejects an explicitly empty local booking HMAC secret", () => {
+    expect(validate({ BOOKING_HMAC_SECRET: "" }).errors).toContain(
+      "BOOKING_HMAC_SECRET must contain at least 32 bytes",
+    );
+  });
+
   it("allows Preview only with the registered greenfield Supabase ref", () => {
-    const accepted = validate({
-      APP_ENV: "preview",
-      VERCEL_ENV: "preview",
-      SUPABASE_PROJECT_REF: GREENFIELD_SUPABASE_REF,
-      NEXT_PUBLIC_SUPABASE_URL: `https://${GREENFIELD_SUPABASE_REF}.supabase.co`,
-    });
+    const accepted = validate(previewEnvironment());
     const rejected = validate({
       APP_ENV: "preview",
       VERCEL_ENV: "preview",
@@ -82,13 +132,34 @@ describe("environment isolation", () => {
     expect(rejected.ok).toBe(false);
   });
 
+  it("rejects privileged or non-transactional Preview database connections", () => {
+    const privileged = validate(
+      previewEnvironment({
+        SUPABASE_DATABASE_URL:
+          `postgresql://postgres.${GREENFIELD_SUPABASE_REF}:` +
+          "synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres",
+      }),
+    );
+    const direct = validate(
+      previewEnvironment({
+        SUPABASE_DATABASE_URL:
+          `postgresql://app_runtime:synthetic@db.${GREENFIELD_SUPABASE_REF}` +
+          ".supabase.co:5432/postgres",
+      }),
+    );
+
+    expect(privileged.ok).toBe(false);
+    expect(direct.ok).toBe(false);
+    expect(privileged.errors.join(" ")).toContain("app_runtime");
+    expect(direct.errors.join(" ")).toContain("transaction pooler");
+  });
+
   it("binds Preview URLs to the registered project ref", () => {
-    const result = validate({
-      APP_ENV: "preview",
-      VERCEL_ENV: "preview",
-      SUPABASE_PROJECT_REF: GREENFIELD_SUPABASE_REF,
-      NEXT_PUBLIC_SUPABASE_URL: "https://attacker-project.supabase.co",
-    });
+    const result = validate(
+      previewEnvironment({
+        NEXT_PUBLIC_SUPABASE_URL: "https://attacker-project.supabase.co",
+      }),
+    );
 
     expect(result.ok).toBe(false);
     expect(result.errors.join(" ")).toContain("does not match");
@@ -169,15 +240,30 @@ describe("environment isolation", () => {
 
   it("allows tests only in the explicit Test environment", () => {
     expect(
-      validateEnvironment({ APP_ENV: "test" }, { command: "test" }).ok,
+      validateEnvironment(
+        {
+          APP_ENV: "test",
+          NEXT_PUBLIC_APP_ENV: "test",
+          EMAIL_TRANSPORT: "fake",
+        },
+        { command: "test" },
+      ).ok,
     ).toBe(true);
     expect(
-      validateEnvironment({ APP_ENV: "operator" }, { command: "test" }).ok,
+      validateEnvironment(
+        {
+          APP_ENV: "operator",
+          NEXT_PUBLIC_APP_ENV: "operator",
+          EMAIL_TRANSPORT: "fake",
+        },
+        { command: "test" },
+      ).ok,
     ).toBe(false);
     expect(
       validateEnvironment(
         {
           APP_ENV: "production",
+          NEXT_PUBLIC_APP_ENV: "production",
           VERCEL_ENV: "production",
           GIOIA_PRODUCTION_APPROVAL_ID: "synthetic-approval",
           SUPABASE_PROJECT_REF: GREENFIELD_SUPABASE_REF,

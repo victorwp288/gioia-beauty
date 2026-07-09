@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createCancellationEmailPostHandler } from "@/app/api/cancel/route";
-import { createBookingEmailPostHandler } from "@/app/api/send/route";
+import { createBookingEmailPostHandler } from "@/lib/server/bookingEmailHandler";
+import { createCancellationEmailPostHandler } from "@/lib/server/cancellationEmailHandler";
 
 const bookingBody = {
   email: "cliente@example.com",

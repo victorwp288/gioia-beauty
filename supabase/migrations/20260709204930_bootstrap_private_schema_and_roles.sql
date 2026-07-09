@@ -1,0 +1,148 @@
+begin;
+
+set local lock_timeout = '5s';
+set local statement_timeout = '30s';
+
+create schema if not exists extensions;
+create extension if not exists btree_gist with schema extensions;
+create extension if not exists citext with schema extensions;
+create extension if not exists pgcrypto with schema extensions;
+create extension if not exists pgtap with schema extensions;
+
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'app_runtime') then
+    create role app_runtime
+      nologin
+      nosuperuser
+      nocreatedb
+      nocreaterole
+      noinherit
+      noreplication
+      nobypassrls;
+  end if;
+
+  if not exists (select 1 from pg_roles where rolname = 'gioia_mutator') then
+    create role gioia_mutator
+      nologin
+      nosuperuser
+      nocreatedb
+      nocreaterole
+      noinherit
+      noreplication
+      nobypassrls;
+  end if;
+
+  if not exists (select 1 from pg_roles where rolname = 'gioia_migrator') then
+    create role gioia_migrator
+      nologin
+      nosuperuser
+      nocreatedb
+      nocreaterole
+      noinherit
+      noreplication
+      nobypassrls;
+  end if;
+end
+$$;
+
+alter role app_runtime
+  nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
+alter role gioia_mutator
+  nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
+alter role gioia_migrator
+  nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
+
+revoke gioia_mutator from app_runtime, gioia_migrator, anon, authenticated, service_role;
+revoke gioia_migrator from app_runtime, gioia_mutator, anon, authenticated, service_role;
+revoke app_runtime from gioia_mutator, gioia_migrator, anon, authenticated, service_role;
+
+alter role app_runtime set statement_timeout = '10s';
+alter role app_runtime set lock_timeout = '3s';
+alter role gioia_mutator set statement_timeout = '10s';
+alter role gioia_mutator set lock_timeout = '3s';
+alter role gioia_migrator set statement_timeout = '5min';
+alter role gioia_migrator set lock_timeout = '5s';
+
+create schema if not exists gioia_private authorization postgres;
+
+revoke all on schema gioia_private from public;
+revoke all on schema gioia_private from anon;
+revoke all on schema gioia_private from authenticated;
+revoke all on schema gioia_private from service_role;
+grant usage on schema gioia_private to app_runtime;
+grant usage on schema gioia_private to gioia_mutator;
+grant usage on schema gioia_private to gioia_migrator;
+
+grant gioia_mutator to current_user
+  with admin false, inherit false, set true;
+grant gioia_migrator to current_user
+  with admin false, inherit false, set true;
+
+alter default privileges for role postgres in schema gioia_private
+  revoke all on tables from public, anon, authenticated, service_role;
+alter default privileges for role postgres in schema gioia_private
+  revoke all on sequences from public, anon, authenticated, service_role;
+alter default privileges for role postgres
+  revoke execute on functions from public;
+alter default privileges for role postgres in schema gioia_private
+  revoke execute on functions from public, anon, authenticated, service_role;
+
+alter default privileges for role gioia_mutator in schema gioia_private
+  revoke all on tables from public, anon, authenticated, service_role;
+alter default privileges for role gioia_mutator in schema gioia_private
+  revoke all on sequences from public, anon, authenticated, service_role;
+alter default privileges for role gioia_mutator
+  revoke execute on functions from public;
+alter default privileges for role gioia_mutator in schema gioia_private
+  revoke execute on functions from public, anon, authenticated, service_role;
+
+alter default privileges for role gioia_migrator in schema gioia_private
+  revoke all on tables from public, anon, authenticated, service_role;
+alter default privileges for role gioia_migrator in schema gioia_private
+  revoke all on sequences from public, anon, authenticated, service_role;
+alter default privileges for role gioia_migrator
+  revoke execute on functions from public;
+alter default privileges for role gioia_migrator in schema gioia_private
+  revoke execute on functions from public, anon, authenticated, service_role;
+
+revoke gioia_mutator from current_user;
+revoke gioia_migrator from current_user;
+
+revoke create on schema public from public;
+
+do $$
+begin
+  if exists (
+    select 1
+    from pg_catalog.pg_extension as extension
+    join pg_catalog.pg_namespace as namespace
+      on namespace.oid = extension.extnamespace
+    where extension.extname in ('btree_gist', 'citext', 'pgcrypto', 'pgtap')
+      and namespace.nspname <> 'extensions'
+  ) then
+    raise exception 'Required extensions must be installed in the extensions schema';
+  end if;
+end
+$$;
+
+create or replace function gioia_private.set_updated_at_and_version()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, gioia_private, extensions
+as $$
+begin
+  new.created_at := old.created_at;
+  new.updated_at := statement_timestamp();
+  new.version := old.version + 1;
+  return new;
+end;
+$$;
+
+revoke all on function gioia_private.set_updated_at_and_version() from public;
+revoke all on function gioia_private.set_updated_at_and_version() from anon;
+revoke all on function gioia_private.set_updated_at_and_version() from authenticated;
+revoke all on function gioia_private.set_updated_at_and_version() from service_role;
+revoke all on function gioia_private.set_updated_at_and_version() from app_runtime;
+
+commit;

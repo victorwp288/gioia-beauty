@@ -40,6 +40,12 @@ const SUPABASE_URL_KEYS = [
   "DATABASE_URL",
   "POSTGRES_URL",
 ];
+const SUPABASE_DATABASE_URL_KEYS = [
+  "SUPABASE_DATABASE_URL",
+  "DATABASE_URL",
+  "POSTGRES_URL",
+];
+const SUPABASE_API_URL_KEYS = ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"];
 
 function hasValue(value) {
   return typeof value === "string" && value.trim() !== "";
@@ -85,15 +91,20 @@ function isSupabaseUrlForRef(key, value, projectRef) {
       return url.protocol === "https:" && url.hostname === expectedApiHost;
     }
 
-    const directHost = `db.${projectRef}.supabase.co`;
-    const isDirect = url.hostname === directHost;
-    const isPooler =
+    const username = decodeURIComponent(url.username);
+    const isDedicatedPooler =
+      url.hostname === `db.${projectRef}.supabase.co` &&
+      url.port === "6543" &&
+      username === "app_runtime";
+    const isSharedPooler =
       url.hostname.endsWith(".pooler.supabase.com") &&
-      decodeURIComponent(url.username) === `postgres.${projectRef}`;
+      url.port === "6543" &&
+      username === `app_runtime.${projectRef}`;
 
     return (
       ["postgres:", "postgresql:"].includes(url.protocol) &&
-      (isDirect || isPooler)
+      url.pathname === "/postgres" &&
+      (isDedicatedPooler || isSharedPooler)
     );
   } catch {
     return false;
@@ -113,10 +124,30 @@ function validateSupabaseTarget(appEnv, env, errors, projectRef) {
   if (!hasValue(env.NEXT_PUBLIC_SUPABASE_URL)) {
     errors.push(`${appEnv} requires NEXT_PUBLIC_SUPABASE_URL`);
   }
+  if (!hasValue(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)) {
+    errors.push(`${appEnv} requires NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`);
+  } else if (
+    !/^sb_publishable_[A-Za-z0-9_-]{20,}$/.test(
+      env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    )
+  ) {
+    errors.push("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY has an invalid format");
+  }
+  if (!hasValue(env.SUPABASE_DATABASE_URL)) {
+    errors.push(`${appEnv} requires SUPABASE_DATABASE_URL`);
+  }
 
-  for (const key of SUPABASE_URL_KEYS) {
+  for (const key of SUPABASE_API_URL_KEYS) {
     if (!isSupabaseUrlForRef(key, env[key], projectRef)) {
       errors.push(`${key} does not match the registered Supabase project ref`);
+    }
+  }
+
+  for (const key of SUPABASE_DATABASE_URL_KEYS) {
+    if (hasValue(env[key]) && !isSupabaseUrlForRef(key, env[key], projectRef)) {
+      errors.push(
+        `${key} must use the app_runtime role through the transaction pooler`,
+      );
     }
   }
 }
@@ -136,6 +167,24 @@ function validatePublicVariables(env, errors) {
   }
 }
 
+function validateBookingSecurity(appEnv, env, errors) {
+  const secret = env.BOOKING_HMAC_SECRET;
+  if (secret === undefined) {
+    if (appEnv !== "local" && appEnv !== "test") {
+      errors.push(`${appEnv} requires BOOKING_HMAC_SECRET`);
+    }
+    return;
+  }
+
+  if (
+    secret.trim() !== secret ||
+    secret.includes("\0") ||
+    Buffer.byteLength(secret, "utf8") < 32
+  ) {
+    errors.push("BOOKING_HMAC_SECRET must contain at least 32 bytes");
+  }
+}
+
 function validateVercelScope(appEnv, env, errors) {
   const expected = {
     local: new Set([undefined, "development"]),
@@ -148,7 +197,9 @@ function validateVercelScope(appEnv, env, errors) {
     errors.push(`APP_ENV=${appEnv} is incompatible with VERCEL_ENV`);
   }
 
-  if (hasValue(env.NEXT_PUBLIC_APP_ENV) && env.NEXT_PUBLIC_APP_ENV !== appEnv) {
+  if (!hasValue(env.NEXT_PUBLIC_APP_ENV)) {
+    errors.push("NEXT_PUBLIC_APP_ENV is required by the browser runtime");
+  } else if (env.NEXT_PUBLIC_APP_ENV !== appEnv) {
     errors.push("NEXT_PUBLIC_APP_ENV must match APP_ENV");
   }
 }
@@ -235,6 +286,10 @@ function validateIsolatedEnvironment(appEnv, env, errors) {
     if (hasValue(env[key])) errors.push(`${key} is forbidden in ${appEnv}`);
   }
 
+  if (env.EMAIL_TRANSPORT !== "fake") {
+    errors.push(`EMAIL_TRANSPORT must be fake in ${appEnv}`);
+  }
+
   if (appEnv === "local" || appEnv === "test") {
     for (const key of SUPABASE_URL_KEYS) {
       if (!isLoopbackUrl(env[key])) {
@@ -264,6 +319,7 @@ export function validateEnvironment(env, { command = "application" } = {}) {
   }
 
   validatePublicVariables(env, errors);
+  validateBookingSecurity(appEnv, env, errors);
   validateVercelScope(appEnv, env, errors);
 
   if (command === "test" && appEnv !== "test") {
@@ -281,6 +337,10 @@ export function validateEnvironment(env, { command = "application" } = {}) {
       );
     }
     validateSupabaseTarget(appEnv, env, errors, PRODUCTION_SUPABASE_REF);
+
+    if (env.EMAIL_TRANSPORT !== "resend") {
+      errors.push("Production requires EMAIL_TRANSPORT=resend");
+    }
 
     for (const [key, value] of Object.entries(env)) {
       if (

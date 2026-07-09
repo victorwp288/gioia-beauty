@@ -19,6 +19,8 @@ Local, test, and Preview commands fail closed when a known remote Firebase targe
 - Node 22.21.1 (`.nvmrc` and `.node-version`)
 - npm 10.9.4
 - Next.js 15.5.20 with React 18.3.1
+- TypeScript 7.0.2 for strict new-code checks, with the official TypeScript 6.0.2 compatibility package for Next/ESLint's compiler API
+- Supabase CLI 2.105.0 with PostgreSQL 17 local services
 
 ```bash
 nvm use
@@ -33,6 +35,8 @@ The legacy Firebase client is hard-wired to loopback emulators outside Productio
 
 ```bash
 npm run lint
+npm run typecheck
+npm run typecheck:ts6
 npm test
 npm run build
 npm run security:dependencies
@@ -40,6 +44,19 @@ npm run security:secrets
 ```
 
 `npm run security:secrets` requires Gitleaks 8.30.1 or later. The production dependency exception is documented in `docs/DEPENDENCY-AUDIT.md`.
+
+The database foundation requires a Docker-compatible runtime:
+
+```bash
+npm run db:start
+npm run db:reset
+npm run db:lint
+npm run db:advisors
+npm run db:test
+npm run db:clean
+```
+
+These commands are local-only and unlinked. They recreate the private business schema from committed migrations and the deterministic synthetic seed; application mail remains fake and Auth mail is captured by the local mail-testing service.
 
 Do not run `npm run dev` simply as a smoke test. Start the application only when the named Local/Test backing services and synthetic fixtures are ready, then verify the affected flow in that environment.
 
