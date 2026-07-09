@@ -53,7 +53,7 @@ begin
   )
   on conflict (provider_event_id) do nothing
   returning true into v_inserted;
-  v_inserted := pg_catalog.coalesce(v_inserted, false);
+  v_inserted := coalesce(v_inserted, false);
 
   select webhook.* into strict v_event
   from gioia_private.email_webhook_events as webhook

@@ -120,13 +120,13 @@ begin
     v_client_note := case
       when not (p_patch ? 'client_note') then v_entry.client_note
       when pg_catalog.jsonb_typeof(p_patch -> 'client_note') = 'null' then null
-      else pg_catalog.nullif(
+      else nullif(
         pg_catalog.btrim(p_patch ->> 'client_note'), ''
       ) end;
     v_internal_note := case
       when not (p_patch ? 'internal_note') then v_entry.internal_note
       when pg_catalog.jsonb_typeof(p_patch -> 'internal_note') = 'null' then null
-      else pg_catalog.nullif(
+      else nullif(
         pg_catalog.btrim(p_patch ->> 'internal_note'), ''
       ) end;
 

@@ -96,6 +96,21 @@ describe("Supabase SQL static validation", () => {
     ).toBe(true);
   });
 
+  it("rejects function-style qualification of SQL conditional forms", () => {
+    const unsafe = [
+      "begin;",
+      "select pg_catalog.nullif('value', '');",
+      "commit;",
+    ].join("\n");
+
+    expect(
+      validateMigrationSql(
+        "20260709220006_qualified_conditional.sql",
+        unsafe,
+      ).some((error) => error.includes("SQL conditional forms")),
+    ).toBe(true);
+  });
+
   it("requires bounded, planned pgTAP files", () => {
     expect(
       validateDatabaseTestSql(

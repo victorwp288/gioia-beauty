@@ -74,7 +74,7 @@ begin
     ) values (
       'block', 'active', 'admin', p_local_date, p_start_minutes,
       p_duration_minutes, p_buffer_minutes,
-      pg_catalog.nullif(pg_catalog.btrim(p_internal_note), ''),
+      nullif(pg_catalog.btrim(p_internal_note), ''),
       p_actor_user_id
     )
     returning * into v_entry;

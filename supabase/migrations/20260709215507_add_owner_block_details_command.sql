@@ -52,7 +52,7 @@ begin
       and pg_catalog.length(p_internal_note) > 2000 then
       raise sqlstate 'PT400' using message = 'BLOCK_DETAILS_INVALID';
     end if;
-    v_internal_note := pg_catalog.nullif(pg_catalog.btrim(p_internal_note), '');
+    v_internal_note := nullif(pg_catalog.btrim(p_internal_note), '');
 
     select entry.*
     into v_entry

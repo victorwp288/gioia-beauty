@@ -81,7 +81,7 @@ begin
     set status = 'cancelled',
         cancelled_at = pg_catalog.statement_timestamp(),
         cancelled_by = 'admin',
-        cancellation_reason = pg_catalog.nullif(pg_catalog.btrim(p_reason), '')
+        cancellation_reason = nullif(pg_catalog.btrim(p_reason), '')
     where entry.id = p_entry_id
       and entry.version = p_expected_version
     returning * into strict v_entry;

@@ -111,7 +111,7 @@ begin
       pg_catalog.btrim(p_client_name),
       pg_catalog.lower(pg_catalog.btrim(p_client_email))::extensions.citext,
       pg_catalog.btrim(p_client_phone),
-      pg_catalog.nullif(pg_catalog.btrim(p_client_note), '')
+      nullif(pg_catalog.btrim(p_client_note), '')
     )
     returning * into v_entry;
 

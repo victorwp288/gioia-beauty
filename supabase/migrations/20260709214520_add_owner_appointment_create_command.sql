@@ -94,7 +94,7 @@ begin
         pg_catalog.lower(pg_catalog.btrim(p_client_email))::extensions.citext end,
       case when p_client_phone is null then null else
         pg_catalog.btrim(p_client_phone) end,
-      pg_catalog.nullif(pg_catalog.btrim(p_client_note), ''),
+      nullif(pg_catalog.btrim(p_client_note), ''),
       p_actor_user_id
     )
     returning * into v_entry;

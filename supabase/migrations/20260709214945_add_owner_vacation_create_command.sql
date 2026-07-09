@@ -75,7 +75,7 @@ begin
       start_date, end_date, status, reason, source, created_by
     ) values (
       p_start_date, p_end_date, 'active',
-      pg_catalog.nullif(pg_catalog.btrim(p_reason), ''),
+      nullif(pg_catalog.btrim(p_reason), ''),
       'admin', p_actor_user_id
     )
     returning * into v_vacation;

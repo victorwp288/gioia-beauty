@@ -131,7 +131,7 @@ begin
         end,
         attempt_count = case
           when not candidates.deliverable
-            then pg_catalog.greatest(outbox.attempt_count, 1)
+            then greatest(outbox.attempt_count, 1)
           when outbox.status = 'sending' and outbox.attempt_count >= 5
             then outbox.attempt_count
           else outbox.attempt_count + 1

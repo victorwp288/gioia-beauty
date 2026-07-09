@@ -87,6 +87,11 @@ export function validateMigrationSql(filename, sql) {
       );
     }
   }
+  if (/pg_catalog\.(?:coalesce|greatest|least|nullif)\s*\(/i.test(sql)) {
+    errors.push(
+      "SQL conditional forms must not be qualified as pg_catalog functions",
+    );
+  }
 
   for (const block of securityDefinerBlocks(sql)) {
     if (!/set\s+search_path\s*=\s*''/i.test(block)) {
