@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   assertConcurrencyResults,
   bookingQuery,
+  parseLocalDatabaseUrl,
   parseRaceTarget,
   raceTargetQuery,
+  RUNTIME_ROLE_SQL,
 } from "../../scripts/test-booking-concurrency.mjs";
 
 function successfulReconciliation(overrides = {}) {
@@ -31,12 +33,26 @@ describe("booking concurrency reconciliation", () => {
     expect(raceTargetQuery).toContain("extract(");
     expect(raceTargetQuery).not.toContain("pg_catalog.extract");
     expect(raceTargetQuery).not.toContain("gioia_private.rome_today");
-    expect(bookingQuery(1, parseRaceTarget(target))).toContain(
-      "set role app_runtime;",
-    );
+    expect(RUNTIME_ROLE_SQL).toBe("set local role app_runtime");
+    expect(bookingQuery(1, parseRaceTarget(target))).not.toContain("set role");
     expect(() =>
       parseRaceTarget({ ...target, service_id: "unsafe'; select" }),
     ).toThrow("invalid identifiers");
+  });
+
+  it("accepts only the loopback local postgres URL", () => {
+    const localUrl = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+    expect(parseLocalDatabaseUrl(localUrl)).toBe(localUrl);
+    expect(() =>
+      parseLocalDatabaseUrl(
+        "postgresql://postgres:secret@db.example.test:5432/postgres",
+      ),
+    ).toThrow("safe local database URL");
+    expect(() =>
+      parseLocalDatabaseUrl(
+        "postgresql://app_runtime:secret@127.0.0.1:54322/postgres",
+      ),
+    ).toThrow("safe local database URL");
   });
 
   it("accepts exactly one winner and nineteen persisted conflicts", () => {

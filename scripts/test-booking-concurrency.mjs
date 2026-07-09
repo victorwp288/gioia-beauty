@@ -2,11 +2,13 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { promisify } from "node:util";
+import postgres from "postgres";
 
 const execFileAsync = promisify(execFile);
 const REQUEST_COUNT = 20;
 const CATALOG_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const RUNTIME_ROLE_SQL = "set local role app_runtime";
 const supabaseBinary = path.join(
   process.cwd(),
   "node_modules",
@@ -19,24 +21,31 @@ const databaseCommandOptions = {
   timeout: 30_000,
 };
 
-async function executeLocalDatabase(query) {
-  await execFileAsync(
-    supabaseBinary,
-    ["db", "query", "--local", query],
-    databaseCommandOptions,
-  );
+export function parseLocalDatabaseUrl(value) {
+  try {
+    const url = new URL(value);
+    if (
+      !["postgres:", "postgresql:"].includes(url.protocol) ||
+      !["127.0.0.1", "localhost", "::1"].includes(url.hostname) ||
+      url.username !== "postgres" ||
+      url.pathname !== "/postgres"
+    ) {
+      throw new Error();
+    }
+    return value;
+  } catch {
+    throw new Error("Supabase status did not return a safe local database URL");
+  }
 }
 
-async function queryLocalDatabase(query) {
+async function getLocalDatabaseUrl() {
   const { stdout } = await execFileAsync(
     supabaseBinary,
-    ["db", "query", "--local", "--output", "json", query],
+    ["status", "-o", "json"],
     databaseCommandOptions,
   );
-  const parsed = JSON.parse(stdout);
-  if (!Array.isArray(parsed))
-    throw new Error("Database query did not return rows");
-  return parsed;
+  const status = JSON.parse(stdout);
+  return parseLocalDatabaseUrl(status.DB_URL);
 }
 
 export const raceTargetQuery = `
@@ -94,7 +103,6 @@ export function bookingQuery(requestNumber, target) {
     variant_id: target.variantId,
   });
   return `
-    set role app_runtime;
     select booking.http_status, booking.result ->> 'code' as code,
       booking.replayed
     from gioia_private.create_public_booking(
@@ -163,54 +171,81 @@ export function assertConcurrencyResults(results, reconciliation) {
 }
 
 async function main() {
-  const [targetRow] = await queryLocalDatabase(raceTargetQuery);
-  if (!targetRow) throw new Error("Concurrency target query returned no row");
-  const target = parseRaceTarget(targetRow);
-
-  await executeLocalDatabase("grant app_runtime to postgres");
-  let responses;
+  const databaseUrl = await getLocalDatabaseUrl();
+  const sql = postgres(databaseUrl, {
+    prepare: false,
+    max: REQUEST_COUNT,
+    idle_timeout: 5,
+    connect_timeout: 5,
+    max_lifetime: 60,
+    onnotice: () => {},
+  });
+  let membershipGranted = false;
   try {
-    responses = await Promise.all(
+    const [targetRow] = await sql.unsafe(raceTargetQuery);
+    if (!targetRow) throw new Error("Concurrency target query returned no row");
+    const target = parseRaceTarget(targetRow);
+
+    await sql.unsafe("grant app_runtime to postgres");
+    membershipGranted = true;
+
+    const settled = await Promise.allSettled(
       Array.from({ length: REQUEST_COUNT }, (_, index) =>
-        queryLocalDatabase(bookingQuery(index + 1, target)),
+        sql.begin(async (transaction) => {
+          await transaction.unsafe(RUNTIME_ROLE_SQL);
+          await transaction.unsafe(
+            "select set_config('statement_timeout', '8000', true), " +
+              "set_config('lock_timeout', '3000', true)",
+          );
+          return transaction.unsafe(bookingQuery(index + 1, target));
+        }),
       ),
     );
-  } finally {
-    await executeLocalDatabase("revoke app_runtime from postgres");
-  }
-  const results = responses.flat();
-  const [reconciliation] = await queryLocalDatabase(`
-    select
-      (select count(*) from gioia_private.schedule_entries
-        where client_note = 'synthetic-concurrency-fixture')::integer
-        as appointments,
-      (select count(*) from gioia_private.email_outbox as outbox
-        join gioia_private.schedule_entries as entry
-          on entry.id = outbox.aggregate_id
-        where entry.client_note = 'synthetic-concurrency-fixture')::integer
-        as outbox_rows,
-      (select count(*) from gioia_private.command_requests
-        where operation = 'public_booking'
-          and idempotency_key like 'concurrency-race-%')::integer
-        as command_rows,
-      (select count(*) from gioia_private.command_requests
-        where operation = 'public_booking'
-          and idempotency_key like 'concurrency-race-%'
-          and state = 'completed')::integer as completed_commands,
-      (select count(*) from gioia_private.command_requests
-        where operation = 'public_booking'
-          and idempotency_key like 'concurrency-race-%'
-          and state = 'failed')::integer as failed_commands
-  `);
-  if (!reconciliation)
-    throw new Error("Concurrency reconciliation returned no row");
+    const rejected = settled.find((result) => result.status === "rejected");
+    if (rejected) throw rejected.reason;
+    const results = settled.flatMap((result) => result.value);
 
-  const summary = assertConcurrencyResults(results, reconciliation);
-  process.stdout.write(
-    `Concurrent booking invariant passed: accepted=${summary.accepted}, ` +
-      `conflicts=${summary.conflicts}, appointments=${summary.appointments}, ` +
-      `outbox=${summary.outbox}, commands=${summary.commands}.\n`,
-  );
+    const [reconciliation] = await sql.unsafe(`
+      select
+        (select count(*) from gioia_private.schedule_entries
+          where client_note = 'synthetic-concurrency-fixture')::integer
+          as appointments,
+        (select count(*) from gioia_private.email_outbox as outbox
+          join gioia_private.schedule_entries as entry
+            on entry.id = outbox.aggregate_id
+          where entry.client_note = 'synthetic-concurrency-fixture')::integer
+          as outbox_rows,
+        (select count(*) from gioia_private.command_requests
+          where operation = 'public_booking'
+            and idempotency_key like 'concurrency-race-%')::integer
+          as command_rows,
+        (select count(*) from gioia_private.command_requests
+          where operation = 'public_booking'
+            and idempotency_key like 'concurrency-race-%'
+            and state = 'completed')::integer as completed_commands,
+        (select count(*) from gioia_private.command_requests
+          where operation = 'public_booking'
+            and idempotency_key like 'concurrency-race-%'
+            and state = 'failed')::integer as failed_commands
+    `);
+    if (!reconciliation)
+      throw new Error("Concurrency reconciliation returned no row");
+
+    const summary = assertConcurrencyResults(results, reconciliation);
+    process.stdout.write(
+      `Concurrent booking invariant passed: accepted=${summary.accepted}, ` +
+        `conflicts=${summary.conflicts}, appointments=${summary.appointments}, ` +
+        `outbox=${summary.outbox}, commands=${summary.commands}.\n`,
+    );
+  } finally {
+    try {
+      if (membershipGranted) {
+        await sql.unsafe("revoke app_runtime from postgres");
+      }
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
