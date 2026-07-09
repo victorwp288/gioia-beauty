@@ -1,5 +1,7 @@
 begin;
 
+grant app_runtime to postgres;
+
 set local search_path = extensions, public, pg_catalog;
 
 select plan(15);

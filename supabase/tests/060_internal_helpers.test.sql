@@ -86,12 +86,12 @@ select ok(
 
 select results_eq(
   $actual$
-    select procedure.proname::text
+    select procedure.proname::text collate "default"
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'gioia_private'
       and has_function_privilege('app_runtime', procedure.oid, 'EXECUTE')
-    order by procedure.proname
+    order by procedure.proname::text collate "default"
   $actual$,
   $expected$
     values

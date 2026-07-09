@@ -121,6 +121,14 @@ export function validateDatabaseTestSql(filename, sql) {
     errors.push("database test must declare a pgTAP plan");
   if (!/\bfinish\s*\(\s*\)/i.test(sql))
     errors.push("database test must call finish()");
+  if (
+    /set\s+local\s+role\s+app_runtime\b/i.test(sql) &&
+    !/grant\s+app_runtime\s+to\s+postgres\s*;/i.test(sql)
+  ) {
+    errors.push(
+      "runtime-role tests require a transaction-scoped postgres membership grant",
+    );
+  }
 
   return errors;
 }

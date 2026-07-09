@@ -126,4 +126,21 @@ describe("Supabase SQL static validation", () => {
       ]),
     );
   });
+
+  it("requires transaction-scoped membership for runtime-role tests", () => {
+    const unsafe = [
+      "begin;",
+      "select plan(1);",
+      "set local role app_runtime;",
+      "select ok(true);",
+      "select * from finish();",
+      "rollback;",
+    ].join("\n");
+
+    expect(
+      validateDatabaseTestSql("070_runtime.test.sql", unsafe).some((error) =>
+        error.includes("transaction-scoped postgres membership"),
+      ),
+    ).toBe(true);
+  });
 });

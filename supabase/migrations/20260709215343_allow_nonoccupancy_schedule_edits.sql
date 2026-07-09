@@ -42,13 +42,13 @@ begin
       pg_catalog.to_jsonb(old) - array[
         'version', 'updated_at', 'created_by',
         'client_name', 'client_email', 'client_phone', 'client_note',
-        'internal_note'
+        'internal_note', 'occupied_span'
       ]
       is distinct from
       pg_catalog.to_jsonb(new) - array[
         'version', 'updated_at', 'created_by',
         'client_name', 'client_email', 'client_phone', 'client_note',
-        'internal_note'
+        'internal_note', 'occupied_span'
       ]
     ) then
     raise exception using errcode = '23514',
