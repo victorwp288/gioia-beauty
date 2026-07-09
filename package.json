@@ -23,7 +23,7 @@
     "db:migration:new": "SUPABASE_TELEMETRY_DISABLED=1 supabase migration new",
     "db:static": "node scripts/check-supabase-sql.mjs",
     "db:start": "SUPABASE_TELEMETRY_DISABLED=1 supabase start --exclude edge-runtime,imgproxy,logflare,realtime,storage-api,vector",
-    "db:start:ci": "SUPABASE_TELEMETRY_DISABLED=1 supabase db start",
+    "db:start:ci": "SUPABASE_TELEMETRY_DISABLED=1 supabase --debug db start",
     "db:health": "SUPABASE_TELEMETRY_DISABLED=1 supabase db query --local --output json 'select 1 as healthy'",
     "db:reset": "SUPABASE_TELEMETRY_DISABLED=1 supabase db reset --local",
     "db:migrations": "SUPABASE_TELEMETRY_DISABLED=1 supabase migration list --local",
