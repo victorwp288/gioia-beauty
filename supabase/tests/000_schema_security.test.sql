@@ -2,7 +2,7 @@ begin;
 
 set local search_path = extensions, public, pg_catalog;
 
-select plan(16);
+select plan(17);
 
 select has_schema('gioia_private', 'private application schema exists');
 
@@ -148,6 +148,16 @@ with expected(table_name, privilege_type) as (
   (select * from actual except select * from expected)
 )
 select is((select count(*) from difference), 0::bigint, 'mutator table ACLs are exact');
+
+select ok(
+  has_column_privilege(
+    'gioia_mutator', 'gioia_private.schedule_day_locks', 'created_at', 'UPDATE'
+  )
+    and not has_column_privilege(
+      'gioia_mutator', 'gioia_private.schedule_day_locks', 'local_date', 'UPDATE'
+    ),
+  'mutator can lock schedule mutex rows without table-wide update access'
+);
 
 with expected(table_name, privilege_type) as (
   values
