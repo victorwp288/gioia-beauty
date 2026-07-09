@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-09 — Contained legacy routes and made development fail closed
+**Phase:** Phase 0 containment and Phase 1 environment isolation
+**Labels/environment:** [LOCAL], static/build/unit verification only
+**Data impact:** none
+**Target:** local worktree; no database, deployment, auth provider, email provider, or Production target
+**Expected reads/writes/rows:** 0 database/provider reads; 0 writes; 0 rows
+**Done:** Commit `c3ba3f4` removed raw appointment/test routes, made legacy mail owner-only with strict validation/redacted outcomes, separated deletion from email failure, removed unsafe scripts/keys/logs/React Scan/Twilio, upgraded to Next 15.5.20, pinned Node/npm, added ESLint 9/Prettier/lint-staged/Gitleaks, and installed exact environment/URL/emulator sink gates. Production startup is disabled until a Supabase Production target is formally registered.
+**Verified/reconciled:** clean `npm ci`; build; ESLint; Prettier; 40 Vitest tests; current-tree + 193-commit Gitleaks scans; client-bundle secret scan; forbidden Firebase-target build rejection. Production dependency audit: 0 critical/high, 6 accepted moderate records from unused optional Firebase Admin Storage/UUID code, documented in `DEPENDENCY-AUDIT.md`.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; no remote data/configuration action
+**Rollback/forward recovery:** revert `c3ba3f4`; forward path replaces owner-only legacy mail with atomic booking/outbox before any release
+**Next:** Add strict TypeScript and the full local/CI test harness, initialize versioned Supabase CLI files, then implement the reviewed private schema/day-lock/idempotency migrations and pure Europe/Rome booking kernel.
+**Gotchas:** Public booking email intentionally fails closed on `refactor`, so the branch is not releasable until Phase 3 outbox integration. Supabase CLI 2.105.0 exists, but no Docker/Podman/Colima/OrbStack runtime is installed; prefer repository scaffolding plus the authorized synthetic TEST project until a local runtime is available.
+
 ## 2026-07-09 — Reclassified Supabase as greenfield integration target
 **Phase:** Phase 1 environment registry and ADR gate
 **Labels/environment:** [LOCAL] documentation; [TEST] bounded Supabase metadata inspection
