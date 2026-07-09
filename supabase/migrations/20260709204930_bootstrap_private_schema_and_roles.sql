@@ -46,12 +46,25 @@ begin
 end
 $$;
 
-alter role app_runtime
-  nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
-alter role gioia_mutator
-  nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
-alter role gioia_migrator
-  nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
+do $$
+begin
+  if exists (
+    select 1
+    from pg_catalog.pg_roles
+    where rolname in ('app_runtime', 'gioia_mutator', 'gioia_migrator')
+      and (rolsuper or rolreplication or rolbypassrls)
+  ) then
+    raise exception 'Application roles must not have superuser, replication, or bypass-RLS attributes';
+  end if;
+end
+$$;
+
+-- Supabase migrations run as a constrained CREATEROLE principal. PostgreSQL
+-- reserves toggling SUPERUSER, REPLICATION, and BYPASSRLS for a superuser even
+-- when the requested value is false, so those attributes are asserted above.
+alter role app_runtime nologin nocreatedb nocreaterole noinherit;
+alter role gioia_mutator nologin nocreatedb nocreaterole noinherit;
+alter role gioia_migrator nologin nocreatedb nocreaterole noinherit;
 
 revoke gioia_mutator from app_runtime, gioia_migrator, anon, authenticated, service_role;
 revoke gioia_migrator from app_runtime, gioia_mutator, anon, authenticated, service_role;
