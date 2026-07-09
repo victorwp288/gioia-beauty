@@ -45,7 +45,9 @@ The full operational policy and migration gate are in `docs/PRODUCTION-SAFETY.md
 - The public site already has strong local-business content and must remain visually unchanged during the internal rewrite.
 - The appointment volume is small enough for a rehearsed migration: roughly 1,600 appointment/block records plus vacations and newsletter subscribers.
 
-### Active production risks
+### Live `main` / verified baseline risks
+
+These describe the current Production deployment. Refactor-branch containment does not change live behavior until a separately approved deployment.
 
 1. **Customer email failures:** `/api/send` has returned Resend `422 Invalid to` failures while callers swallowed the error. Customer failure currently prevents the admin email attempt.
 2. **Public PII endpoint:** `/api/appointments/by-date` is deployed, unauthenticated, and returns complete appointment documents. A safe empty-date probe returned HTTP 200.
@@ -153,17 +155,21 @@ Exact source and target fields, ETL rules, and reconciliation are in `docs/DATA-
 
 Only items marked 🚨 ship as small focused hotfixes from `main`, then merge `main` back into `refactor`. The remaining Phase 0 hygiene stays on the reviewed `refactor` workflow.
 
-- [ ] **`[LOCAL]`** Add the smallest isolated Vitest route harness needed for email validation/outcomes and dead appointment endpoint regression tests; it must not start the app or resolve Firebase.
+- [x] **`[LOCAL]`** Add the smallest isolated Vitest route harness needed for email validation/outcomes and dead appointment endpoint regression tests; it must not start the app or resolve Firebase.
 - [ ] **`[PROD-APP]` 🚨** Delete `/api/appointments/by-date` and `/api/appointments/counts` if final import search confirms no callers; otherwise require admin auth and return no raw PII. Verify production returns 404/401 and add `private, no-store` to every authenticated PII response.
-- [ ] **`[LOCAL]` / `[PROD-APP]` 🚨** Harden `/api/send` and `/api/cancel`: validate and bound the full body; distinguish absent from invalid email; attempt valid admin/customer sends independently; require admin auth for cancellation; add an application rate limit; return explicit per-recipient results. Separately classify any provider/WAF configuration as `[PROD-CONFIG]`.
+- [x] **`[LOCAL]`** Implement and unit-test bounded bodies, normalized email, independent recipient outcomes, owner authorization, rate limiting, and redacted responses on the refactor branch. The temporary legacy mail boundary is owner-only until the atomic booking/outbox path replaces it.
+- [ ] **`[PROD-APP]` 🚨** Prepare and separately approve the live containment hotfix for `/api/send` and `/api/cancel`; any provider/WAF configuration remains `[PROD-CONFIG]`.
 - [ ] **`[PROD-APP]` 🚨** Update all current callers so invalid public email blocks booking before the write, admin no-email is intentional, and partial delivery failure is visible/retryable rather than warn-and-forget.
-- [ ] **`[LOCAL]`** Construct Resend lazily or behind runtime validation so `npm run build` succeeds without a production secret.
-- [ ] **`[LOCAL]`** Inventory every route with: public/admin/internal, input schema, output PII, auth, rate limit, cache policy, and maximum reads/writes.
-- [ ] **`[LOCAL]`** Triage `npm audit --omit=dev`, map findings to direct/runtime reachability, and record accepted versus fixed advisories.
-- [ ] **`[LOCAL]` / `[TEST]` / `[PROD-APP]`** Patch Next to the safest compatible supported line, verify locally and in isolated tests, then separately approve its Production deployment. Schedule the tested Next 16 upgrade in Phase 7. Do not use `npm audit fix --force`.
-- [ ] **`[PROD-APP]`** Delete `/api/test` and remove PII-bearing logs from API and booking paths.
-- [ ] **`[LOCAL]`** Remove React Scan from the production tree, uninstall unused Twilio, delete `repomix-output.txt`, ignore future dumps, inventory all three Firebase projects/API-key restrictions, and add an automated current-tree/history secret gate such as Gitleaks before considering any history rewrite.
-- [ ] **`[LOCAL]`** Add `.env.example`, environment validation, Node/npm pins, Prettier, lint-staged, a pre-commit hook, and a real README.
+- [x] **`[LOCAL]`** Construct Resend lazily or behind runtime validation so `npm run build` succeeds without a production secret.
+- [x] **`[LOCAL]`** Inventory every route with: public/admin/internal, input schema, output PII, auth, rate limit, cache policy, and maximum reads/writes.
+- [x] **`[LOCAL]`** Triage `npm audit --omit=dev`, map findings to direct/runtime reachability, and record accepted versus fixed advisories.
+- [x] **`[LOCAL]`** Patch Next to the supported 15.5.20 line, verify the isolated build/tests, and retain React 18 to avoid an unrelated public-UI migration. Schedule the tested Next 16 upgrade in Phase 7. Do not use `npm audit fix --force`.
+- [ ] **`[TEST]` / `[PROD-APP]`** Verify the Next 15 compatibility patch in full isolated E2E/visual tests, then separately approve its Production deployment.
+- [x] **`[LOCAL]`** Delete `/api/test` on the refactor branch and remove PII-bearing logs from the touched API and booking paths.
+- [ ] **`[PROD-APP]`** Separately approve and verify deletion of `/api/test` plus the logging containment in Production.
+- [x] **`[LOCAL]`** Remove React Scan, uninstall unused Twilio, delete and ignore repository dumps, inventory all four discovered Firebase project IDs, remove legacy data scripts, and add Gitleaks current-tree/history gates with only reviewed public Firebase browser-key fingerprints baselined.
+- [ ] **`[PROD-READ]` / `[PROD-CONFIG]`** Inspect the four remote Firebase projects' ownership/API-key restrictions and separately approve any restriction, rotation, or retirement change.
+- [x] **`[LOCAL]`** Add `.env.example`, environment validation, Node/npm pins, Prettier, lint-staged, a pre-commit hook, and a real README.
 - [ ] **`[PROD-CONFIG]`** Confirm the already-observed apex→www redirect, remove the duplicate DMARC and stale Brevo record, verify Resend SPF/DKIM, observe reports, then separately approve `p=quarantine`.
 - [ ] **`[DESTRUCTIVE]`** Archive the stale Vercel project only after its domains, env vars, deployments, and rollback value are reviewed.
 
@@ -177,7 +183,7 @@ No production data is mutated in this phase except explicitly approved backup/co
 - [ ] **`[LOCAL]`** Add local Supabase CLI/Docker configuration, version-pinned tooling, synthetic seed data, and reset commands. Local email uses Mailpit/fake transport.
 - [x] **`[TEST]`** Register the authorized serialized integration/staging Supabase project `lxvsspniipcotimbsfqm` in `eu-central-2` and record its reset ownership in `docs/ENVIRONMENTS.md`. DB-aware Preview/E2E runs take a lock and reset/namespace synthetic data. Never seed it with customer PII.
 - [ ] **`[PROD-CONFIG]`** Before any real customer write or live traffic, approve/upgrade the full billing and backup tier, record DPA/processor status and ownership/recovery contacts, remove synthetic data/test users, rebuild from committed migrations, prove restore, and reclassify the exact Supabase target as Production.
-- [ ] **`[LOCAL]`** Make development/test/CI fail closed if any production Firebase/Supabase project ID or production credential is detected.
+- [x] **`[LOCAL]`** Make development/test/CI fail closed if any production Firebase/Supabase project ID or production credential is detected.
 - [ ] **`[PROD-CONFIG]`** Audit Vercel Development/Preview/Production env scopes. Preview must use staging data and non-delivering/test-only email.
 - [ ] **`[TEST]`** After isolation, capture desktop/mobile screenshots of `/`, gallery, contacts, booking states/modals/errors, login, and dashboard without touching production data.
 - [ ] **`[LOCAL]`** Add strict TypeScript for new files (`allowJs: true`) after a TypeScript 7 compatibility spike; keep the supported fallback documented.
@@ -185,7 +191,7 @@ No production data is mutated in this phase except explicitly approved backup/co
 - [ ] **`[REMOTE-CONFIG]`** Protect `refactor` and `main`; agents use short branches/PRs instead of pushing unfinished DB-aware work directly to a shared deploy branch.
 - [ ] **`[LOCAL]` / `[REMOTE-CONFIG]` / `[PROD-CONFIG]`** Define a dedicated production-operator workflow: protected GitHub Environment/manual approval, exact project allowlist, short-lived production secrets, no development startup, migration/import-only commands, redacted artifacts, and credential teardown. Normal CI never receives Production credentials.
 - [ ] **`[LOCAL]`** Add migration tooling that defaults to dry-run and refuses production unless exact environment, project ref, run ID, `--apply`, bounds, and confirmation are supplied.
-- [ ] **`[LOCAL]`** Extend `.gitignore` for service-account JSON, database exports, before-images, migration manifests, Supabase local data, and backup directories.
+- [x] **`[LOCAL]`** Extend `.gitignore` for service-account JSON, database exports, before-images, migration manifests, Supabase local data, and backup directories.
 - [ ] **`[LOCAL]` / `[TEST]`** Capture/version current Firestore rules/indexes and prepare tested temporary deny-write plus final deny-all rules for the cutover. Do not deploy them yet.
 - [ ] **`[PROD-READ]`** After explicit approval, take a bounded read-only Firestore inventory/export only after target/project verification; declare PII and read cost, redact reports, and store raw exports encrypted outside git.
 - [ ] **`[PROD-CONFIG]`** Enable/verify a current Firestore backup/PITR strategy for the source until cutover is complete.

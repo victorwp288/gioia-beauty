@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Gioia Beauty
 
-## Getting Started
+Production website and booking system for Gioia Beauty in Roveleto di Cadeo, Italy. The public website and owner dashboard use Italian copy. The live business currently remains on `main` and Firebase; the replacement is developed on `refactor` against isolated local services and the authorized synthetic-data Supabase integration project.
 
-First, run the development server:
+## Safety first
+
+Read these files before changing the application:
+
+1. `AGENTS.md`
+2. the newest entry in `docs/WORKLOG.md`
+3. `docs/MASTERPLAN.md`
+4. `docs/PRODUCTION-SAFETY.md`
+5. `docs/ENVIRONMENTS.md`
+
+Local, test, and Preview commands fail closed when a known remote Firebase target, a cloud database URL, or a production provider credential is present. Production and operator commands have separate gates. Never copy live customer data into Local, CI, Preview, or the resettable Supabase integration project.
+
+## Toolchain
+
+- Node 22.21.1 (`.nvmrc` and `.node-version`)
+- npm 10.9.4
+- Next.js 15.5.20 with React 18.3.1
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+nvm use
+npm ci
+npm run hooks:install
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The legacy Firebase client is hard-wired to loopback emulators outside Production. Until the local Firebase/Supabase services exist, static verification is expected to pass but data-backed flows will be unavailable.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Verification
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+```bash
+npm run lint
+npm test
+npm run build
+npm run security:dependencies
+npm run security:secrets
+```
 
-## Learn More
+`npm run security:secrets` requires Gitleaks 8.30.1 or later. The production dependency exception is documented in `docs/DEPENDENCY-AUDIT.md`.
 
-To learn more about Next.js, take a look at the following resources:
+Do not run `npm run dev` simply as a smoke test. Start the application only when the named Local/Test backing services and synthetic fixtures are ready, then verify the affected flow in that environment.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Branch and release model
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+- `main`: current production; protected actions require Victor's exact approval.
+- `refactor`: reviewed replacement-system integration branch.
+- short `idea/*` branches: coherent implementation slices when parallel work benefits from isolation.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+Production deployment, data access, provider configuration, migration, DNS, and cutover are not implied by code approval. Their required preflight and rollback evidence live in `docs/PRODUCTION-SAFETY.md` and the phase checklists in `docs/MASTERPLAN.md`.

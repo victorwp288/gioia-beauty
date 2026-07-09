@@ -1,4 +1,12 @@
+import { assertEnvironment } from "./config/environment.mjs";
+
+const { appEnv } = assertEnvironment(process.env, { command: "application" });
+
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_ENV: appEnv,
+  },
+};
 
 export default nextConfig;

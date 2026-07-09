@@ -1,0 +1,16 @@
+# Reviewed historical Firebase browser API keys. They are not server secrets,
+# are absent from the current tree, and remain subject to the separately
+# approved Google API-restriction/rotation audit in docs/FIREBASE-INVENTORY.md.
+5fb70d96dd6c010f0b3363b934b80e298b25240c:scripts/export-newsletter.js:gcp-api-key:8
+5fb70d96dd6c010f0b3363b934b80e298b25240c:scripts/fix-migrated-subscribers.js:gcp-api-key:13
+5fb70d96dd6c010f0b3363b934b80e298b25240c:scripts/import-newsletter.js:gcp-api-key:8
+5fb70d96dd6c010f0b3363b934b80e298b25240c:lib/firebase/config.js:gcp-api-key:11
+5fb70d96dd6c010f0b3363b934b80e298b25240c:app/export-data/page.jsx:gcp-api-key:8
+5fb70d96dd6c010f0b3363b934b80e298b25240c:app/export-data/page.jsx:gcp-api-key:19
+5fb70d96dd6c010f0b3363b934b80e298b25240c:app/export-data/page.jsx:gcp-api-key:307
+5fb70d96dd6c010f0b3363b934b80e298b25240c:app/export-data/page.jsx:gcp-api-key:765
+1eec5dbb85231db81d2ddf4c252f2361818c1455:utils/firebase.js:gcp-api-key:13
+7f1747eb73b8f6f25dfec16f12af1a8ea30e0b71:repomix-output.txt:gcp-api-key:16542
+7f1747eb73b8f6f25dfec16f12af1a8ea30e0b71:repomix-output.txt:gcp-api-key:21978
+7f1747eb73b8f6f25dfec16f12af1a8ea30e0b71:repomix-output.txt:gcp-api-key:22077
+7f1747eb73b8f6f25dfec16f12af1a8ea30e0b71:repomix-output.txt:gcp-api-key:22256

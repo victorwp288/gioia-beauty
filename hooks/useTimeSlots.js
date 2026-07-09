@@ -49,15 +49,11 @@ export const useTimeSlots = (selectedDate, appointmentType, duration) => {
           // Firestore Timestamp
           appointmentDate = apt.selectedDate.toDate();
         } else {
-          console.warn("Unknown date format:", apt.selectedDate);
           return false;
         }
 
         // Check if the parsed date is valid
-        if (isNaN(appointmentDate.getTime())) {
-          console.warn("Invalid date value:", apt.selectedDate);
-          return false;
-        }
+        if (isNaN(appointmentDate.getTime())) return false;
 
         // Compare using local date components (timezone-safe)
         const aptYear = appointmentDate.getFullYear();
@@ -69,21 +65,8 @@ export const useTimeSlots = (selectedDate, appointmentType, duration) => {
           targetMonth === aptMonth &&
           targetDay === aptDay;
 
-        if (matches) {
-          console.log("✅ Found matching appointment for time slots:", {
-            id: apt.id,
-            name: apt.name,
-            startTime: apt.startTime,
-            endTime: apt.endTime,
-            duration: apt.duration,
-            appointmentDate: appointmentDate.toISOString(),
-            selectedDate: selectedDate.toISOString(),
-          });
-        }
-
         return matches;
-      } catch (error) {
-        console.error("Error filtering appointment for date:", apt.id, error);
+      } catch {
         return false;
       }
     });
@@ -123,7 +106,7 @@ export const useTimeSlots = (selectedDate, appointmentType, duration) => {
         setLoading(false);
       }
     },
-    [duration, businessHours]
+    [appointmentsForDate, duration, businessHours]
   );
 
   // Auto-generate time slots when key parameters change
@@ -135,6 +118,7 @@ export const useTimeSlots = (selectedDate, appointmentType, duration) => {
     }
   }, [
     selectedDateString,
+    selectedDate,
     duration,
     businessHours,
     appointmentsForDate,

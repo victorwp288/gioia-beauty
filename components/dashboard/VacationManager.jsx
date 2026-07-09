@@ -262,15 +262,6 @@ const VacationManager = ({ isOpen, onClose }) => {
           ? ` - ${formData.description.trim()}`
           : "");
 
-      console.log("💾 VacationManager: Saving vacation with data:", {
-        isEditMode,
-        selectedVacation: selectedVacation?.id,
-        startDate,
-        endDate,
-        reason,
-        formData,
-      });
-
       if (isEditMode && selectedVacation) {
         console.log(
           "✏️ VacationManager: Updating vacation:",
@@ -291,15 +282,6 @@ const VacationManager = ({ isOpen, onClose }) => {
           }
         );
       } else {
-        console.log("➕ VacationManager: Creating new vacation");
-        console.log(
-          "📞 VacationManager: About to call createVacationPeriod with:",
-          {
-            startDate,
-            endDate,
-            reason,
-          }
-        );
         await notifyAsync(
           () => createVacationPeriod(startDate, endDate, reason),
           {

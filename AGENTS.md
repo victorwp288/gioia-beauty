@@ -43,9 +43,9 @@ npm run build    # production build — run before considering any change done
 npm run lint     # eslint (next lint)
 ```
 
-**Current safety warning:** `npm run dev` is not local-only yet. The Firebase config points at production and root hooks auto-fetch live data. Do not interact with a local/Preview app until Phase 1 isolation lands, unless the action is explicitly classified and approved as production work. Static inspection, lint, and builds that do not start/load the application are safe.
+**Current safety warning:** Phase 1's first fail-closed gate now forces the legacy Firebase client to loopback emulators in Local/Test/Preview and rejects production targets/credentials. Root hooks still auto-fetch, so do not open the app merely for smoke testing until the named local services and synthetic fixtures are running. The live `main` deployment remains on production Firebase and is unchanged by refactor-branch work.
 
-There are no tests yet. Masterplan Phase 1 introduces Vitest, Playwright, local Supabase, and CI **before** database/auth implementation. Until environment isolation lands, do not manually exercise the local app because it reaches production. Static verification is lint/build; after the test foundation lands, run the full affected unit/integration/E2E set.
+Vitest route, client, and environment tests now exist; Testing Library, Playwright, local Supabase, and CI still land in Phase 1 before database/auth implementation. Until local backing services and fixtures exist, do not manually exercise the app; it will fail against missing loopback services. Static verification is lint/build/unit tests. After the full test foundation lands, run the affected unit/integration/E2E set.
 
 ## Hard rules
 

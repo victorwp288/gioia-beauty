@@ -47,27 +47,16 @@ export default function DatabaseExport() {
   const [exportStats, setExportStats] = useState(null);
 
   useEffect(() => {
-    console.log("🔐 Export Page: Setting up auth state listener...");
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log(
-        "🔐 Export Page: Auth state changed:",
-        user ? { uid: user.uid, email: user.email } : "No user"
-      );
-
       setUser(user);
       setAuthLoading(false);
 
       if (!user) {
-        console.log("🔐 Export Page: No user found, redirecting to login...");
         router.replace("/login");
-      } else {
-        console.log("✅ Export Page: User authenticated");
       }
     });
 
     return () => {
-      console.log("🔐 Export Page: Cleaning up auth listener");
       unsubscribe();
     };
   }, [router]);
@@ -83,8 +72,7 @@ export default function DatabaseExport() {
       const exportData = {
         exportInfo: {
           timestamp: new Date().toISOString(),
-          projectId: "gioia-beauty-b95e0",
-          exportedBy: user?.email || "unknown",
+          source: "legacy-firestore",
           collections: Object.values(collections),
         },
         data: {},

@@ -135,8 +135,6 @@ export const useOptimizedTimeSlots = (
           date
         );
 
-        console.log("Appointments for date:", appointmentsForDate);
-
         const dayOfWeek = date.getDay();
         console.log("Day of week:", dayOfWeek);
 

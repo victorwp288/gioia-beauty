@@ -5,6 +5,7 @@ import { z } from "zod";
 import { addDoc, collection, runTransaction, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { toast } from "react-toastify";
+import { emailSchema } from "@/lib/utils/validationSchemas";
 
 // Form validation schema
 const formSchema = z.object({
@@ -12,7 +13,7 @@ const formSchema = z.object({
   note: z.string().optional(),
   name: z.string().min(1, "Name is required"),
   number: z.string().min(1, "Phone number is required"),
-  email: z.string().email("Invalid email address"),
+  email: emailSchema,
   timeSlot: z.string().min(1, "Time slot is required"),
   selectedDate: z
     .date()

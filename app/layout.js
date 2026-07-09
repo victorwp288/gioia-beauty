@@ -8,7 +8,6 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AppointmentProvider } from "@/context/AppointmentContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { ReactScan } from "@/components/scan/ReactScan";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -92,7 +91,6 @@ export default function RootLayout({ children }) {
       lang="it"
       className={`${bricolage.variable} ${dmSerif.variable} font-bricolage h-full scroll-smooth antialiased`}
     >
-      <ReactScan />
       <head>
         <meta name="msvalidate.01" content="80C0DA0047C69C3845952ED707A5C88C" />
         <script

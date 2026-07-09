@@ -2,17 +2,19 @@
 
 This is a live booking system. The purpose of this document is to make it difficult to touch production accidentally and easy to tell what is safe before running a command.
 
-## Temporary red alert: current repository state
+## Current isolation status
 
-Until Masterplan Phase 1 environment isolation is complete:
+The `refactor` branch now has the first Phase 1 fail-closed gate:
 
-- `lib/firebase/config.js` hardcodes production project `gioia-beauty-b95e0`.
-- Firebase emulator connections are commented out.
-- `npm run dev` followed by loading a page performs production Firestore reads because the root appointment hooks auto-fetch.
-- Booking, dashboard, vacation, newsletter, export, or login interactions from a local or Preview build may affect production.
-- Vercel Preview can compile the same production Firebase project ID.
+- Local/Test/Preview reject known remote Firebase targets, cloud database URLs in Local/Test, provider credentials, and mismatched Supabase refs/URLs.
+- The legacy Firebase browser client uses only the `demo-gioia-beauty` project and loopback Auth, Firestore, and Storage emulators outside Production.
+- Legacy Firebase Admin owner auth has an independent sink assertion and works only with the exact demo project plus loopback Auth emulator.
+- Refactor Production startup is intentionally disabled because no Supabase target is Production-classified. Reclassification requires a reviewed code change that registers the exact target plus a separate approval identifier.
+- Ordinary tests require `APP_ENV=test`; the protected operator environment cannot start the application.
 
-Therefore, **do not treat local dev or Preview as safe yet**. Lint, build, static code inspection, documentation edits, and tests that do not start the application are safe. Interactive application testing waits for the local/staging isolation gate or requires explicit production classification and approval.
+The root legacy hooks still auto-fetch, but outside Production they can now reach only loopback emulators. Do not open the application merely for a smoke test until the named local services and synthetic fixtures are running. Static verification is safe now; interactive verification begins with the completed local Supabase/Firebase test foundation.
+
+This repository isolation does **not** change the live `main` deployment. Production still runs the legacy Firebase application and retains its audited risks until separately approved hotfixes or cutover actions are deployed.
 
 ## Mandatory labels
 

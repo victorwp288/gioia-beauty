@@ -56,6 +56,11 @@ import {
   getTodayFormatted,
 } from "@/lib/utils/dateUtils";
 import { calculateEndTime } from "@/lib/utils/timeUtils";
+import {
+  deliveryFailed,
+  sendBookingEmailRequest,
+  sendCancellationEmailRequest,
+} from "@/lib/client/emailDelivery";
 
 // Separate Components
 import SubscriberList from "../SubscriberList";
@@ -107,7 +112,7 @@ const Dashy = ({ user, authLoading }) => {
     fetchAllAppointments,
   } = useAppointmentContext();
 
-  const { showConfirmation, notifyAsync, showError, showSuccess } =
+  const { showConfirmation, notifyAsync, showError, showSuccess, showWarning } =
     useNotification();
 
   // Form state
@@ -477,24 +482,17 @@ const Dashy = ({ user, authLoading }) => {
       if (appointmentDate) {
         displayDate = formatDateForInput(appointmentDate);
 
-        console.log("🗓️ Date conversion:", {
-          original: appointmentDate,
-          display: displayDate,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        });
-
         if (!displayDate) {
-          console.warn(
-            "Could not format appointment date, using today's date:",
-            appointmentDate,
-          );
+          console.warn("Could not format appointment date; using today's date");
           displayDate = getTodayFormatted();
         }
       } else {
         displayDate = getTodayFormatted();
       }
     } catch (error) {
-      console.error("Error parsing appointment date:", error, appointment);
+      console.error("Error parsing appointment date", {
+        code: error?.name || "unknown",
+      });
       // Fallback to today's date using timezone-safe method
       displayDate = getTodayFormatted();
       showError(
@@ -626,23 +624,21 @@ const Dashy = ({ user, authLoading }) => {
             appointmentType: appointmentData.appointmentType,
           };
 
-          const response = await fetch("/api/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(emailData),
-          });
+          const idToken = await user.getIdToken();
+          const result = await sendBookingEmailRequest(emailData, { idToken });
 
-          if (!response.ok) {
-            console.warn(
-              "Failed to send confirmation email:",
-              response.statusText,
+          if (!result.success) {
+            const failedRecipient = deliveryFailed(result, "customer")
+              ? "cliente"
+              : "amministratore";
+            showWarning(
+              `Appuntamento creato, ma l'email al ${failedRecipient} non è stata inviata.`,
             );
-          } else {
-            console.log("✅ Confirmation email sent successfully");
           }
-        } catch (emailError) {
-          console.warn("Email sending failed:", emailError);
-          // Don't fail the appointment creation if email fails
+        } catch {
+          showError(
+            "Appuntamento creato, ma il servizio email non è disponibile.",
+          );
         }
       }
 
@@ -733,68 +729,58 @@ const Dashy = ({ user, authLoading }) => {
       });
 
       if (finalConfirm === "confirm") {
+        let wasDeleted = false;
         try {
-          await notifyAsync(
-            async () => {
-              await deleteAppointment(appointment.id);
-
-              // Skip cancellation email when there's no recipient (e.g. manual time blocks)
-              if (!appointment.email?.trim()) {
-                return;
-              }
-
-              // Send cancellation email
-              const emailData = {
-                email: appointment.email,
-                name: appointment.name,
-                startTime: appointment.startTime,
-                endTime: appointment.endTime,
-                duration: appointment.duration,
-                date: (() => {
-                  try {
-                    const appointmentDate =
-                      appointment.selectedDate || appointment.date;
-                    if (appointmentDate instanceof Date) {
-                      return formatDate(appointmentDate);
-                    } else if (typeof appointmentDate === "string") {
-                      const parsedDate = new Date(appointmentDate);
-                      return isNaN(parsedDate.getTime())
-                        ? "Data non disponibile"
-                        : formatDate(parsedDate);
-                    } else if (appointmentDate?.toDate) {
-                      return formatDate(appointmentDate.toDate());
-                    } else if (appointmentDate?.seconds) {
-                      return formatDate(
-                        new Date(appointmentDate.seconds * 1000),
-                      );
-                    } else {
-                      return "Data non disponibile";
-                    }
-                  } catch (error) {
-                    console.error("Error formatting date for email:", error);
-                    return "Data non disponibile";
-                  }
-                })(),
-              };
-
-              const response = await fetch("/api/cancel", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(emailData),
-              });
-
-              if (!response.ok) {
-                throw new Error("Impossibile inviare l'email di cancellazione");
-              }
-            },
+          await notifyAsync(() => deleteAppointment(appointment.id),
             {
               loading: "Eliminazione appuntamento...",
               success: "Appuntamento eliminato con successo!",
               error: "Impossibile eliminare l'appuntamento",
             },
           );
+          wasDeleted = true;
         } catch (error) {
           console.error("Error deleting appointment:", error);
+        }
+
+        if (wasDeleted && appointment.email?.trim()) {
+          try {
+            const appointmentDate = appointment.selectedDate || appointment.date;
+            let date = "Data non disponibile";
+            if (appointmentDate instanceof Date) {
+              date = formatDate(appointmentDate);
+            } else if (typeof appointmentDate === "string") {
+              const parsedDate = new Date(appointmentDate);
+              if (!isNaN(parsedDate.getTime())) date = formatDate(parsedDate);
+            } else if (appointmentDate?.toDate) {
+              date = formatDate(appointmentDate.toDate());
+            } else if (appointmentDate?.seconds) {
+              date = formatDate(new Date(appointmentDate.seconds * 1000));
+            }
+
+            const idToken = await user.getIdToken();
+            const result = await sendCancellationEmailRequest(
+              {
+                email: appointment.email,
+                name: appointment.name,
+                startTime: appointment.startTime,
+                endTime: appointment.endTime,
+                duration: appointment.duration,
+                date,
+              },
+              { idToken },
+            );
+
+            if (!result.success) {
+              showWarning(
+                "Appuntamento eliminato, ma l'email di cancellazione non è stata inviata.",
+              );
+            }
+          } catch {
+            showWarning(
+              "Appuntamento eliminato, ma il servizio email non è disponibile.",
+            );
+          }
         }
       }
       // If finalConfirm === "cancel" or "close", do nothing (user cancelled deletion)

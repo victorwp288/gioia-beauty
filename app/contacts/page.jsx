@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
+import ClientMap from "@/components/common/ClientMap";
 
 export const metadata = {
   title: "Contatti - Centro Estetico Gioia Beauty Roveleto di Cadeo",
@@ -26,10 +26,6 @@ export const metadata = {
 };
 
 const Contacts = () => {
-  const Map = dynamic(() => import("@/components/common/Map"), {
-    ssr: false,
-  });
-
   const latitude = 44.96556;
   const longitude = 9.8514;
   return (
@@ -86,7 +82,7 @@ const Contacts = () => {
       </div>
 
       <div>
-        <Map latitude={latitude} longitude={longitude} />
+        <ClientMap latitude={latitude} longitude={longitude} />
       </div>
     </div>
   );

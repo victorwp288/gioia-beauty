@@ -35,6 +35,10 @@ import {
   getNextBusinessDay,
 } from "@/lib/utils/timeUtils";
 import { formatDate } from "@/lib/utils/dateUtils";
+import {
+  deliveryFailed,
+  sendBookingEmailRequest,
+} from "@/lib/client/emailDelivery";
 
 // Components
 import BookingConfirmation from "./BookingConfirmation";
@@ -52,7 +56,7 @@ const BookAppointment = () => {
     fetchVacations,
   } = useAppointmentContext();
 
-  const { showSuccess, showError, notifyAsync } = useNotification();
+  const { showError, showWarning, notifyAsync } = useNotification();
 
   // Local state (must be declared before hooks that use them)
   const [appointmentType, setAppointmentType] = useState(() => {
@@ -209,18 +213,11 @@ const BookAppointment = () => {
       // Import unified date utilities
       const { createAppointmentDate } = await import("@/lib/utils/dateUtils");
 
-      console.log("📅 BookAppointment: Submitting appointment data:", data);
-
       // Create standardized appointment date using unified system
       const standardizedDate = createAppointmentDate(data.selectedDate);
       if (!standardizedDate) {
         throw new Error("Invalid appointment date selected");
       }
-
-      console.log("📅 BookAppointment: Standardized date:", {
-        original: data.selectedDate,
-        standardized: standardizedDate,
-      });
 
       // Prepare appointment data
       const appointmentData = {
@@ -246,11 +243,6 @@ const BookAppointment = () => {
       appointmentData.endTime = `${String(endHours).padStart(2, "0")}:${String(
         endMinutes
       ).padStart(2, "0")}`;
-
-      console.log(
-        "📅 BookAppointment: Final appointment data:",
-        appointmentData
-      );
 
       // Create appointment using context
       await notifyAsync(() => createAppointment(appointmentData), {
@@ -293,23 +285,16 @@ const BookAppointment = () => {
           appointmentType: appointmentData.appointmentType,
         };
 
-        const response = await fetch("/api/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(emailData),
-        });
-
-        if (!response.ok) {
-          console.warn(
-            "Failed to send confirmation email:",
-            response.statusText
+        const result = await sendBookingEmailRequest(emailData);
+        if (!result.delivery || deliveryFailed(result, "customer")) {
+          showWarning(
+            "L'appuntamento è confermato, ma l'email non è stata inviata. Contatta il salone se non ricevi la conferma.",
           );
-        } else {
-          console.log("✅ Confirmation email sent successfully");
         }
-      } catch (emailError) {
-        console.warn("Email sending failed:", emailError);
-        // Don't fail the appointment creation if email fails
+      } catch {
+        showWarning(
+          "L'appuntamento è confermato, ma il servizio email non è disponibile.",
+        );
       }
 
       // Store booking data for confirmation modal
@@ -338,8 +323,6 @@ const BookAppointment = () => {
     },
     // Error callback - called when validation fails
     (errors) => {
-      console.log("Form validation errors:", errors);
-
       // Collect missing required fields in Italian
       const missingFields = [];
       if (errors.name) missingFields.push("Nome e Cognome");

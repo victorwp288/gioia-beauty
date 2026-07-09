@@ -2,17 +2,23 @@
   "name": "gioia_beauty",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.9.4",
+  "engines": {
+    "node": "22.x",
+    "npm": "10.x"
+  },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "migrate:newsletter": "node scripts/migrate-newsletter.js",
-    "migrate:newsletter:simple": "node scripts/migrate-newsletter-simple.js",
-    "export:newsletter": "node scripts/export-newsletter.js",
-    "import:newsletter": "node scripts/import-newsletter.js",
-    "fix:subscribers": "node scripts/fix-migrated-subscribers.js",
-    "scan": "next dev & npx react-scan@latest localhost:3000"
+    "dev": "APP_ENV=${APP_ENV:-local} next dev",
+    "build": "APP_ENV=${APP_ENV:-local} next build",
+    "start": "APP_ENV=${APP_ENV:-local} next start",
+    "lint": "APP_ENV=${APP_ENV:-local} eslint . --max-warnings=0",
+    "format": "prettier --write app/api config lib/client lib/server tests eslint.config.mjs next.config.mjs vitest.config.mjs package.json README.md",
+    "format:check": "prettier --check app/api config lib/client lib/server tests eslint.config.mjs next.config.mjs vitest.config.mjs package.json README.md",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "test": "APP_ENV=${APP_ENV:-test} vitest run",
+    "test:watch": "APP_ENV=${APP_ENV:-test} vitest",
+    "security:secrets": "./scripts/check-secrets.sh",
+    "security:dependencies": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.6.0",
@@ -27,34 +33,75 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
-    "firebase": "^10.12.2",
-    "firebase-admin": "^13.4.0",
+    "firebase": "12.16.0",
+    "firebase-admin": "14.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.395.0",
-    "next": "^14.2.16",
-    "react": "^18.3.1",
+    "next": "15.5.20",
+    "react": "18.3.1",
     "react-datepicker": "^7.3.0",
     "react-day-picker": "^8.10.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "18.3.1",
     "react-hook-form": "^7.51.5",
     "react-icons": "^5.2.1",
     "react-leaflet": "^4.2.1",
     "react-modal": "^3.16.1",
     "react-phone-input-2": "^2.15.1",
-    "react-scan": "^0.3.4",
     "react-toastify": "^10.0.5",
     "resend": "^3.3.0",
     "sharp": "^0.33.4",
     "tailwind-merge": "^2.3.0",
-    "tailwindcss-animate": "^1.0.7",
-    "twilio": "^5.2.2",
     "vaul": "^0.9.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "eslint": "^8",
-    "eslint-config-next": "14.2.4",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1"
+    "eslint": "9.39.4",
+    "eslint-config-next": "15.5.20",
+    "lint-staged": "16.4.0",
+    "postcss": "8.5.16",
+    "prettier": "3.9.5",
+    "tailwindcss": "^3.4.1",
+    "tailwindcss-animate": "^1.0.7",
+    "vitest": "4.1.10"
+  },
+  "lint-staged": {
+    "app/api/**/*.{js,mjs,ts}": "prettier --write",
+    "config/**/*.{js,mjs,ts}": "prettier --write",
+    "lib/{client,server}/**/*.{js,mjs,ts}": "prettier --write",
+    "tests/**/*.{js,jsx,mjs,ts,tsx}": "prettier --write",
+    "*.{md,mjs}": "prettier --write",
+    "package.json": "prettier --write"
+  },
+  "overrides": {
+    "@babel/runtime": "7.29.7",
+    "brace-expansion@2.0.1": "2.1.2",
+    "cross-spawn": "7.0.6",
+    "js-beautify": {
+      "glob": "10.5.0"
+    },
+    "rimraf@5.0.10": {
+      "glob": "10.5.0"
+    },
+    "sucrase": {
+      "glob": "10.5.0"
+    },
+    "js-cookie@3.0.5": "3.0.8",
+    "jws@3.2.2": "3.2.3",
+    "minimatch@9.0.1": "9.0.9",
+    "minimatch@9.0.4": "9.0.9",
+    "minimatch@3.1.5": {
+      "brace-expansion": "1.1.16"
+    },
+    "anymatch": {
+      "picomatch": "2.3.2"
+    },
+    "micromatch": {
+      "picomatch": "2.3.2"
+    },
+    "readdirp": {
+      "picomatch": "2.3.2"
+    },
+    "postcss": "$postcss",
+    "yaml@2.4.5": "2.9.0"
   }
 }

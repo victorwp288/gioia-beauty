@@ -19,14 +19,36 @@
 # misc
 .DS_Store
 *.pem
+repomix-output*.txt
+*.repomix
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
+# environment files (the placeholder template remains tracked)
+.env
+.env.*
+!.env.example
+
+# credentials and restricted data
+*service-account*.json
+*serviceAccount*.json
+firebase-adminsdk*.json
+*.database-export.json
+*.firestore-export.*
+before-images/
+backups/
+exports/
+migration-artifacts/
+migration-manifests/
+recovery-data/
+
+# Supabase local/runtime state
+supabase/.branches/
+supabase/.temp/
+supabase/.env
 
 # vercel
 .vercel

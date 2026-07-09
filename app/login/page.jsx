@@ -20,10 +20,7 @@ export default function Login() {
     //what do i do here?
     //i need to sign in with email and password
     signInWithEmailAndPassword(auth, email, password)
-      .then((userCredential) => {
-        // Signed in successfully, you can use userCredential if needed
-        // For example, redirect the user or display a success message
-        console.log("Signed in successfully:", userCredential.user);
+      .then(() => {
         // Clear form only on success
         setEmail("");
         setPassword("");

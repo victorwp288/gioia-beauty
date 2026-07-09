@@ -30,11 +30,6 @@ export const useOptimizedAppointments = (options = {}) => {
   // Fetch appointments using optimized data manager
   const fetchAppointments = useCallback(
     async (fetchOptions = {}) => {
-      console.log(
-        "🎯 HOOK DEBUG: fetchAppointments called with options:",
-        fetchOptions
-      );
-
       setLoading(true);
       setError(null);
 
@@ -94,13 +89,7 @@ export const useOptimizedAppointments = (options = {}) => {
           queryOptions.dateRange = null; // Remove any date range restrictions
         }
 
-        console.log(
-          "🎯 HOOK DEBUG: About to call dataManager with:",
-          queryOptions
-        );
         const result = await dataManager.getAppointments(queryOptions);
-
-        console.log("🎯 HOOK DEBUG: DataManager returned:", result);
 
         // Update state if we have valid data
         if (result?.appointments) {
@@ -430,7 +419,7 @@ export const useOptimizedAppointments = (options = {}) => {
       // In development with StrictMode, this prevents the effect from running twice
       // The ref persists across unmount/remount cycles
     };
-  }, [fetchAppointments]);
+  }, [enableRealTime, fetchAppointments]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -451,11 +440,6 @@ export const useOptimizedAppointments = (options = {}) => {
   const getMetrics = useCallback(() => {
     return dataManager.getMetrics();
   }, []);
-
-  console.log(
-    "🎯 HOOK DEBUG: Rendering hook with appointments:",
-    appointments.length
-  );
 
   return {
     // Data

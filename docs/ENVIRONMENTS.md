@@ -39,11 +39,11 @@ Before this project can become Production, it must be reclassified in this file 
 | Firebase project | `gioia-beauty-b95e0` |
 | Current authority | Live Production booking/customer source until cutover |
 
-The current repository can reach this project from local/Preview code. Follow the red-alert rules in `docs/PRODUCTION-SAFETY.md` until isolation is complete.
+The `refactor` branch rejects this project in Local/Test/Preview and sink-disables legacy server Auth outside the exact demo emulator. The live `main` deployment still uses it; any live read, configuration, data, or application action therefore remains separately protected.
 
 ### Future Supabase authority
 
-No Supabase project is Production-authoritative yet. The greenfield project above may be promoted only through the approved rebuild/reset, backup/restore, migration-reconciliation, Vercel cutover, and immediate reclassification gates; otherwise a separately approved clean Production project must be used.
+No Supabase project is Production-authoritative yet, and `APP_ENV=production` startup is intentionally rejected until one is registered in reviewed environment code. The greenfield project above may be promoted only through the approved rebuild/reset, backup/restore, migration-reconciliation, Vercel cutover, and immediate reclassification gates; otherwise a separately approved clean Production project must be used.
 
 ## Preview
 
