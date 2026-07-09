@@ -29,6 +29,7 @@ describe("booking concurrency reconciliation", () => {
     expect(raceTargetQuery).toContain("generate_series(1, 14)");
     expect(raceTargetQuery).toContain("extract(");
     expect(raceTargetQuery).not.toContain("pg_catalog.extract");
+    expect(raceTargetQuery).not.toContain("gioia_private.rome_today");
     expect(bookingQuery(1, parseRaceTarget(target))).toContain(
       "set role app_runtime;",
     );

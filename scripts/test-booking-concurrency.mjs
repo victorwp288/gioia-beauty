@@ -41,12 +41,16 @@ async function queryLocalDatabase(query) {
 
 export const raceTargetQuery = `
   with target_date as (
-    select (gioia_private.rome_today() + candidate.days)::date as local_date
+    select (
+      (statement_timestamp() at time zone 'Europe/Rome')::date + candidate.days
+    )::date as local_date
     from pg_catalog.generate_series(1, 14) as candidate(days)
     where exists (
       select 1 from gioia_private.business_hours as hours
       where hours.weekday = extract(
-        isodow from gioia_private.rome_today() + candidate.days
+        isodow from (
+          statement_timestamp() at time zone 'Europe/Rome'
+        )::date + candidate.days
       )::smallint
     )
     order by candidate.days
