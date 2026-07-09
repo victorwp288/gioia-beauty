@@ -186,17 +186,17 @@ No production data is mutated in this phase except explicitly approved backup/co
 - [x] **`[LOCAL]`** Make development/test/CI fail closed if any production Firebase/Supabase project ID or production credential is detected.
 - [ ] **`[PROD-CONFIG]`** Audit Vercel Development/Preview/Production env scopes. Preview must use staging data and non-delivering/test-only email.
 - [ ] **`[TEST]`** After isolation, capture desktop/mobile screenshots of `/`, gallery, contacts, booking states/modals/errors, login, and dashboard without touching production data.
-- [ ] **`[LOCAL]`** Add strict TypeScript for new files (`allowJs: true`) after a TypeScript 7 compatibility spike; keep the supported fallback documented.
+- [x] **`[LOCAL]`** Add strict TypeScript for new files (`allowJs: true`) after a TypeScript 7 compatibility spike; keep the supported fallback documented.
 - [ ] **`[LOCAL]`** Add Vitest, Testing Library, Playwright, local Supabase, and GitHub Actions for lint, typecheck, unit/integration tests, and build on PRs and `refactor` pushes.
 - [ ] **`[REMOTE-CONFIG]`** Protect `refactor` and `main`; agents use short branches/PRs instead of pushing unfinished DB-aware work directly to a shared deploy branch.
 - [ ] **`[LOCAL]` / `[REMOTE-CONFIG]` / `[PROD-CONFIG]`** Define a dedicated production-operator workflow: protected GitHub Environment/manual approval, exact project allowlist, short-lived production secrets, no development startup, migration/import-only commands, redacted artifacts, and credential teardown. Normal CI never receives Production credentials.
-- [ ] **`[LOCAL]`** Add migration tooling that defaults to dry-run and refuses production unless exact environment, project ref, run ID, `--apply`, bounds, and confirmation are supplied.
+- [x] **`[LOCAL]`** Add migration tooling that defaults to dry-run and refuses production unless exact environment, project ref, run ID, `--apply`, bounds, and confirmation are supplied.
 - [x] **`[LOCAL]`** Extend `.gitignore` for service-account JSON, database exports, before-images, migration manifests, Supabase local data, and backup directories.
 - [ ] **`[LOCAL]` / `[TEST]`** Capture/version current Firestore rules/indexes and prepare tested temporary deny-write plus final deny-all rules for the cutover. Do not deploy them yet.
 - [ ] **`[PROD-READ]`** After explicit approval, take a bounded read-only Firestore inventory/export only after target/project verification; declare PII and read cost, redact reports, and store raw exports encrypted outside git.
 - [ ] **`[PROD-CONFIG]`** Enable/verify a current Firestore backup/PITR strategy for the source until cutover is complete.
 - [ ] **`[PROD-READ]` / `[TEST]`** With separate approval, restore the PII-bearing source export only into a restricted recovery environment with named access, no public app/email, and a destruction deadline. Prove counts/representative records, generate an anonymized derivative for staging tests, then securely destroy the recovery copy.
-- [ ] **`[LOCAL]`** Document RPO, RTO, restore cadence, migration stop conditions, and incident contacts in `docs/OPERATIONS.md`.
+- [x] **`[LOCAL]`** Document RPO, RTO, restore cadence, migration stop conditions, and incident contacts in `docs/OPERATIONS.md`.
 
 **Done when:** local/CI/Preview cannot reach production, a source backup has been restored successfully elsewhere, CI is mandatory, the Production Supabase cost/backup posture is approved, and production-write tooling fails closed.
 
@@ -204,15 +204,15 @@ No production data is mutated in this phase except explicitly approved backup/co
 
 Everything remains `[LOCAL]` or `[TEST]`.
 
-- [ ] **`[LOCAL]`** Define Zod schemas and inferred types for schedule entries, appointments, blocks, vacations, services, variants, subscribers, outbox events, public commands, and admin commands.
-- [ ] **`[LOCAL]`** Build a stable service/variant catalog with explicit IDs, display-name snapshots, service duration, buffer, active state, and optional price only when real price data exists.
-- [ ] **`[LOCAL]`** Build pure Europe/Rome date/time, business-hours, vacation, overlap, and availability modules.
+- [x] **`[LOCAL]`** Define Zod schemas and inferred types for schedule entries, appointments, blocks, vacations, services, variants, subscribers, outbox events, public commands, and admin commands.
+- [x] **`[LOCAL]`** Build a stable service/variant catalog with explicit IDs, display-name snapshots, service duration, buffer, active state, and optional price only when real price data exists.
+- [x] **`[LOCAL]`** Build pure Europe/Rome date/time, business-hours, vacation, overlap, and availability modules.
 - [ ] **`[LOCAL]`** Create reviewed Supabase migrations for private/default-deny tables, explicit grants, RLS, indexes, uniqueness, audit fields, and generated/validated occupied intervals.
 - [ ] **`[LOCAL]`** Version required extensions and database privileges. If `btree_gist` backs the exclusion constraint, migrate it explicitly. Any `SECURITY DEFINER` function lives outside exposed schemas, pins a safe `search_path`, revokes `EXECUTE` from `PUBLIC`/`anon`/`authenticated`, and grants only `app_runtime`.
 - [ ] **`[LOCAL]`** Add a database-enforced active-overlap invariant for appointments and blocks. Vacation/reschedule paths must participate in the same locking/invariant story.
 - [ ] **`[LOCAL]`** Add operation/principal-scoped request idempotency with a request fingerprint, `legacy_firestore_id`, `schema_version`, source/timestamp provenance, soft cancellation, email/outbox state, and migration quarantine. Same-key/different-body replay returns 409.
 - [ ] **`[LOCAL]`** Add an append-only, PII-minimized domain change log/high-water sequence covering schedule entries, blocks, vacations, and subscribers so post-cutover mutations are discoverable for audit and rollback.
-- [ ] **`[LOCAL]`** Decide and document: same-day/lead time, maximum advance window, slot alignment, admin overrides, buffer meaning, statuses consuming availability, vacation-over-existing-booking behavior, and completed-status semantics.
+- [x] **`[LOCAL]`** Decide and document: same-day/lead time, maximum advance window, slot alignment, admin overrides, buffer meaning, statuses consuming availability, vacation-over-existing-booking behavior, and completed-status semantics.
 - [ ] **`[LOCAL]`** Exhaustively test adjacent/partial/exact overlap, variable durations, buffer/closing boundaries, blocks, cancelled records, vacations, leap dates, Rome midnight/DST, stale requests, reschedules, and parallel requests.
 - [ ] **`[TEST]`** Run migrations from zero, seed, reset, rerun, advisors, RLS-negative tests, and concurrency tests in staging. Many parallel overlapping requests must yield exactly one accepted booking.
 

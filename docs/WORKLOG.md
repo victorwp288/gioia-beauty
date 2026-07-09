@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Established typed database foundation and public booking boundary
+**Phase:** Phases 1–3
+**Labels/environment:** [LOCAL], static/build/unit verification only
+**Data impact:** none
+**Target:** local `refactor` worktree; no database, deployment, auth provider, email provider, or Production target
+**Expected reads/writes/rows:** 0 database/provider reads; 0 writes; 0 rows
+**Done:** Commits `858dd70` and `63ba794` add strict TypeScript 7 with a TS6 fallback, pinned Supabase/CI/test tooling, a stable 12-category/74-service/102-variant catalog, the pure Europe/Rome booking kernel, private schema and transactional command migrations, pgTAP/concurrency coverage, and server-only availability/booking endpoints. Ticked only locally proven Phase 1–2 checklist items.
+**Verified/reconciled:** clean `npm ci`; format; static SQL checks; 203 Vitest tests; TypeScript 7 and 6; ESLint; Next production build; timezone reruns under New York/Tokyo; bundle secret scan; dependency audit 0 high/critical. `git diff --check` passed.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; no remote data/configuration action
+**Rollback/forward recovery:** revert `63ba794` then `858dd70`; migrations remain unapplied remotely
+**Next:** Push `refactor`, inspect GitHub CI, and fix the Docker Supabase reset/lint/advisor/pgTAP/concurrency-twice gates until green; only then preflight and apply the reviewed migrations to authorized TEST `lxvsspniipcotimbsfqm`.
+**Gotchas:** This Mac has no Docker, so database execution is deliberately unclaimed until CI. Local Gitleaks is absent; CI installs pinned Gitleaks. The legacy UI/root Firebase provider is not yet wired to the new endpoints and must not be manually loaded.
+
 ## 2026-07-09 — Contained legacy routes and made development fail closed
 **Phase:** Phase 0 containment and Phase 1 environment isolation
 **Labels/environment:** [LOCAL], static/build/unit verification only
