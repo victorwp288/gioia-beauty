@@ -143,4 +143,52 @@ describe("Supabase SQL static validation", () => {
       ),
     ).toBe(true);
   });
+
+  it("requires rollback-scoped pgTAP access for restricted-role tests", () => {
+    const runtimeWithoutUsage = [
+      "begin;",
+      "grant app_runtime to postgres;",
+      "select plan(1);",
+      "set local role app_runtime;",
+      "select ok(true);",
+      "select * from finish();",
+      "rollback;",
+    ].join("\n");
+    const mutatorWithoutMembership = [
+      "begin;",
+      "select plan(1);",
+      "set local role gioia_mutator;",
+      "select ok(true);",
+      "select * from finish();",
+      "rollback;",
+    ].join("\n");
+
+    expect(
+      validateDatabaseTestSql("070_runtime.test.sql", runtimeWithoutUsage).some(
+        (error) => error.includes("extensions usage"),
+      ),
+    ).toBe(true);
+    expect(
+      validateDatabaseTestSql(
+        "060_mutator.test.sql",
+        mutatorWithoutMembership,
+      ).some((error) => error.includes("mutator-role tests")),
+    ).toBe(true);
+  });
+
+  it("requires database tests to roll back every fixture and temporary grant", () => {
+    const committing = [
+      "begin;",
+      "select plan(1);",
+      "select ok(true);",
+      "select * from finish();",
+      "commit;",
+    ].join("\n");
+
+    expect(
+      validateDatabaseTestSql("000_committing.test.sql", committing).some(
+        (error) => error.includes("roll back"),
+      ),
+    ).toBe(true);
+  });
 });

@@ -106,7 +106,10 @@ export function validateMigrationSql(filename, sql) {
 
 export function validateDatabaseTestSql(filename, sql) {
   const errors = [];
+  const normalized = sql.trim();
+  const executable = withoutLeadingComments(sql);
   const lineCount = countLines(sql);
+  const isPgTapSetup = filename === "000_0_pgtap_setup.test.sql";
 
   if (!TEST_NAME.test(filename)) {
     errors.push("database test filename must use NNN_snake_case.test.sql");
@@ -121,12 +124,36 @@ export function validateDatabaseTestSql(filename, sql) {
     errors.push("database test must declare a pgTAP plan");
   if (!/\bfinish\s*\(\s*\)/i.test(sql))
     errors.push("database test must call finish()");
+  if (normalized !== "" && !isPgTapSetup) {
+    if (!/^begin\s*;/i.test(executable))
+      errors.push("database test must begin a transaction");
+    if (!/rollback\s*;$/i.test(normalized))
+      errors.push("database test must roll back its transaction");
+  }
   if (
     /set\s+local\s+role\s+app_runtime\b/i.test(sql) &&
     !/grant\s+app_runtime\s+to\s+postgres\s*;/i.test(sql)
   ) {
     errors.push(
       "runtime-role tests require a transaction-scoped postgres membership grant",
+    );
+  }
+  if (
+    /set\s+local\s+role\s+app_runtime\b/i.test(sql) &&
+    !/grant\s+usage\s+on\s+schema\s+extensions\s+to\s+app_runtime\s*;/i.test(
+      sql,
+    )
+  ) {
+    errors.push(
+      "runtime-role pgTAP tests require transaction-scoped extensions usage",
+    );
+  }
+  if (
+    /set\s+local\s+role\s+gioia_mutator\b/i.test(sql) &&
+    !/grant\s+gioia_mutator\s+to\s+postgres\s*;/i.test(sql)
+  ) {
+    errors.push(
+      "mutator-role tests require a transaction-scoped postgres membership grant",
     );
   }
 

@@ -1,5 +1,7 @@
 begin;
 
+grant gioia_mutator to postgres;
+
 set local search_path = extensions, public, pg_catalog;
 
 select plan(23);

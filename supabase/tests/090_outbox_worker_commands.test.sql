@@ -1,4 +1,5 @@
 begin; grant app_runtime to postgres;
+grant usage on schema extensions to app_runtime;
 set local search_path = extensions, public, pg_catalog;
 
 select plan(17);
