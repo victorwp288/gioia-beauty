@@ -12,11 +12,11 @@ select is(
     from pg_catalog.pg_extension as extension
     join pg_catalog.pg_namespace as namespace
       on namespace.oid = extension.extnamespace
-    where extension.extname in ('btree_gist', 'citext', 'pgcrypto', 'pgtap')
+    where extension.extname in ('btree_gist', 'citext', 'pgcrypto')
       and namespace.nspname = 'extensions'
   ),
-  4::bigint,
-  'all required extensions are installed in extensions'
+  3::bigint,
+  'all runtime extensions are installed in extensions'
 );
 
 select is(

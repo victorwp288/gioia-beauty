@@ -7,7 +7,6 @@ create schema if not exists extensions;
 create extension if not exists btree_gist with schema extensions;
 create extension if not exists citext with schema extensions;
 create extension if not exists pgcrypto with schema extensions;
-create extension if not exists pgtap with schema extensions;
 
 do $$
 begin
@@ -149,7 +148,7 @@ begin
     from pg_catalog.pg_extension as extension
     join pg_catalog.pg_namespace as namespace
       on namespace.oid = extension.extnamespace
-    where extension.extname in ('btree_gist', 'citext', 'pgcrypto', 'pgtap')
+    where extension.extname in ('btree_gist', 'citext', 'pgcrypto')
       and namespace.nspname <> 'extensions'
   ) then
     raise exception 'Required extensions must be installed in the extensions schema';
