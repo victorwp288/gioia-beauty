@@ -1,6 +1,6 @@
 # ADR-001 — Migrate Firestore/Firebase Auth to Supabase Postgres/Auth
 
-- **Status:** Proposed; implementation is blocked on recurring-cost approval and Phase 1 rehearsal gates.
+- **Status:** Accepted for greenfield implementation on 2026-07-09; Production cutover remains gated.
 - **Date:** 2026-07-09
 - **Decision owner:** Victor
 
@@ -53,17 +53,19 @@ Costs/risks:
 
 Supabase itself does not make development safe. Safety comes from credential isolation, fail-closed targets, versioned migrations, backups, restore rehearsals, explicit production approval, reconciliation, and rollback.
 
-## Approval conditions
+## Acceptance and Production gates
 
-This ADR becomes **Accepted** only when:
+Victor accepted the one-migration architecture and authorized project `lxvsspniipcotimbsfqm` as a resettable greenfield integration/staging target on 2026-07-09. It may contain only synthetic data until the final migration is separately approved.
 
-1. Victor approves the current total recurring cost for Production plus the chosen serialized staging setup after rechecking pricing.
-2. Local migrations recreate the database from zero.
-3. A representative Firestore export is handled in a restricted recovery environment, imports into isolated staging only after anonymization, and reconciles source = imported + explicitly reviewed quarantine.
-4. Concurrent overlap, auth/RLS, backup/restore, and full booking/admin/email E2E tests pass.
-5. The write-freeze, staged Production deployment, recovery, and reverse-ETL runbooks are reviewed.
+Acceptance of the architecture does not approve Production spend or cutover. Before Supabase becomes authoritative:
 
-If cost or rehearsal conditions fail, mark this ADR **Rejected** before any production canonical migration and write a replacement Firestore ADR. Do not implement both paths.
+1. Victor approves the current total recurring Production cost and backup/recovery tier after pricing is rechecked.
+2. Local migrations recreate the database from zero, and the authorized remote target is rebuilt from those migrations after synthetic data and test users are removed.
+3. A representative Firestore export is handled in a restricted recovery environment, reaches staging only as an approved anonymized derivative, and reconciles source = imported + explicitly reviewed quarantine.
+4. Concurrent overlap, auth/RLS, advisor, direct-access, backup/restore, and full booking/admin/email E2E tests pass.
+5. The write-freeze, staged Production deployment, recovery, and reverse-ETL runbooks are reviewed and the exact target is reclassified as Production.
+
+If cost or rehearsal conditions fail, stop before the production canonical migration and write a replacement Firestore ADR. Do not implement both paths.
 
 ## Cutover strategy
 

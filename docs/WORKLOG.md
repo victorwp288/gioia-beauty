@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-09 — Reclassified Supabase as greenfield integration target
+**Phase:** Phase 1 environment registry and ADR gate
+**Labels/environment:** [LOCAL] documentation; [TEST] bounded Supabase metadata inspection
+**Data impact:** none; read-only metadata, zero business rows
+**Target:** Supabase `gioia-beauty` / `lxvsspniipcotimbsfqm` (`eu-central-2`)
+**Expected reads/writes/rows:** project, public-table, migration, and advisor metadata; 0 writes; 0 business rows
+**Done:** Reconciled `ENVIRONMENTS.md`, `ADR-001-SUPABASE.md`, and `MASTERPLAN.md` with Victor's authorization to use the empty project for resettable greenfield integration/staging. Accepted the one-migration ADR for implementation while preserving separate Production cost, backup, restore, migration, and cutover gates.
+**Verified/reconciled:** project remains `ACTIVE_HEALTHY`; PostgreSQL 17; 0 public tables; 0 migrations; 0 advisor findings; `git diff --check` passed
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; no data or remote mutation
+**Rollback/forward recovery:** revert the documentation commit; remote project is unchanged
+**Next:** Complete Phase 0 locally, beginning with the isolated route-test harness and lazy Resend construction; do not start the application before fail-closed isolation.
+**Gotchas:** The older worklog entry is historical and intentionally still says the project was initially reserved for Production; the current environment registry supersedes it.
+
 ## 2026-07-09 — Registered empty Supabase Production target
 **Phase:** Phase 1 environment inventory; no implementation checklist item completed
 **Labels/environment:** [PROD-READ] Supabase metadata/schema inspection; [LOCAL] documentation

@@ -98,9 +98,9 @@ Postgres gives this domain:
 - unique constraints for subscriber normalization and request idempotency;
 - local Docker development, versioned SQL migrations, seeds, resettable CI databases, and a serialized non-production staging target.
 
-The decision is conditional on:
+Production cutover is conditional on:
 
-- Victor approving the complete recurring quote for Production plus staging/branching (Supabase Pro starts around **$25/month**, while a second persistent project or Preview branches add cost; verify current pricing before purchase);
+- Victor approving the complete recurring Production and backup/recovery quote (verify current pricing before purchase); the existing empty project is authorized as a Free greenfield integration/staging target in the meantime;
 - completing a representative staging import with zero silent loss;
 - accepting ownership of reviewed SQL migrations;
 - using a short controlled write freeze for cutover.
@@ -173,10 +173,10 @@ Only items marked 🚨 ship as small focused hotfixes from `main`, then merge `m
 
 No production data is mutated in this phase except explicitly approved backup/configuration actions.
 
-- [ ] **`[LOCAL]`** Write `docs/ADR-001-SUPABASE.md` and obtain explicit approval of the full Production + staging/branching cost and the one-migration approach.
+- [x] **`[LOCAL]`** Write `docs/ADR-001-SUPABASE.md` and obtain explicit approval of the one-migration approach. Production spend and cutover remain separately gated.
 - [ ] **`[LOCAL]`** Add local Supabase CLI/Docker configuration, version-pinned tooling, synthetic seed data, and reset commands. Local email uses Mailpit/fake transport.
-- [ ] **`[TEST]`** Create one separate serialized staging/Preview Supabase project and record its project ref/reset ownership in `docs/ENVIRONMENTS.md`. DB-aware Preview/E2E runs take a lock and reset/namespace their data; per-PR branches require separate cost approval. Never seed ordinary staging with customer PII.
-- [ ] **`[PROD-CONFIG]`** Register and harden the existing empty Supabase Production project `lxvsspniipcotimbsfqm` in `eu-central-2`: approve/upgrade the full billing and backup tier, record DPA/processor status and ownership/recovery contacts, then verify the project remains empty. Do not import customer data yet.
+- [x] **`[TEST]`** Register the authorized serialized integration/staging Supabase project `lxvsspniipcotimbsfqm` in `eu-central-2` and record its reset ownership in `docs/ENVIRONMENTS.md`. DB-aware Preview/E2E runs take a lock and reset/namespace synthetic data. Never seed it with customer PII.
+- [ ] **`[PROD-CONFIG]`** Before any real customer write or live traffic, approve/upgrade the full billing and backup tier, record DPA/processor status and ownership/recovery contacts, remove synthetic data/test users, rebuild from committed migrations, prove restore, and reclassify the exact Supabase target as Production.
 - [ ] **`[LOCAL]`** Make development/test/CI fail closed if any production Firebase/Supabase project ID or production credential is detected.
 - [ ] **`[PROD-CONFIG]`** Audit Vercel Development/Preview/Production env scopes. Preview must use staging data and non-delivering/test-only email.
 - [ ] **`[TEST]`** After isolation, capture desktop/mobile screenshots of `/`, gallery, contacts, booking states/modals/errors, login, and dashboard without touching production data.
@@ -192,7 +192,7 @@ No production data is mutated in this phase except explicitly approved backup/co
 - [ ] **`[PROD-READ]` / `[TEST]`** With separate approval, restore the PII-bearing source export only into a restricted recovery environment with named access, no public app/email, and a destruction deadline. Prove counts/representative records, generate an anonymized derivative for staging tests, then securely destroy the recovery copy.
 - [ ] **`[LOCAL]`** Document RPO, RTO, restore cadence, migration stop conditions, and incident contacts in `docs/OPERATIONS.md`.
 
-**Done when:** local/CI/Preview cannot reach production, a source backup has been restored successfully elsewhere, CI is mandatory, the recurring Supabase cost is approved, and production-write tooling fails closed.
+**Done when:** local/CI/Preview cannot reach production, a source backup has been restored successfully elsewhere, CI is mandatory, the Production Supabase cost/backup posture is approved, and production-write tooling fails closed.
 
 ### Phase 2 — Typed relational schema and booking kernel
 
@@ -252,7 +252,7 @@ This phase is intentionally split into separately approved actions. There is no 
 - [ ] **`[TEST]`** Build and test reverse ETL before cutover: imported rows update their original Firestore IDs; Supabase-created rows use deterministic Firestore IDs and retain `supabase_id`; service/variant values map back to the legacy shape; all creates/edits/reschedules/cancellations/blocks/vacations/subscriber mutations are selected by a reliable high-water mark; reruns are idempotent.
 - [ ] **`[TEST]`** Repeat the exact import from a clean database, rerun it to prove idempotency, test overlap violations, restore a Supabase backup/logical dump, and rehearse pre-reopen and post-reopen failure recovery against isolated clones.
 - [ ] **`[TEST]`** Rehearse the safe failure posture: once Firestore deny-write rules are active, do not reactivate the insecure direct-client legacy app. Keep maintenance active, preserve/reverse-sync data if needed, and repair or restore Supabase forward from the recorded source/backup.
-- [ ] **`[PROD-CONFIG]`** Through the protected operator workflow, apply and verify all reviewed migrations, extensions, functions, least-privilege roles, default privilege revocations, Data API denial, indexes, grants/RLS, webhook secrets, and backup settings on the empty EU Production project. Run advisors and negative direct-access tests before import.
+- [ ] **`[PROD-CONFIG]`** Through the protected operator workflow, reset/rebuild the approved empty EU Production target from reviewed migrations, then verify extensions, functions, least-privilege roles, default privilege revocations, Data API denial, indexes, grants/RLS, webhook secrets, and backup settings. Run advisors and negative direct-access tests before import.
 - [ ] **`[PROD-CONFIG]`** Configure Production Auth outside SQL migrations: site/redirect URLs, custom SMTP, session/JWT policy, MFA decision, owner invite/reset, explicit admin app metadata/allowlist, logout/revocation checks, and preserved Firebase Auth access for recovery evidence during the 30-day window.
 - [ ] **`[PROD-CONFIG]`** Set Production-only Vercel variables to the allowlisted Supabase Production/Auth targets; keep Development/Preview pointed at Local/staging and verify scope resolution.
 - [ ] **`[PROD-APP]`** Before the freeze, build a staged Production deployment from the exact frozen Phase 4 source/lockfile with Production env vars but no assigned public domain (`--prod --skip-domain` or equivalent). Record its deployment ID/resolved refs and verify read-free health/static routes privately.

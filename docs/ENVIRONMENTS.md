@@ -2,9 +2,9 @@
 
 This file records environment identities and safety boundaries only. It must never contain passwords, access tokens, database connection strings, service-role/secret keys, or customer data.
 
-## Production
+## Greenfield integration / staging
 
-### Supabase — Production target (empty; not authoritative yet)
+### Supabase — authorized rebuild target
 
 | Field | Value |
 |---|---|
@@ -15,17 +15,22 @@ This file records environment identities and safety boundaries only. It must nev
 | PostgreSQL | 17 (`17.6.1.141` observed 2026-07-09) |
 | Organization | `victorwp288's Org` (`qqjqzdcoapbztwnatils`) |
 | Current organization plan | Free |
-| Current authority | None; Firestore remains Production authority until the approved cutover |
+| Current authority | Non-production integration/staging only; Firestore remains Production authority until the approved cutover |
 
-Read-only inspection on 2026-07-09 found the project `ACTIVE_HEALTHY`, with zero `public` tables, zero migrations, and no security/performance advisor findings. This is the reserved Production target, not a development sandbox.
+Read-only inspection on 2026-07-09 found the project `ACTIVE_HEALTHY`, with zero `public` tables, zero migrations, and no security/performance advisor findings. Victor reclassified it on 2026-07-09 as the authorized greenfield integration/staging target for the rebuild.
 
 Safety rules:
 
-- Never link Local, CI, Vercel Preview, or normal developer shells to this project.
-- Never use it to prototype schema changes. Develop and reset locally; test in a separate staging target; deploy reviewed versioned migrations only through the protected Production operator workflow.
-- Classify metadata/schema reads as `[PROD-READ]`, infrastructure/Auth/settings changes as `[PROD-CONFIG]`, and any inserted/updated/imported/deleted row as `[PROD-DATA]`, even while the project is empty.
-- Do not create application tables, users, secrets, webhooks, or Production environment variables until their corresponding masterplan gate and explicit execution approval.
-- The Free plan is not the approved launch posture. Before any customer write, approve the full environment cost and upgrade/configure the required backup tier; Supabase documents accessible automatic daily backups for Pro with seven-day retention, while Free projects should maintain their own logical exports.
+- Prefer Local Docker Supabase for rapid iteration, destructive experiments, and CI. Apply only reviewed, committed migrations to this project.
+- Classify project metadata/schema reads and authorized schema/Auth/synthetic-fixture changes as `[TEST]`. State the exact target and bounds before each remote operation.
+- Only synthetic fixtures and fake/non-delivering email are allowed. Never copy real Firebase customer data, production Resend credentials, or production secrets into this project during development.
+- The schema, migrations, test Auth users, functions, and synthetic data may be created, changed, reset, or deleted as required for the rebuild. Remote changes must remain reproducible from the repository.
+- Vercel Preview may use this target only after fail-closed environment isolation is implemented and verified. Serialized Preview/E2E runs must lock and reset or namespace synthetic data.
+- The Free plan is acceptable for greenfield testing but is not the approved launch posture.
+
+Before this project can become Production, it must be reclassified in this file and in the operator preflight. Remove synthetic data and test users, rebuild from committed migrations, run advisors and direct-access security tests, approve/upgrade the backup tier, prove restore into an isolated target, and complete Firestore import reconciliation. Once real customer data is imported or live traffic points here, it is immediately Production and every production control applies.
+
+## Production
 
 ### Current Firestore source
 
@@ -36,9 +41,13 @@ Safety rules:
 
 The current repository can reach this project from local/Preview code. Follow the red-alert rules in `docs/PRODUCTION-SAFETY.md` until isolation is complete.
 
-## Staging / Preview
+### Future Supabase authority
 
-No remote Supabase staging project is registered yet. Do not use the Production target as a substitute. Phase 1 starts with local Docker Supabase and synthetic fixtures; a separate serialized staging project or paid branch is created only after the full cost and target are approved.
+No Supabase project is Production-authoritative yet. The greenfield project above may be promoted only through the approved rebuild/reset, backup/restore, migration-reconciliation, Vercel cutover, and immediate reclassification gates; otherwise a separately approved clean Production project must be used.
+
+## Preview
+
+After Phase 1 isolation, serialized DB-aware Preview/E2E work may use the greenfield Supabase target above with synthetic fixtures and fake/non-delivering email. Preview must never resolve Firebase Production, real Resend credentials, or a Supabase environment containing customer data.
 
 ## Local and CI
 
