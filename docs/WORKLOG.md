@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-09 — Registered empty Supabase Production target
+**Phase:** Phase 1 environment inventory; no implementation checklist item completed
+**Labels/environment:** [PROD-READ] Supabase metadata/schema inspection; [LOCAL] documentation
+**Data impact:** bounded read only; no customer/business rows exist in the target
+**Target:** Supabase `gioia-beauty` / `lxvsspniipcotimbsfqm` (`eu-central-2`)
+**Expected reads/writes/rows:** project/org metadata, public schema/migration/branch/advisor listings; 0 writes; 0 business rows
+**Done:** Verified the user-created project and added `docs/ENVIRONMENTS.md`. Reserved it as the empty Production target; it is explicitly forbidden for Local/CI/Preview development. Recorded current Free-plan backup limitation and the pre-cutover upgrade gate.
+**Verified/reconciled:** project `ACTIVE_HEALTHY`; PostgreSQL 17; zero public tables; zero migrations; zero security/performance advisor findings. `npm run lint` and documentation checks passed; runtime code is unchanged, so the known Resend build failure documented below was not rerun. Branch listing returned a plugin permission-validation error and made no change.
+**Production actions performed:** read-only Supabase plugin calls only; no SQL, migration, Auth, key, branch, backup, setting, or data mutation
+**Backup/restore evidence:** none required for metadata-only inspection; project is empty
+**Rollback/forward recovery:** docs-only registration can be reverted; remote project was unchanged
+**Next:** Keep this project untouched. Start Phase 0 locally, then Phase 1 local Docker/isolation. Before remote Supabase setup, approve Production + staging cost and decide whether staging is a separate project or paid branch.
+**Gotchas:** Organization is currently Free. Supabase automatic accessible daily backups are a Pro launch gate; do not mistake this Production target for a staging sandbox.
+
 ## 2026-07-09 — Revalidated masterplan and guarded Supabase decision
 **Phase:** planning v2; Phases 0–9 resequenced, no implementation item completed
 **Labels/environment:** [LOCAL], repository documentation only
