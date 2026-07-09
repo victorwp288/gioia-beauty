@@ -214,7 +214,7 @@ jobs:
           test -z "${SUPABASE_DB_PASSWORD:-}"
           test -z "${SUPABASE_PROJECT_REF:-}"
           test ! -e supabase/.temp/project-ref
-          test "$(./node_modules/.bin/supabase --version)" = "2.105.0"
+          test "$(./node_modules/.bin/supabase --version)" = "2.109.1"
 
       - name: Start ephemeral local Supabase
         run: npm run db:start:ci
