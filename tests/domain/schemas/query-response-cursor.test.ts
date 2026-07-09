@@ -171,6 +171,24 @@ describe("strict response DTOs", () => {
         slots: [600, 600],
       }).success,
     ).toBe(false);
+    expect(
+      PublicAvailabilityResponseSchema.safeParse({
+        ...response,
+        slots: [600, 610],
+      }).success,
+    ).toBe(false);
+    expect(
+      PublicAvailabilityResponseSchema.safeParse({
+        ...response,
+        slots: Array.from({ length: 96 }, (_, index) => index * 15),
+      }).success,
+    ).toBe(true);
+    expect(
+      PublicAvailabilityResponseSchema.safeParse({
+        ...response,
+        slots: Array.from({ length: 97 }, (_, index) => index * 15),
+      }).success,
+    ).toBe(false);
   });
 
   it("keeps public accepted responses non-enumerating", () => {

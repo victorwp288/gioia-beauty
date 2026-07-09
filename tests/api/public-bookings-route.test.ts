@@ -214,6 +214,32 @@ describe("POST /api/bookings", () => {
     expect(createBooking).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["IDEMPOTENCY_KEY_REUSED", 409, "IDEMPOTENCY_KEY_REUSED"],
+    ["COMMAND_IN_PROGRESS", 409, "COMMAND_IN_PROGRESS"],
+    ["UNKNOWN_cliente@example.test", 503, "SERVICE_UNAVAILABLE"],
+  ])(
+    "maps thrown database code %s to a redacted response",
+    async (message, expectedStatus, expectedCode) => {
+      const createBooking = vi
+        .fn<CreateBookingFunction>()
+        .mockRejectedValue(
+          Object.assign(new Error(message), { code: "PT409" }),
+        );
+      const { handler } = createHandler(createBooking);
+      const response = await handler(bookingRequest());
+      const text = await response.text();
+
+      expect(response.status).toBe(expectedStatus);
+      expect(JSON.parse(text)).toEqual({
+        code: expectedCode,
+        requestId: REQUEST_ID,
+      });
+      expect(text).not.toContain("cliente@example.test");
+      expect(createBooking).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("redacts database failures and malformed rows without leaking PII", async () => {
     const failures = [
       vi.fn().mockRejectedValue(new Error("cliente@example.test db secret")),

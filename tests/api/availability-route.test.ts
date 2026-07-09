@@ -116,7 +116,7 @@ describe("GET /api/availability", () => {
   it("fails closed if database output violates the public response schema", async () => {
     const getAvailability = vi
       .fn()
-      .mockResolvedValue([{ start_minutes: 601, client_email: "pii@test" }]);
+      .mockResolvedValue([{ start_minutes: 610, client_email: "pii@test" }]);
     const { handler } = createHandler(getAvailability);
     const response = await handler(request());
     const text = await response.text();

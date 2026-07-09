@@ -5,7 +5,7 @@ grant usage on schema extensions to app_runtime;
 
 set local search_path = extensions, public, pg_catalog;
 
-select plan(15);
+select plan(17);
 
 do $setup$
 declare
@@ -44,7 +44,30 @@ select lives_ok(
   'command tests use a deterministic synthetic owner'
 );
 
+insert into gioia_private.command_requests (
+  operation, principal_scope_hash, idempotency_key,
+  request_fingerprint, state, expires_at
+) values (
+  'public_booking', decode(repeat('41', 32), 'hex'),
+  'public:test:in-progress', decode(repeat('42', 32), 'hex'),
+  'in_progress', statement_timestamp() + interval '10 minutes'
+);
+
 set local role app_runtime;
+
+select throws_ok(
+  $sql$
+    select * from gioia_private.create_public_booking(
+      decode(repeat('41', 32), 'hex'), 'public:test:in-progress',
+      decode(repeat('42', 32), 'hex'),
+      current_setting('gioia.test_local_date')::date, 600::smallint,
+      'manicure', 'manicure-30-min', 'Cliente In Corso',
+      'in-progress@commands.test', '+39000000002', null
+    )
+  $sql$,
+  'PT409', 'COMMAND_IN_PROGRESS',
+  'a duplicate in-flight command fails closed without another mutation'
+);
 
 select results_eq(
   $actual$
@@ -124,6 +147,18 @@ select is(
   'public availability excludes the newly occupied slot'
 );
 
+select ok(
+  (
+    select count(*) <= 96
+      and count(*) filter (where availability.start_minutes % 15 <> 0) = 0
+    from gioia_private.get_public_availability(
+      current_setting('gioia.test_local_date')::date,
+      'manicure', 'manicure-30-min'
+    ) as availability
+  ),
+  'public availability stays bounded and exactly 15-minute aligned'
+);
+
 select throws_ok(
   $sql$
     select * from gioia_private.owner_create_block(
@@ -172,6 +207,9 @@ select results_eq(
 );
 
 reset role;
+
+delete from gioia_private.command_requests
+where idempotency_key = 'public:test:in-progress';
 
 select is(
   (select count(*) from gioia_private.schedule_entries),

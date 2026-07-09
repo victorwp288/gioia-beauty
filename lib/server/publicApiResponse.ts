@@ -49,6 +49,7 @@ export function apiErrorResponse(
 
 const SAFE_DATABASE_ERRORS = new Map<string, number>([
   ["ACTIVE_VARIANT_NOT_FOUND", 404],
+  ["COMMAND_IN_PROGRESS", 409],
   ["DATE_CLOSED_FOR_VACATION", 409],
   ["IDEMPOTENCY_KEY_REUSED", 409],
   ["PUBLIC_CONTACT_INVALID", 400],
