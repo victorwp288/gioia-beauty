@@ -20,7 +20,7 @@ Local, test, and Preview commands fail closed when a known remote Firebase targe
 - npm 10.9.4
 - Next.js 15.5.20 with React 18.3.1
 - TypeScript 7.0.2 for strict new-code checks, with the official TypeScript 6.0.2 compatibility package for Next/ESLint's compiler API
-- Supabase CLI 2.105.0 with PostgreSQL 17 local services
+- Supabase CLI 2.109.1 with PostgreSQL 17 local services
 
 ```bash
 nvm use

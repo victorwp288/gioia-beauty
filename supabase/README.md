@@ -12,7 +12,7 @@ This directory is unlinked local/CI infrastructure. It must remain reproducible 
 
 ## Local commands
 
-The pinned CLI requires a Docker-compatible runtime. The current workstation has Supabase CLI 2.105.0 but no container runtime, so these commands are scaffolded and CI-ready but not yet locally executable.
+The pinned CLI requires a Docker-compatible runtime. The current workstation has Supabase CLI 2.109.1 but no container runtime, so these commands are scaffolded and CI-ready but not yet locally executable.
 
 ```bash
 npm run db:start
