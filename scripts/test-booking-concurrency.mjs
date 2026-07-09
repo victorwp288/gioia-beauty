@@ -66,7 +66,7 @@ export const raceTargetQuery = `
       service.id, variant.id
     limit 1
   )
-  select target_date.local_date, target_variant.service_id,
+  select target_date.local_date::text as local_date, target_variant.service_id,
     target_variant.variant_id
   from target_date
   cross join target_variant

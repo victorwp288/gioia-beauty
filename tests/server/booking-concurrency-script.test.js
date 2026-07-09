@@ -27,6 +27,7 @@ describe("booking concurrency reconciliation", () => {
     };
 
     expect(raceTargetQuery).toContain("generate_series(1, 14)");
+    expect(raceTargetQuery).toContain("local_date::text as local_date");
     expect(raceTargetQuery).toContain("extract(");
     expect(raceTargetQuery).not.toContain("pg_catalog.extract");
     expect(raceTargetQuery).not.toContain("gioia_private.rome_today");
