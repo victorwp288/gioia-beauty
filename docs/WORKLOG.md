@@ -1,21 +1,42 @@
 # Worklog
 
-Session journal for the refactor. **Newest entry on top.** Every working session appends one entry at the end of the session — this is how the next session (human or LLM) picks up where you left off.
+Session journal for the refactor. **Newest entry on top.** Every working session inserts one entry immediately below the divider — this is how the next session (human or LLM) picks up where you left off.
 
 ## Entry template
 
 ```markdown
 ## YYYY-MM-DD — <one-line session focus>
 **Phase:** <masterplan phase(s) touched>
+**Labels/environment:** <e.g. [LOCAL], local only>
+**Data impact:** <none | bounded read | additive write | update | soft delete | destructive>
+**Target:** <project/database/environment or none>
+**Expected reads/writes/rows:** <exact bounds or none>
 **Done:** <what shipped, with commit hashes; reference masterplan items ticked>
-**Verified:** <how it was verified — build, manual flow, tests>
+**Verified/reconciled:** <build, tests, flow, counts/invariants, or n/a>
+**Production actions performed:** <none or exact actions with run/deploy IDs>
+**Backup/restore evidence:** <named evidence or n/a>
+**Rollback/forward recovery:** <path or n/a>
 **Next:** <the exact next action, specific enough to start cold>
 **Gotchas:** <surprises, decisions made, anything the next session must know — omit if none>
 ```
 
-Rules: keep entries under ~20 lines; don't duplicate what the masterplan or git history already says; "Next" must be actionable without reading this whole file. Never rewrite old entries.
+Rules: keep entries under ~20 lines; insert the newest entry immediately below the divider; don't duplicate what the masterplan or git history already says; "Next" must be actionable without reading this whole file. Never rewrite old entries.
 
 ---
+
+## 2026-07-09 — Revalidated masterplan and guarded Supabase decision
+**Phase:** planning v2; Phases 0–9 resequenced, no implementation item completed
+**Labels/environment:** [LOCAL], repository documentation only
+**Data impact:** none
+**Target:** local worktree only; no database, deployment, provider, DNS, auth, or remote configuration
+**Expected reads/writes/rows:** none
+**Done:** Rewrote the plan around one conditional Firestore→Supabase migration; added environment/blast-radius labels, fail-closed local/Preview isolation, protected production-operator workflow, relational booking constraints, staged cutover, backups/reconciliation, and maintenance-plus-forward-recovery. Added `PRODUCTION-SAFETY.md` and proposed `ADR-001-SUPABASE.md`; updated the data model and agent rules. Independent booking, security/data, frontend/ops, and Supabase audits were folded in.
+**Verified/reconciled:** `npm run lint`, checklist-label validation, and `git diff --check` passed. `npm run build` compiles but still hits the unchanged known baseline failure: Resend is constructed without `RESEND_API_KEY` while collecting `/api/send`.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; no production access or mutation
+**Rollback/forward recovery:** docs-only change; revert the documentation commit if rejected
+**Next:** Start Phase 0 locally: create the isolated Vitest route harness and lazy Resend initialization, then prepare the focused `main` hotfix for the unauthenticated appointment endpoints and email routes. Do not load `npm run dev` before Phase 1 isolation; obtain separate approval before any deploy/provider action.
+**Gotchas:** Supabase ADR remains Proposed until Victor approves the full Production + serialized staging cost. The legacy direct-client Firestore app is not treated as a safe writable rollback after cutover; the safe failure posture is maintenance plus restore/fix-forward.
 
 ## 2026-07-08 — Planning session (no code changes)
 **Phase:** pre-work

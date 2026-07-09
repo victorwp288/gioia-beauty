@@ -1,340 +1,379 @@
-# Gioia Beauty — Refactor Masterplan
+# Gioia Beauty — Refactor and Supabase Migration Masterplan
 
-> From CS-student side project to a serious small-business website (and portfolio piece).
-> Written 2026-07-08. No code has been changed yet — this document is the plan.
+> From a fragile client-side Firebase application to a production booking system with a tested domain core, server-only data access, a relational database, reproducible environments, and an owner-friendly dashboard.
 >
-> **Progress tracking:** the `- [ ]` checkboxes below are the single source of truth for progress — tick them (`- [x]`) only when an item is done *and verified*. Session-by-session detail lives in `docs/WORKLOG.md`; workflow rules live in `AGENTS.md`. All work happens on the `refactor` branch (sole exception: items marked 🚨 HOTFIX ship via `hotfix/*` branches off `main`).
+> **Version 2:** rewritten 2026-07-09 after an independent security, booking, data-model, frontend, operations, SEO, and dependency cross-check.
+>
+> **Progress tracking:** checkboxes are the source of truth. Tick an item only when it is complete and verified in the environment named by its label. Session detail belongs in `docs/WORKLOG.md`; mandatory safety rules are in `docs/PRODUCTION-SAFETY.md` and `AGENTS.md`.
 
 ---
 
-## 1. Where we are today
+## 0. Blast-radius labels
 
-**Stack:** Next.js 14 (App Router) · JavaScript (no TS) · Tailwind 3 + shadcn/radix · Firebase (Auth + Firestore, client SDK) · Resend (email) · Vercel (hosting, Analytics, Speed Insights).
+Every checklist item carries at least one label. The label describes what the action can actually reach, not where the command happens to run.
 
-**Scale:** ~21k lines across ~103 JS/JSX files. One public site (services, gallery, contacts, booking) + an admin dashboard (appointments, vacations, newsletter subscribers).
+- **`[LOCAL]`** — repository files, local commands, local Supabase, emulators, and synthetic data only. No remote service or production credential is reachable.
+- **`[TEST]`** — changes a dedicated non-production Supabase/Firebase/Vercel/Resend environment containing synthetic or explicitly anonymized data.
+- **`[REMOTE-CONFIG]`** — changes remote collaboration configuration such as GitHub branch protection, without touching the running application or customer data.
+- **`[PROD-READ]`** — bounded, read-only access to live systems. It can expose PII and still requires care, but cannot mutate state.
+- **`[PROD-APP]`** — changes the code customers or the owner run. It may change live behavior but is not intended to mutate existing records or infrastructure.
+- **`[PROD-CONFIG]`** — changes live DNS, environment variables, auth, RLS/rules, provider settings, deployment routing, monitoring, or infrastructure.
+- **`[PROD-DATA]`** — creates, updates, imports, deletes, migrates, restores, or otherwise affects live customer/business records.
+- **`[DESTRUCTIVE]`** — irreversibly deletes or overwrites live data, projects, history, backups, or infrastructure.
 
-### What's actually good already
-- SEO foundations are surprisingly solid: rich `metadata` in `app/layout.js`, JSON-LD `BeautySalon` schema, `sitemap.js`, `robots.js`, Google/Bing verification.
-- shadcn/ui component structure in `components/ui/` is the right pattern.
-- Zod is already a dependency (barely used, but the right tool is in the house).
-- Cookie banner exists; Vercel Analytics is cookieless — decent GDPR starting point.
+A task can have multiple labels. A locally executed command with production credentials is **not** `[LOCAL]`; it is production work.
 
-### The damage report (found during audit)
+### Approval and safety gates
 
-**🚨 ACTIVE PRODUCTION INCIDENT (found via Vercel runtime logs, 2026-07-08)**
-`/api/send` has failed **31 times since February** (3 affected users, most recent occurrence *today*) with Resend 422: *"Invalid `to` field"*. Real customers have booked and silently received no confirmation email — every failure was swallowed by a `console.warn`. Confirmed facts: three different client components (`useBookingForm.js:176`, `BookAppointment.jsx:296`, `Dashy.jsx:629`) each build their own email payload, and the API route validates nothing before calling Resend. Most likely entry point (to confirm while fixing): admin-created appointments in Dashy, whose email field can be empty/malformed and is posted unguarded. **This gets a hotfix before any refactor — see Phase 0.**
+1. `[LOCAL]` work may proceed normally once the worktree is understood.
+2. `[TEST]` work must name and verify the non-production target first.
+3. `[REMOTE-CONFIG]` work names the remote target and requires explicit approval before mutation. Every discrete `[PROD-READ]`, `[PROD-APP]`, `[PROD-CONFIG]`, `[PROD-DATA]`, or `[DESTRUCTIVE]` action requires Victor's explicit approval **at execution time**. Approval of this plan is not blanket approval for later production actions.
+4. `[PROD-DATA]` additionally requires a current named backup, a successful restore rehearsal, a dry-run report, invariant/count reconciliation, idempotent/checkpointed tooling, stop conditions, and a written rollback or forward-recovery path.
+5. `[DESTRUCTIVE]` work is split from additive work and delayed until the recovery-retention window has passed. It is never described as “trivial.”
+6. Production credentials never live in `.env.local`, developer shells, normal CI, or Vercel Preview. Preview deployments never point at production data. The only exception is the dedicated manually approved, short-lived production-operator environment.
+7. Production schema changes use reviewed, versioned migrations only—never ad-hoc dashboard SQL.
 
-**🔴 Security / correctness**
-1. **All Firestore reads/writes happen client-side** (`hooks/`, `lib/firebase/`, even `components/NewsletterSignup.jsx` calls `addDoc` directly). The entire security model rests on Firestore rules — which, since guests can create appointments, are almost certainly wide open on the `customers` collection. Anyone can read/modify/delete bookings from the browser console.
-2. **Booking has no real conflict enforcement — the "transaction" is an illusion.** `dataManager.createAppointmentSafe()` wraps the write in `runTransaction`, but the conflict check inside it (`checkTimeConflicts` → `getAppointmentsByDate`) is a regular query **outside the transaction's read set** — Firestore client transactions only protect documents read via `transaction.get()`, and this query can even be served from the local cache with stale data. Classic TOCTOU: two users booking simultaneously can still double-book. A second submission path, `useBookingForm.submitBooking()`, has a `runTransaction` containing a single `set()` and **no conflict check at all**.
-3. **`/api/send` and `/api/cancel` are unauthenticated and unvalidated.** Anyone can POST and send arbitrary-ish emails from `noreply@gioiabeauty.net` — a spam/reputation risk for the domain.
-4. **`/dashboard` is protected only client-side** (`onAuthStateChanged` redirect in `app/dashboard/page.jsx`). No middleware, no server check. Data protection again falls back to (likely open) Firestore rules.
-5. **`repomix-output.txt` (2.1 MB, full codebase dump) is committed** to a public GitHub repo. `scripts/` contains hardcoded API keys for *three different* Firebase projects. Firebase web keys are public-by-design, but this is sloppy and the scripts' keys/projects need review.
-6. **PII is logged** (names, emails) via `console.log` in API routes; test route `/api/test` echoes arbitrary input in production.
-
-**🔴 Booking data model (the "wonk and glue")**
-- `selectedDate` exists in **four formats** in the database — date-only string, ISO string, JS `Date`, and Firestore `Timestamp` — and `lib/firebase/dataManager.js:362-374` normalizes all four at runtime on every read. This is the root cause of most of the glue code.
-- `startTime`/`endTime` are separate `"HH:mm"` strings, computed **client-side** in `useBookingForm.js` from duration + `extraTime`, then stored denormalized. Nothing recomputes them if a service duration changes.
-- Timezone is implicit everywhere (`new Date(...)`, `toISOString().split("T")[0]`) — the salon runs on Europe/Rome, the code runs on UTC-ish. Off-by-one-day bugs around midnight/DST are latent, not hypothetical.
-- The booking flow spans `useBookingForm` → `AppointmentContext` → `appointmentHook` → `dataManager` → Firestore, with caching layers interleaved — five hops for one insert.
-- Past appointments: there's a `status` field and range queries, but no defined lifecycle (what marks an appointment completed?) and no retention policy. Old bookings must stay viewable/editable — today they just accumulate.
-- **Three independent booking-submission implementations**: `useBookingForm.submitBooking` (apparently dead — `BookAppointment` imports the hook but ships its own `handleSubmit`), `BookAppointment.jsx`, and `Dashy.jsx` — each with its own copy of `calculateEndTime`, its own date-formatting IIFE handling the four `selectedDate` formats, and its own hand-built `/api/send` payload. The inline Zod schema in `useBookingForm` also duplicates (and diverges from — no trim/lowercase) the proper `emailSchema` in `lib/utils/validationSchemas.js`. This class of divergence — several validation paths, none authoritative — is what let the production 422s through.
-- Admin "block time" entries are stored as fake appointments in the `customers` collection — the model needs a first-class `type: "block"` (or a separate concept) instead.
-- The booking min-date rule (`new Date(new Date().setHours(0,0,0,0) + 86400000)`) is evaluated **once at module load** — a browser tab left open across midnight validates against yesterday's boundary. The "no same-day booking" business rule deserves to be an explicit named constant, not arithmetic in a schema.
-
-**💸 Firestore read/write waste (the scar tissue is visible)**
-The code is full of battle scars from the excessive-reads era: `enableRealTime: false // DISABLED: Reduce Firebase reads`, disabled auto-refresh, "smart date ranges", and a hardcoded `if (appointments.length < 1614)` sanity check. But structural read-bombs remain:
-- **`AppointmentProvider` wraps the entire public site** in `app/layout.js` — every visitor to the gallery or contacts page mounts the whole appointment/vacation machinery, and the vacations hook auto-fetches on mount. Booking machinery should exist only on the booking page.
-- **Dashboard's `fetchAllAppointments` loads the entire collection** (1,600+ docs = 1,600+ billed reads per invocation). (Credit where due: the total count already uses `getCountFromServer` aggregation, and `getAppointments` throws without a `dateRange` — the discipline exists, but the "load all" path bypasses it.)
-- **Slot preloading fires up to 7 extra per-day appointment queries** every time a user picks a date (`useOptimizedTimeSlots` preload loop) — an "optimization" that multiplies reads.
-- **`/export` reads every collection in full, client-side** — and is only client-side auth-gated like the dashboard.
-- Availability requires shipping raw appointment documents (with other customers' PII!) to every booking visitor's browser, because slot math runs client-side.
-- Newsletter signup is an unauthenticated client-side `addDoc` — anyone can script unlimited writes (cost attack + garbage data).
-
-**🟣 Domain, email & headers (checked live, 2026-07-08)**
-- **`_dmarc.gioiabeauty.net` has TWO DMARC records** — this makes DMARC invalid and receivers ignore it completely. One is a leftover from Brevo. Even once fixed, `p=none` means no enforcement against spoofing.
-- Leftover `brevo-code` TXT record on the root domain (legacy newsletter setup — dead config to clean up).
-- No SPF record visible on the root domain; Resend presumably authenticates via its own subdomain CNAMEs — needs verification in the Resend dashboard.
-- HTTPS/SSL itself is fine (Vercel-managed cert, HSTS with 2-year max-age, HTTP/2). But no CSP, no `X-Frame-Options`, no `Referrer-Policy`, and `access-control-allow-origin: *` on responses — the headers hardening in Phase 6 is confirmed necessary.
-
-**🔵 Platform (Vercel) — checked via API, 2026-07-08**
-- Project `gioia-beauty` is healthy: Node 22, apex + www domains attached, latest production deploy READY. Verify apex→www redirect is configured one way (both are attached).
-- The runtime error log surfaced the `/api/send` incident above — proof the monitoring gap is real: errors sat in Vercel logs for 5 months with nobody looking. Sentry (Phase 4) exists precisely for this.
-- Account clutter: a stale `gioia-beauty-astro` project (old experiment, created 2024) still exists — archive/delete it so deploys and env vars can't be confused between the two.
-- No `vercel.json` / project misconfig found; env vars (e.g. `RESEND_API_KEY`) should be re-audited when `.env.example` lands in Phase 0.
-
-**🟠 Maintainability**
-7. **Two parallel data layers.** `useAppointments` / `useTimeSlots` / `useVacations` AND `useOptimizedAppointments` / `useOptimizedTimeSlots` / `useOptimizedVacations`, plus `useFirestore`, plus `lib/firebase/dataManager.js` (926 lines). Nobody (including future-you) knows which one is canonical.
-8. **Hand-rolled caching/perf infrastructure** — `lib/cache/queryCache.js` (667 lines), `lib/cache/appointmentCache.js` (549), `lib/utils/performance.js` (673). This is a home-made, buggier TanStack Query.
-9. **God components:** `Dashy.jsx` (1,767 lines), `AppointmentContext.jsx` (1,019), `BookAppointment.jsx` (753), `NotificationContext.jsx` (754).
-10. **Dependency bloat / duplication:** `twilio` (unused), `react-modal` + `vaul` + Radix Dialog (3 modal systems), `react-datepicker` + `react-day-picker` (2 date pickers), `react-icons` + `lucide-react` (2 icon sets), `firebase-admin` in prod deps but only used by scripts.
-11. **`react-scan` (a dev profiling tool) is a production dependency and is rendered in the root layout** — shipping to every visitor.
-
-**🟡 Hygiene**
-12. No TypeScript, no tests, no CI, no Prettier config, empty `next.config.mjs`, README is the untouched create-next-app template, no `.env.example`.
-13. 12 near-identical `data/*Data.js` service files with no schema validation — price-list updates (see commit "Nuovo listino") are manual and error-prone.
-14. No database backups. If Firestore data is fat-fingered in the dashboard, it's gone.
+The full operational policy and migration gate are in `docs/PRODUCTION-SAFETY.md`.
 
 ---
 
-## 2. Guiding decisions
+## 1. Verified starting point
 
-These are the "re-evaluate frameworks/services" calls. Recommendation first, rationale after.
+### What is good already
 
-| Area | Decision | Rationale |
+- Next.js App Router, Vercel, Tailwind, shadcn/Radix, Zod, metadata, sitemap, JSON-LD, Analytics, and Speed Insights are reasonable foundations.
+- The public site already has strong local-business content and must remain visually unchanged during the internal rewrite.
+- The appointment volume is small enough for a rehearsed migration: roughly 1,600 appointment/block records plus vacations and newsletter subscribers.
+
+### Active production risks
+
+1. **Customer email failures:** `/api/send` has returned Resend `422 Invalid to` failures while callers swallowed the error. Customer failure currently prevents the admin email attempt.
+2. **Public PII endpoint:** `/api/appointments/by-date` is deployed, unauthenticated, and returns complete appointment documents. A safe empty-date probe returned HTTP 200.
+3. **Costly public endpoint:** `/api/appointments/counts` is unauthenticated and downloads a nine-month window with `getDocs`; its `getCountFromServer` import is unused.
+4. **Exposed mail routes:** `/api/send` and `/api/cancel` accept attacker-controlled recipients/content without authentication, full validation, or rate limiting.
+5. **Client-controlled production database:** public booking, dashboard, vacations, export, and newsletter code use the Firebase Web SDK. There are no versioned Firestore rules in this repository.
+6. **No reliable conflict invariant:** the current “transaction” queries outside its transaction read set. A simple query-then-insert server transaction would still race on an empty day.
+7. **Production-connected local development:** `lib/firebase/config.js` hardcodes the live project and emulator connections are commented out. Local or Preview interaction can therefore touch live customer data.
+8. **Old vulnerable dependency graph:** the lockfile uses Next 14.2.16. The 2026-07-09 production-tree audit reported 44 advisories (4 critical, 13 high, 25 moderate, 2 low). Reachability must be triaged; do not blindly run `npm audit fix --force`.
+9. **Clean build is not reproducible:** `npm run build` fails without a real `RESEND_API_KEY` because `Resend` is constructed during module evaluation.
+
+### Corrected codebase facts
+
+- There are **three date formats at rest** in Firestore plus a JavaScript `Date` representation created only in memory.
+- `fetchAllAppointments` is exposed but has no caller and would currently be rejected for omitting a date range. The real read leak is the globally mounted current-month appointment fetch plus vacations on every route.
+- The seven-day slot preloader exists but the active public caller passes `preloadDays: 0`; it is latent code, not a current seven-query user action.
+- The active public submission path is `BookAppointment → AppointmentContext → useOptimizedAppointments → dataManager`; `useBookingForm.submitBooking` is dead, although the hook's form/schema are used.
+- `app/layout.js` loads React Scan in production and mounts appointment machinery globally.
+- Address/contact values conflict: structured/site content says Via Emilia 60, the privacy policy says Via Emilia 58, and `BUSINESS_INFO` contains placeholder Milan data.
+- FAQ JSON-LD exists without equivalent visible FAQ content. Leaflet is already dynamically imported; the remaining gallery modal and image behavior should be measured before changing.
+
+---
+
+## 2. Architecture decisions
+
+| Area | Decision | Reason |
 |---|---|---|
-| Framework | **Keep Next.js**, upgrade 14 → 15 (React 19) mid-plan | App Router is fine; migration cost elsewhere would be pure waste. Upgrade after TS migration so types catch breakage. |
-| Hosting | **Keep Vercel** | Free tier fits traffic; preview deploys become part of CI. |
-| Database | **Keep Firestore for now**; move all access server-side | A Postgres/Supabase migration is *deferred* (Phase 8, optional). The real problem isn't Firestore — it's client-side access with open rules. Fix the architecture first; a DB swap later becomes a contained change behind the new data layer. |
-| Auth | **Keep Firebase Auth**, add server-side session verification (middleware + session cookies) | One admin user; don't add Auth.js complexity for that. |
-| Email | **Keep Resend** | Works, cheap, has EU sending. Just add auth + validation + idempotency around it. |
-| SMS | **Drop Twilio** (unused) | If reminders are ever wanted, re-add deliberately. |
-| Data fetching | **TanStack Query** replaces `lib/cache/*`, `lib/utils/performance.js`, and both hook families | Deletes ~2,500 lines of hand-rolled cache for a battle-tested library. Biggest single maintainability win in the repo. |
-| Language | **TypeScript, strict, incremental** | `allowJs: true`, migrate leaf → core. |
-| Error tracking | **Sentry** (EU data residency, free tier) | Purpose-built, generous free tier, first-class Next.js SDK. |
-| Metrics/logs | **Vercel Analytics + Speed Insights (already in) + structured logs (pino) → Vercel log drain to Axiom free tier if needed.** **Skip Datadog** | Datadog is priced for companies with SREs; for a salon site it's cost + GDPR surface for zero benefit. |
-| Uptime | **UptimeRobot / BetterStack free tier** pinging `/` and a `/api/health` endpoint | The owner should hear about downtime before her clients do. |
-| UI kit | **Keep Tailwind + shadcn**; consolidate to Radix-only overlays, `react-day-picker`-only calendar, `lucide-react`-only icons | Public UI stays pixel-identical (constraint); we only swap internals where rendering is equivalent. |
-| Testing | **Vitest + Testing Library** (unit) · **Playwright** (E2E booking flow) | Time-slot math is the highest-risk pure logic — perfect unit-test target. |
-| CI | **GitHub Actions**: lint, typecheck, test, build on every PR | Repo already on GitHub. |
+| Framework | **Keep Next.js; patch immediately, then upgrade to the current supported release after safety tests.** | Replatforming the frontend adds no value. Next 15 is no longer the final target; current official guidance is Next 16.x. |
+| Hosting | **Keep Vercel.** | Fits the traffic and integrates previews, but Preview and Production environment variables must be isolated. |
+| Database | **Migrate once: Firestore → Supabase Postgres. Do not canonicalize Firestore first.** | The project already needs a canonical ETL, server data layer, auth rewrite, tests, and conflict redesign. Postgres can enforce schedule overlap at the database layer and is better for reporting/export. |
+| Auth | **Move the single owner account to Supabase Auth during the controlled cutover.** | One account is cheap to recreate/invite. Avoid maintaining Firebase session-cookie infrastructure that would immediately become legacy. |
+| Data access | **All public/admin CRUD goes through validated Next.js server boundaries and a least-privilege pooled Postgres application role.** | The business schema is not exposed through the Data API. RLS/grants still deny browser roles, but a privileged service key would bypass RLS and is not the business-data adapter. |
+| Email | **Keep Resend, but use an outbox/delivery-state model with idempotency and webhooks.** | Booking commit is authoritative; email is a retryable post-commit side effect with independent customer/admin outcomes. |
+| Booking concurrency | **Postgres is the final authority.** | Keep `computeFreeSlots` as pure presentation logic, but enforce active interval overlap with a database constraint or one transactional database function. |
+| Data fetching | **TanStack Query for the interactive client shell after server APIs exist.** | Deletes the hand-rolled cache infrastructure without putting business rules in components. |
+| Language | **Strict TypeScript for new code; delete before converting legacy code.** | TypeScript 7 is current but has tooling/API transition caveats. Verify Next/ESLint/Vitest compatibility; use the supported fallback if necessary. |
+| Testing | **Vitest + Testing Library + Playwright + local Supabase.** | Tests precede the risky migration and security work rather than arriving afterwards. |
+| Observability | **Sentry + structured server logs + uptime checks + runbooks.** | Start minimal error capture before the first risky release, expand after cutover. |
+| UI | **Public routes remain pixel-frozen; dashboard redesign is last.** | Internal architecture should become replaceable before visual work begins. |
 
-### Architecture principles (how we write the new code)
+### Why Supabase now
 
-These apply to every phase. The goal: code a human can review in one sitting and an LLM can safely modify without archaeology.
+This is the cheapest point to switch because no refactor implementation has landed and the database is small. Staying on Firestore first would require guard/version documents, canonical dual writes, Firebase session cookies, rules, emulator coverage, migrations, and server adapters that would later be discarded.
 
-1. **Headless core, replaceable shell.** The UI *will* change soon. All booking/availability/vacation/subscriber logic lives in `lib/` as pure functions and in typed hooks/server endpoints — components only render state and dispatch actions. The test of success: a full redesign should touch `components/` and `app/` only.
-2. **One canonical path per operation.** One way to read appointments, one way to create them, one place where a rule (e.g. "slots are 15-min aligned") is encoded. Duplication is the current codebase's disease; the linter for it is code review + `knip`.
-3. **Boundaries validate, interiors trust.** Zod at every I/O edge (API requests, Firestore reads, form submissions). Past the boundary, functions take typed domain objects and never re-check. This deletes the defensive normalization glue (the 4-format `selectedDate` dance) instead of centralizing it.
-4. **Boring > clever.** No custom caches, no hand-rolled debounce/memo frameworks, no premature abstraction. Prefer a 20-line explicit function over a 5-line clever one. Small files (≤ ~300 lines), named exports, colocated tests.
-5. **Self-describing for LLMs and humans:** consistent naming (`getX`/`createX`/`cancelX`), JSDoc only where a type can't express intent, `CLAUDE.md` describing the architecture and its invariants, ADRs for the non-obvious decisions. No dead code kept "just in case" — git remembers.
-6. **Net-negative LOC is a feature.** Target ~21k → ≤ 14k lines. Every phase should delete more than it adds (Phase 3 alone removes ~2,500 lines of cache code).
-7. **Treat Firestore reads/writes as billable events — because they are.** The excessive-reads trauma is legitimate; the cure is structural, not more client-side caching:
-   - **No unbounded queries, ever.** Every query has a date range or a limit. `fetchAllAppointments`-style "load everything" disappears; the dashboard paginates per view (day/week/month).
-   - **Availability is computed server-side and returns slots, not documents.** One request = one small response; visitors never receive (or pay reads proportional to) raw appointment docs. The server caches per-day availability briefly and invalidates on booking writes — one cache, server-side, instead of three client-side ones.
-   - **Counts via `getCountFromServer` aggregation** (1 read per 1,000 docs), never by fetching documents to count them.
-   - **No client-side Firestore listeners on the public site.** Real-time is opt-in, dashboard-only, and scoped to the visible date range if ever re-enabled.
-   - **Guardrail, not vibes:** a GCP budget alert on the Firebase project + a documented expected-usage baseline in `OPERATIONS.md`, so a regression is a notification, not a surprise bill.
+Postgres gives this domain:
 
-### The booking core (target design)
+- database-enforced non-overlapping appointments/blocks;
+- relational services, variants, vacations, subscribers, and audit data;
+- predictable queries for day/week/month views and exports;
+- unique constraints for subscriber normalization and request idempotency;
+- local Docker development, versioned SQL migrations, seeds, resettable CI databases, and a serialized non-production staging target.
 
-The current five-hop flow (`useBookingForm` → `AppointmentContext` → hook → `dataManager` → Firestore, caches interleaved) collapses to:
+The decision is conditional on:
 
-```
-UI form (react-hook-form + zod)
-  → POST /api/bookings                    (zod-validated)
-    → lib/booking/availability.ts         (pure: computes free slots from appointments + vacations + business hours)
-    → Firestore transaction               (re-check slot, write appointment)
-    → email side-effect (Resend)          (after commit; failure logged, never blocks the booking)
-```
+- Victor approving the complete recurring quote for Production plus staging/branching (Supabase Pro starts around **$25/month**, while a second persistent project or Preview branches add cost; verify current pricing before purchase);
+- completing a representative staging import with zero silent loss;
+- accepting ownership of reviewed SQL migrations;
+- using a short controlled write freeze for cutover.
 
-**Canonical data model** (fixes the wonk at the source; reached via an *additive* migration in Phase 1 — canonical fields added alongside legacy ones, legacy fields dropped in Phase 3 once nothing reads them):
+If the recurring cost is rejected, stop before Phase 2 and write a replacement ADR choosing server-only Firestore. Do **not** run both canonical migrations.
 
-```ts
-// Zod schema = single source of truth for type + validation
-Appointment {
-  id: string
-  serviceId: string            // references the typed services catalog
-  variantId?: string           // bookingOption within the service
-  date: string                 // "YYYY-MM-DD" — calendar day in Europe/Rome, no Timestamp ambiguity
-  startMinutes: number         // minutes since midnight local — 570 = 09:30; trivially sortable/comparable
-  durationMinutes: number      // includes extraTime, denormalized from catalog AT BOOKING TIME (price-list history stays intact)
-  status: "confirmed" | "completed" | "cancelled" | "no_show" | "block"  // "block" = admin time-block; no client, no lifecycle
-  client: { name; email; phone; note? }   // absent for blocks; email validated-or-absent, never ""
-  createdAt / updatedAt: Timestamp   // server timestamps
-}
-```
+### Supabase-specific security posture
 
-> Exact legacy formats (the four `selectedDate` shapes with examples), field-by-field gotchas, and the dual-field transition rules live in **`docs/DATA-MODEL.md`** — required reading before writing the migration or any transition-era reader.
-
-Decisions encoded here:
-- **Local calendar day + minutes-since-midnight** instead of `Timestamp` kills the timezone/DST/off-by-one class of bugs for a single-location business. All date math goes through one `lib/booking/time.ts` module pinned to `Europe/Rome`.
-- **Status lifecycle, not deletion.** Cancelling sets `status: "cancelled"`; past appointments stay forever viewable and editable in the dashboard (a business record and a "regulars" history). "Completed" can be set lazily (any confirmed appointment in the past displays as completed) — no cron needed.
-- **Availability is a pure function** — `computeFreeSlots(date, appointments, vacations, schedule)` — unit-testable exhaustively, reusable identically by the public booking page, the dashboard, and the server-side transaction check. One implementation, three consumers.
-- **History-safe denormalization:** duration/price snapshot onto the appointment at booking time, so editing the price list never corrupts past records.
-
-**GDPR note (site operates in Italy):** Vercel Analytics is cookieless (fine). Sentry must be configured with EU region, `sendDefaultPii: false`, and IP scrubbing. Any future analytics beyond that must be gated behind the existing cookie consent. Appointment data *is* personal data — a short data-retention statement should go in the privacy policy, and old appointments should be prunable.
+- Business tables live in a private/non-exposed schema and are accessed by a dedicated least-privilege `app_runtime` Postgres role through Supavisor transaction pooling. Connection limits and pooling mode are load-tested for Vercel.
+- The Data API has no grants on business tables. RLS/default grants deny `anon` and `authenticated`, but this protects browser/Data API exposure—not bugs in a privileged server path. Supabase service secrets are used only for narrowly scoped Auth administration and never in a session-overwritable SSR client.
+- Public and dashboard clients call Next.js handlers, not tables.
+- The publishable key may be client-visible for Auth; database and service secrets never are.
+- Admin authorization comes from owner-controlled `app_metadata` or an explicit server allowlist, never editable `user_metadata` and never “any authenticated user.”
+- Sensitive admin mutations verify a fresh server-side user/session and current owner authorization; cached JWT claims or client session presence alone are insufficient because revocation/app-metadata changes can be stale.
+- No schema mutation through the production Dashboard. Migrations are generated, reviewed, tested locally, then applied by a dedicated manually approved production-operator workflow with short-lived secrets and redacted logs.
 
 ---
 
-## 3. The phases
+## 3. Target booking core
 
-Ordered so that each phase is independently shippable, security lands before refactors, and refactors land before the framework upgrade. **Public UI does not change until Phase 7, and even then only the admin dashboard.**
-
-### Phase 0 — Hygiene & quick wins (½–1 day)
-*Zero-risk deletions and setup. Do this in one PR — except the hotfix, which ships alone, first.*
-
-- [ ] **🚨 HOTFIX (ship immediately, before everything else):** validate the request body in `/api/send` and `/api/cancel` with the existing `emailSchema` (trim/lowercase/format); skip the customer email cleanly when the address is absent (admin-created bookings legitimately may not have one) while still sending the admin copy; return a distinguishable status so callers stop warn-and-forgetting. Stops the 5-month stream of silently lost confirmation emails. **Branch flow exception:** this ships from a `hotfix/*` branch cut from `main`, PR'd directly to `main` so it reaches production immediately — then merge `main` back into `refactor`. Everything else in this plan rides the `refactor` branch.
-- [ ] Archive/delete the stale `gioia-beauty-astro` Vercel project; confirm apex→www redirect direction.
-- [ ] Delete `repomix-output.txt`; add it to `.gitignore`. (Consider `git filter-repo` to purge from history since the repo is public.)
-- [ ] Remove `<ReactScan />` from `app/layout.js`; move `react-scan` to devDependencies (keep the `npm run scan` workflow).
-- [ ] Uninstall `twilio`. Move `firebase-admin` usage audit to Phase 1 (it becomes a real dependency then).
-- [ ] Delete `/api/test` route.
-- [ ] Move Firebase web config from `lib/firebase/config.js` hardcode to `NEXT_PUBLIC_*` env vars; create `.env.example`; strip hardcoded keys from `scripts/*` (env vars there too).
-- [ ] Add Prettier + config; add `lint-staged` + a pre-commit hook (husky or lefthook).
-- [ ] Rewrite `README.md`: what the site is, architecture sketch, setup steps, env vars, deploy notes.
-- [x] Add `CLAUDE.md` / `docs/` skeleton and this masterplan. *(Done 2026-07-08 in the planning session: AGENTS.md + CLAUDE.md symlink + docs/MASTERPLAN.md + docs/WORKLOG.md.)*
-- [ ] Run `knip` (or `npx unimported`) to inventory dead files — *inventory only*, deletion happens in Phase 3 when we know which data layer survives.
-
-**Done when:** repo is clean, documented, and installs from scratch with `.env.example` as the guide.
-
-### Phase 1 — Security & reliability (2–4 days) ⚠️ *highest priority*
-*The only phase that matters if the owner's business gets attacked or double-booked.*
-
-- [ ] **Lay down a minimal `tsconfig.json` first** (`strict: true`, `allowJs: true`, replacing `jsconfig.json`) so every *new* file in this phase is born TypeScript — the server data layer, availability logic, and schemas below shouldn't be written in JS only to be migrated a week later. Converting *existing* files remains Phase 2's job.
-- [ ] **Write and deploy strict Firestore security rules.** Target end-state: client SDK can read only what the public site genuinely needs (arguably nothing), and can write nothing. Admin dashboard + booking go through the server.
-- [ ] **Introduce a server-side data layer**: Next.js route handlers (or server actions) using `firebase-admin`, validated with Zod at the boundary. Endpoints: `POST /api/bookings`, `DELETE /api/bookings/:id`, `GET /api/availability?date=`, newsletter subscribe/unsubscribe, admin CRUD.
-- [ ] **Make booking creation transactional**: inside a Firestore transaction, re-check slot availability server-side, then write. Kills the double-booking race.
-- [ ] **Migrate appointment documents to the canonical model — additively** (see "The booking core" above): a migration script (run against emulator first) that *adds* canonical `date` + `startMinutes` fields computed from `selectedDate`'s four formats and backfills `status`, while **keeping the legacy fields in place** — the existing client code still reads `selectedDate`/`startTime` until Phase 3 replaces it. New server-side writes populate both shapes during the transition. Legacy fields are dropped by a second, trivial migration at the end of Phase 3 once no reader remains. Old bookings stay fully viewable/editable throughout.
-- [ ] **Fix the domain's email authentication**: delete the duplicate/legacy DMARC record (keep exactly one), remove the stale `brevo-code` TXT, verify Resend's SPF/DKIM records in the Resend dashboard, then move DMARC from `p=none` → `p=quarantine` once a couple weeks of reports look clean. (Booking confirmations landing in spam = lost business.)
-- [ ] **Protect `/dashboard` server-side**: Firebase session cookies, with the authoritative verification in the server layer (route handlers / server components via `firebase-admin`). Note: `firebase-admin` does **not** run in Edge middleware — if `middleware.ts` is used at all, it does only an edge-compatible JWT check (e.g. `jose` against Google's public certs) or a cheap cookie-presence redirect; it must not be the only gate. Client-side redirect stays as UX sugar only.
-- [ ] **Secure the email endpoints**: they become internal calls from the booking endpoints (never client-invoked with raw payloads); add rate limiting (Upstash Ratelimit or Vercel WAF rules) on all public POSTs.
-- [ ] **`GET /api/availability` returns computed slots, never appointment documents.** This simultaneously fixes the current GDPR-relevant leak (raw customer docs shipped to every booking visitor's browser for client-side slot math) and caps the read cost of the busiest public query. Server caches per-day availability, invalidated on booking writes.
-- [ ] **Dashboard reads go on a diet**: paginated/windowed queries per view instead of `fetchAllAppointments` (1,600+ reads per invocation today); keep totals on `getCountFromServer` aggregation (already the case — don't regress it); kill the 7-day slot-preload loop. Set a GCP budget alert on the Firebase project.
-- [ ] Rebuild `/export` as an authenticated server endpoint (admin session required) instead of a client page that full-scans every collection.
-- [ ] Stop logging PII; add a `/api/health` endpoint.
-- [ ] **Set up backups**: scheduled Firestore export (Cloud Scheduler → GCS bucket), or minimally a documented + cron'd version of the existing export scripts.
-- [ ] Rotate/review the three Firebase projects whose keys sat in `scripts/`; delete unused projects.
-
-**Done when:** browser console can no longer touch Firestore; two simultaneous bookings of the same slot produce exactly one appointment; dashboard 401s without a valid session; nightly backup exists.
-
-### Phase 2 — TypeScript migration (3–5 days)
-- [ ] Harden the `tsconfig.json` introduced in Phase 1 as migration proceeds (it already exists — Phase 2 converts the *existing* `.js`/`.jsx` files).
-- [ ] Define the **domain types first** in `types/`: `Appointment`, `Service`, `BookingOption`, `Vacation`, `Subscriber`, `TimeSlot` — derived from Zod schemas (`z.infer`) so runtime validation and types share one source of truth (some will already exist from Phase 1's server layer).
-- [ ] Migrate in dependency order: `lib/utils/` → `lib/firebase/` + API routes → `hooks/` → `context/` → `components/` → `app/`.
-- [ ] Convert `data/*Data.js` to a single typed, Zod-validated services catalog at `lib/services/` (its final Phase 3 home — no point moving it twice). This makes the next "nuovo listino" a safe edit.
-- [ ] CI gate: `tsc --noEmit` must pass (added in Phase 5's CI, or add a minimal Action now).
-
-**Done when:** zero `.js`/`.jsx` under `app/ components/ hooks/ lib/ context/ data/`; `strict` passes with no `any` escape hatches in the data layer.
-
-### Phase 3 — Data-layer consolidation (3–5 days) 🔥 *biggest LOC reduction*
-- [ ] Adopt **TanStack Query**. Delete `lib/cache/queryCache.js`, `lib/cache/appointmentCache.js`, `lib/utils/performance.js`.
-- [ ] **Delete the dead legacy hook family outright** — `useAppointments`, `useTimeSlots`, `useVacations`, `useFirestore` are verified unimported (only a commented-out reference in `AppointmentContext.jsx:14`). Then rebuild the surviving `useOptimizedX` family as **one** TanStack Query hook family backed by the Phase 1 API endpoints.
-- [ ] Dismantle `AppointmentContext.jsx` (1,019 lines) — most of it becomes queries/mutations; context keeps only genuinely global UI state, if any. (Today it also holds a *shadow copy* of appointment state in a reducer that the context value then overrides with hook state — two sources of truth where most reducer actions are invisible no-ops.)
-- [ ] **Remove booking machinery from the root layout** — `AppointmentProvider` currently mounts (and the vacations hook auto-fetches) for every visitor on every page. Booking state lives on the booking page; the gallery page should cost zero Firestore reads.
-- [ ] **One booking submission path.** Collapse the three implementations (`useBookingForm.submitBooking`, `BookAppointment.handleSubmit`, Dashy's) into a single `POST /api/bookings` client call; one `calculateEndTime`, one schema (from `lib/validation/`), email sending moved server-side into the endpoint (with the admin/no-email case handled explicitly).
-- [ ] Simplify `NotificationContext.jsx` or replace with a small toast wrapper.
-- [ ] Extract time-slot computation into pure functions in `lib/booking/` and **unit-test them first** (this is the safety net for the whole phase).
-- [ ] Split `Dashy.jsx` into route-level pieces (`app/dashboard/appointments/`, `/vacations/`, `/newsletter/` or component modules) — *structure only, no visual changes yet*.
-- [ ] Consolidate duplicate UI libs: one date picker (`react-day-picker`), one icon set (`lucide-react`), Radix-only dialogs/drawers. Only where visually identical; anything visible waits for Phase 7.
-- [ ] Delete the dead files inventoried in Phase 0.
-- [ ] **Drop the legacy appointment fields** (`selectedDate`, denormalized `startTime`/`endTime` string pair, etc.) with the second migration promised in Phase 1 — only after every reader has moved to the canonical `date` + `startMinutes` model. This closes the dual-field transition window.
-- [ ] **File/folder reconsolidation** — end-state layout (moves happen here, when files are already being rewritten, so git history churn is paid once):
-
-```
-app/                  # routes only: thin pages, layouts, api/ handlers
-  api/                # bookings, availability, newsletter, health
-  dashboard/          # split routes: appointments/ vacations/ newsletter/
-components/
-  ui/                 # shadcn primitives (unchanged)
-  booking/            # public booking UI (renders lib/booking state)
-  dashboard/          # admin UI
-  layout/  common/    # shells, shared bits
-lib/
-  booking/            # ← the headless core: availability.ts, time.ts, schedule.ts
-  services/           # typed, zod-validated services catalog (replaces 12 data/*Data.js)
-  db/                 # firebase-admin access, one module per collection
-  email/              # resend wrappers + templates
-  validation/         # zod schemas (types derive from these)
-types/                # z.infer re-exports only
-tests/  e2e/          # vitest colocated or here; playwright in e2e/
+```text
+Public/admin UI
+  → validated Next.js route handler
+    → authorization + rate limit + idempotency
+      → pure booking rules (Europe/Rome)
+        → Postgres transaction / overlap invariant
+          → booking committed
+            → outbox entry committed
+              → Resend attempt/retry/webhook state
 ```
 
-  Root-level strays get absorbed: `components/*.jsx` orphans (`Fields`, `SlimLayout`, `Technologies`, …) into the folders above; `context/` disappears (TanStack Query + a tiny theme provider); `hooks/` shrinks to the single query-hook family; `data/` becomes `lib/services/`.
+Core rules:
 
-**Done when:** exactly one way to fetch/mutate each entity; `lib/cache/` gone; no file over ~400 lines; slot logic covered by unit tests; the tree above is real; a component can be deleted without touching `lib/`.
+- `computeFreeSlots(date, serviceVariant, scheduleEntries, vacations, hours)` is pure and exhaustively tested.
+- The server derives duration and buffer from the authoritative stable-ID catalog. It never trusts client-supplied duration, end time, status, or price.
+- Public booking, admin appointment, block, reschedule, cancellation, and vacation commands have separate boundary schemas but share one domain service.
+- All occupancy-changing paths use the same database invariant. Rescheduling locks both old/new schedule scopes in deterministic order if application locks are needed.
+- Cancellation is a status transition, not deletion.
+- Blocks are an entity `kind`, not a lifecycle status.
+- Email/customer/admin notifications never determine whether the booking transaction commits.
+- Availability caching starts disabled. Add a shared/tagged cache only after measurement, and never use cached availability for final conflict enforcement.
 
-### Phase 4 — Observability (1–2 days)
-- [ ] **Sentry** (`@sentry/nextjs`): client + server, EU region, PII scrubbing on, source maps uploaded, release tagging tied to Vercel deploys. Alert rule → email on new issues.
-- [ ] Wrap key flows with context: booking submission, email send, dashboard mutations (breadcrumbs, not PII).
-- [ ] Structured server logging (pino) replacing stray `console.log`; optionally drain to Axiom.
-- [ ] Uptime monitor on `/` + `/api/health`.
-- [ ] Replace ad-hoc `ErrorBoundary` usage with Sentry-integrated boundaries; verify `not-found`/error pages report correctly.
-- [ ] **Business + SEO monitoring dashboard** (the "can we follow it?" part):
-  - **Google Search Console**: verify property (verification tag already exists), submit sitemap — this is where impressions/clicks/index-coverage/Core-Web-Vitals-from-real-users live. Check monthly.
-  - **Real-user Web Vitals**: Vercel Speed Insights is already installed — actually look at it; add Sentry's performance/vitals view as the second opinion. Watch LCP/CLS/INP trends, not one-off lab runs.
-  - **Booking funnel signal**: count booking-started vs booking-completed (a Vercel Analytics custom event — cookieless, consent-safe). One number that tells the owner the site is doing its job, and tells us if a deploy silently broke the funnel.
-  - A `docs/OPERATIONS.md` runbook: where each dashboard lives, what "normal" looks like, what to do when an alert fires.
-
-**Done when:** a thrown error in the booking flow appears in Sentry with a readable stack trace within a minute, downtime triggers an email, and there's one place to answer "how's the site doing this month?"
-
-### Phase 5 — CI/CD & testing (2–3 days)
-- [ ] **GitHub Actions**: `lint` + `tsc --noEmit` + `vitest` + `next build` on every PR **and every push to `refactor`** (agents push there without PRs); branch protection on `main`.
-- [ ] **Vitest + Testing Library**: unit tests for slot computation (already started in Phase 3), Zod schemas, date/time utils (`timeUtils`, `dateUtils` — 980 combined lines of untested date math today).
-- [ ] **Playwright** E2E: the golden path (open site → pick service → pick slot → book → confirmation) against a Firebase emulator or a seeded test project; run on PRs.
-- [ ] Dependabot/Renovate for dependency updates.
-- [ ] Then: **upgrade Next 14 → 15 / React 19** — now safe, because types + tests + CI catch the breakage.
-
-**Done when:** a PR that breaks booking math or the build cannot merge.
-
-### Phase 6 — SEO & performance polish (2–3 days)
-*Foundations are good; this is refinement, not rescue.*
-
-- [ ] Audit and refine per-page `metadata` (gallery, contacts, policy already export their own — *verified* — but review descriptions, per-page OG images, and canonical URLs rather than assuming the defaults are right).
-- [ ] Consider `app/servizi/[category]/` static pages per service category — currently services live in one page, so "manicure roveleto di cadeo"-type queries have no dedicated landing page. (Renders existing content/UI; new routes are additive, not a UI change.)
-- [ ] `next.config` hardening: security headers (CSP, HSTS, X-Frame-Options), image config, `@next/bundle-analyzer`.
-- [ ] Bundle diet: dynamic-import Leaflet/map and gallery lightbox; verify tree-shaking after the Phase 3 dep consolidation; audit `Images.jsx`/`ImagesExports.jsx` for eager-loaded images.
-- [ ] Verify JSON-LD against Google Rich Results test; add `Service` schema to new service pages; keep sitemap in sync.
-- [ ] **Lighthouse CI in GitHub Actions** with enforced budgets (not a one-off audit): Performance/SEO/Best-Practices/A11y ≥ 90 mobile on `/`, booking page, and one service page; JS budget ≤ ~180 kB gzipped per route; regressions fail the PR. Lab numbers gate merges — the real-user vitals from Phase 4 confirm reality.
-- [ ] Font/render pass: `next/font` is in use (good) — verify no CLS from the four loaded families, lazy-load below-the-fold sections, check the hero LCP image is `priority` + properly sized.
-- [ ] Register/verify Google Business Profile linkage (biggest real-world SEO lever for a local salon — a task for the owner, document it).
-- [ ] **AI/LLM discoverability (GEO — people increasingly ask ChatGPT/Claude/Perplexity "best beauty salon near Cadeo"):**
-  - Add `llms.txt` at the root: a concise markdown summary of the business — services, prices, address, hours, booking URL — the emerging convention for LLM crawlers.
-  - Explicitly allow reputable AI crawlers in `robots.js` (`GPTBot`, `ClaudeBot`, `PerplexityBot`, `Google-Extended`) — for a local business, being in AI answers is free marketing, not content theft.
-  - Make key facts (address, hours, phone, price ranges) plain **server-rendered text**, not just JSON-LD or images — LLMs and answer engines quote what they can read.
-  - Add an **FAQ section/page with real questions** ("Quanto costa una manicure?", "Come posso prenotare?", "Dove parcheggio?") + `FAQPage` schema — feeds both Google rich results and AI answers.
-  - Keep NAP (name/address/phone) character-identical across the site, Google Business Profile, Instagram bio, and any directory listings — consistency is the #1 local-ranking and AI-citation signal.
-  - Bing/IndexNow ping from the sitemap (Bing powers ChatGPT browsing and Copilot).
-  - Consider Apple Business Connect (Apple Maps listing) — free, and Siri/Apple Maps pull from it.
-
-**Done when:** Lighthouse ≥ 90 across the board on mobile for `/`, and each service category has an indexable URL.
-
-### Phase 7 — Admin dashboard revamp (3–6 days, the only UI-visible phase)
-- [ ] Redesign dashboard UX on the pieces split out in Phase 3: calendar view, appointment list w/ filters, vacation manager, newsletter manager.
-- [ ] Add the quality-of-life features the owner actually needs (ask her!): e.g. day/week toggle, quick-cancel with automatic client email, CSV export, appointment notes.
-- [ ] Mobile-friendly dashboard (she'll use it from her phone at the salon).
-- [ ] Loading/empty/error states via shadcn patterns; delete `LoadingComponents.jsx` sprawl.
-
-**Done when:** the owner says it's better. Genuinely — user-test it with her.
-
-### Phase 8 — Optional / future
-- **Supabase/Postgres migration** — only if Firestore starts hurting (relational queries, reporting, cost). After Phase 1+3 the swap is confined to the server data layer. Reassess then; don't pre-build for it.
-- SMS/WhatsApp appointment reminders (this is where Twilio would come back).
-- Owner-editable price list (simple CMS or dashboard-managed services collection).
-- i18n (English) if tourist clientele warrants it.
-- Booking modification (reschedule) links in confirmation emails.
+Exact source and target fields, ETL rules, and reconciliation are in `docs/DATA-MODEL.md`.
 
 ---
 
-## 4. Sequencing & effort summary
+## 4. Phases
 
-| Phase | Theme | Effort | Risk to prod | Depends on |
-|---|---|---|---|---|
-| 0 | Hygiene | 0.5–1 d | none | — |
-| 1 | Security & reliability | 4–6 d | medium (rules lockdown must ship with server layer) | 0 |
-| 2 | TypeScript | 3–5 d | low | 1 |
-| 3 | Data-layer consolidation | 3–5 d | medium | 1, 2 |
-| 4 | Observability | 1–2 d | none | 1 |
-| 5 | CI/CD & testing (+ Next 15) | 2–3 d | low | 2, 3 |
-| 6 | SEO & perf | 2–3 d | low | 3 |
-| 7 | Dashboard revamp | 3–6 d | low (admin-only) | 3, 5 |
+### Phase 0 — Emergency production containment
 
-Total: roughly **4–5 weeks** of focused part-time work. Phases 4 and 6 can be shuffled freely; 0→1→2→3 is the load-bearing spine.
+Only items marked 🚨 ship as small focused hotfixes from `main`, then merge `main` back into `refactor`. The remaining Phase 0 hygiene stays on the reviewed `refactor` workflow.
 
-Note on Phase 1 sizing: it's deliberately the heaviest phase — security rules, the server data layer, and the additive data migration must land together (rule 4 below), so it doesn't split well. If it needs cutting, the DNS/email items and backups can trail as a fast follow; the rules+server-layer+transaction trio cannot.
+- [ ] **`[LOCAL]`** Add the smallest isolated Vitest route harness needed for email validation/outcomes and dead appointment endpoint regression tests; it must not start the app or resolve Firebase.
+- [ ] **`[PROD-APP]` 🚨** Delete `/api/appointments/by-date` and `/api/appointments/counts` if final import search confirms no callers; otherwise require admin auth and return no raw PII. Verify production returns 404/401 and add `private, no-store` to every authenticated PII response.
+- [ ] **`[LOCAL]` / `[PROD-APP]` 🚨** Harden `/api/send` and `/api/cancel`: validate and bound the full body; distinguish absent from invalid email; attempt valid admin/customer sends independently; require admin auth for cancellation; add an application rate limit; return explicit per-recipient results. Separately classify any provider/WAF configuration as `[PROD-CONFIG]`.
+- [ ] **`[PROD-APP]` 🚨** Update all current callers so invalid public email blocks booking before the write, admin no-email is intentional, and partial delivery failure is visible/retryable rather than warn-and-forget.
+- [ ] **`[LOCAL]`** Construct Resend lazily or behind runtime validation so `npm run build` succeeds without a production secret.
+- [ ] **`[LOCAL]`** Inventory every route with: public/admin/internal, input schema, output PII, auth, rate limit, cache policy, and maximum reads/writes.
+- [ ] **`[LOCAL]`** Triage `npm audit --omit=dev`, map findings to direct/runtime reachability, and record accepted versus fixed advisories.
+- [ ] **`[LOCAL]` / `[TEST]` / `[PROD-APP]`** Patch Next to the safest compatible supported line, verify locally and in isolated tests, then separately approve its Production deployment. Schedule the tested Next 16 upgrade in Phase 7. Do not use `npm audit fix --force`.
+- [ ] **`[PROD-APP]`** Delete `/api/test` and remove PII-bearing logs from API and booking paths.
+- [ ] **`[LOCAL]`** Remove React Scan from the production tree, uninstall unused Twilio, delete `repomix-output.txt`, ignore future dumps, inventory all three Firebase projects/API-key restrictions, and add an automated current-tree/history secret gate such as Gitleaks before considering any history rewrite.
+- [ ] **`[LOCAL]`** Add `.env.example`, environment validation, Node/npm pins, Prettier, lint-staged, a pre-commit hook, and a real README.
+- [ ] **`[PROD-CONFIG]`** Confirm the already-observed apex→www redirect, remove the duplicate DMARC and stale Brevo record, verify Resend SPF/DKIM, observe reports, then separately approve `p=quarantine`.
+- [ ] **`[DESTRUCTIVE]`** Archive the stale Vercel project only after its domains, env vars, deployments, and rollback value are reviewed.
 
-**Rules of engagement**
-1. All work accumulates on the **`refactor` branch**; Victor merges `refactor` → `main` via PR at phase boundaries (or whenever a coherent chunk is approved), so `main` stays deployable at every merge. Sole exception: urgent production fixes (the Phase 0 email hotfix) ship on a `hotfix/*` branch cut from `main`, then `main` is merged back into `refactor`.
-2. Public UI is pixel-frozen through Phase 6 (screenshot-diff spot checks when touching shared components).
-3. The booking flow gets manually smoke-tested on the production site after every deploy until Playwright covers it.
-4. Firestore rules lockdown (Phase 1) deploys in the same release as the server data layer — never before, never after.
-5. Anything involving the owner's live data (backups, rules, migrations) gets tested against the Firebase emulator or a scratch project first.
+**Done when:** public PII/mail abuse paths are contained, email outcomes are explicit, the build works without live secrets, and urgent dependency exposure is patched or consciously accepted.
 
-## 5. Success metrics
-- **Security:** Firestore inaccessible from browser console; all public POSTs rate-limited; zero secrets in repo (verify with `gitleaks`); dashboard 401s server-side without a session.
-- **Email/domain:** exactly one DMARC record, enforced at `p=quarantine`+; confirmation emails land in inbox, not spam.
-- **Reliability:** double-booking impossible by construction (real transactional check, not the current TOCTOU illusion); one canonical appointment format in the DB (zero runtime normalization branches); confirmation-email failures alert within minutes instead of sitting in logs for 5 months; Sentry error rate ~0 in steady state; backups restorable (test one restore).
-- **DB cost:** public pages cost zero Firestore reads; dashboard day-view costs reads proportional to that day's appointments (not 1,600+); a GCP budget alert guards the baseline; no unbounded query exists in the codebase.
-- **Maintainability:** ~21k → target **≤ 14k** lines; largest file ≤ 400 lines (ideal ≤ 300); one data-access path; 100% TypeScript strict; a UI redesign would touch only `components/` + `app/`.
-- **Quality gates:** CI green required to merge; slot logic exhaustively unit-tested; booking E2E covered; Lighthouse budgets enforced per-PR.
-- **Performance/SEO:** Lighthouse ≥ 90 mobile on all key routes; real-user LCP < 2.5s / INP < 200ms / CLS < 0.1 in Search Console's CWV report; indexable service-category pages; booking funnel completion visible month-over-month.
-- **Portfolio:** README with architecture diagram, this masterplan, and ADRs documenting the interesting decisions — the refactor story itself is the portfolio piece.
+### Phase 1 — Environment isolation, tests, backups, and ADR gate
+
+No production data is mutated in this phase except explicitly approved backup/configuration actions.
+
+- [ ] **`[LOCAL]`** Write `docs/ADR-001-SUPABASE.md` and obtain explicit approval of the full Production + staging/branching cost and the one-migration approach.
+- [ ] **`[LOCAL]`** Add local Supabase CLI/Docker configuration, version-pinned tooling, synthetic seed data, and reset commands. Local email uses Mailpit/fake transport.
+- [ ] **`[TEST]`** Create one separate serialized staging/Preview Supabase project and record its project ref/reset ownership in `docs/ENVIRONMENTS.md`. DB-aware Preview/E2E runs take a lock and reset/namespace their data; per-PR branches require separate cost approval. Never seed ordinary staging with customer PII.
+- [ ] **`[PROD-CONFIG]`** After ADR/cost approval, create an empty Supabase Production project in an approved EU region; record organization/project refs, billing, DPA/processor status, ownership/recovery contacts, and backup tier. Do not import customer data yet.
+- [ ] **`[LOCAL]`** Make development/test/CI fail closed if any production Firebase/Supabase project ID or production credential is detected.
+- [ ] **`[PROD-CONFIG]`** Audit Vercel Development/Preview/Production env scopes. Preview must use staging data and non-delivering/test-only email.
+- [ ] **`[TEST]`** After isolation, capture desktop/mobile screenshots of `/`, gallery, contacts, booking states/modals/errors, login, and dashboard without touching production data.
+- [ ] **`[LOCAL]`** Add strict TypeScript for new files (`allowJs: true`) after a TypeScript 7 compatibility spike; keep the supported fallback documented.
+- [ ] **`[LOCAL]`** Add Vitest, Testing Library, Playwright, local Supabase, and GitHub Actions for lint, typecheck, unit/integration tests, and build on PRs and `refactor` pushes.
+- [ ] **`[REMOTE-CONFIG]`** Protect `refactor` and `main`; agents use short branches/PRs instead of pushing unfinished DB-aware work directly to a shared deploy branch.
+- [ ] **`[LOCAL]` / `[REMOTE-CONFIG]` / `[PROD-CONFIG]`** Define a dedicated production-operator workflow: protected GitHub Environment/manual approval, exact project allowlist, short-lived production secrets, no development startup, migration/import-only commands, redacted artifacts, and credential teardown. Normal CI never receives Production credentials.
+- [ ] **`[LOCAL]`** Add migration tooling that defaults to dry-run and refuses production unless exact environment, project ref, run ID, `--apply`, bounds, and confirmation are supplied.
+- [ ] **`[LOCAL]`** Extend `.gitignore` for service-account JSON, database exports, before-images, migration manifests, Supabase local data, and backup directories.
+- [ ] **`[LOCAL]` / `[TEST]`** Capture/version current Firestore rules/indexes and prepare tested temporary deny-write plus final deny-all rules for the cutover. Do not deploy them yet.
+- [ ] **`[PROD-READ]`** After explicit approval, take a bounded read-only Firestore inventory/export only after target/project verification; declare PII and read cost, redact reports, and store raw exports encrypted outside git.
+- [ ] **`[PROD-CONFIG]`** Enable/verify a current Firestore backup/PITR strategy for the source until cutover is complete.
+- [ ] **`[PROD-READ]` / `[TEST]`** With separate approval, restore the PII-bearing source export only into a restricted recovery environment with named access, no public app/email, and a destruction deadline. Prove counts/representative records, generate an anonymized derivative for staging tests, then securely destroy the recovery copy.
+- [ ] **`[LOCAL]`** Document RPO, RTO, restore cadence, migration stop conditions, and incident contacts in `docs/OPERATIONS.md`.
+
+**Done when:** local/CI/Preview cannot reach production, a source backup has been restored successfully elsewhere, CI is mandatory, the recurring Supabase cost is approved, and production-write tooling fails closed.
+
+### Phase 2 — Typed relational schema and booking kernel
+
+Everything remains `[LOCAL]` or `[TEST]`.
+
+- [ ] **`[LOCAL]`** Define Zod schemas and inferred types for schedule entries, appointments, blocks, vacations, services, variants, subscribers, outbox events, public commands, and admin commands.
+- [ ] **`[LOCAL]`** Build a stable service/variant catalog with explicit IDs, display-name snapshots, service duration, buffer, active state, and optional price only when real price data exists.
+- [ ] **`[LOCAL]`** Build pure Europe/Rome date/time, business-hours, vacation, overlap, and availability modules.
+- [ ] **`[LOCAL]`** Create reviewed Supabase migrations for private/default-deny tables, explicit grants, RLS, indexes, uniqueness, audit fields, and generated/validated occupied intervals.
+- [ ] **`[LOCAL]`** Version required extensions and database privileges. If `btree_gist` backs the exclusion constraint, migrate it explicitly. Any `SECURITY DEFINER` function lives outside exposed schemas, pins a safe `search_path`, revokes `EXECUTE` from `PUBLIC`/`anon`/`authenticated`, and grants only `app_runtime`.
+- [ ] **`[LOCAL]`** Add a database-enforced active-overlap invariant for appointments and blocks. Vacation/reschedule paths must participate in the same locking/invariant story.
+- [ ] **`[LOCAL]`** Add operation/principal-scoped request idempotency with a request fingerprint, `legacy_firestore_id`, `schema_version`, source/timestamp provenance, soft cancellation, email/outbox state, and migration quarantine. Same-key/different-body replay returns 409.
+- [ ] **`[LOCAL]`** Add an append-only, PII-minimized domain change log/high-water sequence covering schedule entries, blocks, vacations, and subscribers so post-cutover mutations are discoverable for audit and rollback.
+- [ ] **`[LOCAL]`** Decide and document: same-day/lead time, maximum advance window, slot alignment, admin overrides, buffer meaning, statuses consuming availability, vacation-over-existing-booking behavior, and completed-status semantics.
+- [ ] **`[LOCAL]`** Exhaustively test adjacent/partial/exact overlap, variable durations, buffer/closing boundaries, blocks, cancelled records, vacations, leap dates, Rome midnight/DST, stale requests, reschedules, and parallel requests.
+- [ ] **`[TEST]`** Run migrations from zero, seed, reset, rerun, advisors, RLS-negative tests, and concurrency tests in staging. Many parallel overlapping requests must yield exactly one accepted booking.
+
+**Done when:** a clean local database can be recreated from version control; the database—not UI timing—prevents overlap; and every business rule has an executable test.
+
+### Phase 3 — Server vertical slice, auth, and reliable side effects
+
+- [ ] **`[LOCAL]` / `[TEST]`** Implement one server-only database adapter; no Supabase secret appears in a client bundle.
+- [ ] **`[LOCAL]` / `[TEST]`** Implement `GET /api/availability?date=&serviceId=&variantId=` returning slots only, with bounded reads and no PII.
+- [ ] **`[LOCAL]` / `[TEST]`** Implement idempotent `POST /api/bookings`; derive catalog data server-side and return 409 for occupied slots.
+- [ ] **`[LOCAL]` / `[TEST]`** Implement authenticated appointment/block create, edit, reschedule, soft-cancel, vacation, subscriber, count, and bounded export operations.
+- [ ] **`[LOCAL]` / `[TEST]`** Implement Supabase Auth for the owner with explicit admin authorization, secure SSR cookies, CSRF defenses, bounded session lifetime, refresh, logout/revocation, and correct 401/403 behavior. Sensitive mutations recheck fresh user/session state and current authorization rather than trusting cached claims alone.
+- [ ] **`[LOCAL]` / `[TEST]`** Add public abuse defenses: IP/account limits plus CAPTCHA/App Check-equivalent verification where useful. Public GET cost must also be bounded.
+- [ ] **`[LOCAL]` / `[TEST]`** Commit domain changes and immutable recipient/template snapshots atomically with the outbox. Drain it with a signed Vercel Cron worker using a database claim lease/`SKIP LOCKED`, stale-lease recovery, provider idempotency, dead-letter alerting, and signed/replay-deduplicated delivery webhooks; support customer, admin, and newsletter confirmation mail.
+- [ ] **`[LOCAL]` / `[TEST]`** Implement newsletter normalized uniqueness, consent timestamp/source/policy version, non-enumerating responses, signed one-click unsubscribe, and preferably double opt-in.
+- [ ] **`[LOCAL]` / `[TEST]`** Add minimal Sentry/error capture now, PII-safe structured logs, route metrics, and a shallow read-free `/api/health`.
+- [ ] **`[LOCAL]` / `[TEST]`** Complete the pre-cutover privacy package: retention/anonymization by field/table/log/backup, executable deletion/access workflow, sensitive-note policy, consent evidence, privacy-policy update, processor/DPA inventory, and restore-retention interaction.
+- [ ] **`[LOCAL]` / `[TEST]`** Run API contract, auth, rate-limit, email, idempotency, concurrency, and E2E tests against local/staging adapters.
+
+**Done when:** staging proves the complete booking/admin/cancellation/email flow without Firebase writes or customer PII.
+
+### Phase 4 — Staging application cutover and production release candidate
+
+Firestore remains the untouched production authority. The new Supabase application is exercised only in Local/Preview/staging until Phase 5's approved migration window. This avoids building a disposable canonical Firestore server layer or performing two data transitions.
+
+- [ ] **`[LOCAL]` / `[TEST]`** Move public availability and booking UI behind the Supabase-backed server API while preserving pixel output and explicit failure states.
+- [ ] **`[LOCAL]` / `[TEST]`** Move dashboard appointments, blocks, vacations, newsletter, counts, and export behind authenticated server operations.
+- [ ] **`[LOCAL]` / `[TEST]`** Remove `AppointmentProvider` from the root layout and prove non-booking public page loads make zero database calls.
+- [ ] **`[LOCAL]` / `[TEST]`** Remove latent preloading, raw appointment responses, full-collection reads, client listeners, and client database mutations from the release candidate.
+- [ ] **`[TEST]`** Import the rehearsed staging snapshot and run visual snapshots, keyboard/accessibility flows, booking golden path, admin no-email, cancellation, retry, session expiry, stale-tab, migration, and concurrency E2E suites.
+- [ ] **`[TEST]`** Verify Preview browser traffic contains no direct Firestore/Supabase business-table access and no other customer's appointment document.
+- [ ] **`[LOCAL]` / `[TEST]`** Implement and E2E-test maintenance/freeze behavior before cutover: public booking and every dashboard mutation disabled, owner/customer messaging, stale-client failure, emergency manual-booking procedure, audited operator-canary bypass, cleanup, and unfreeze.
+- [ ] **`[LOCAL]`** Freeze the exact source commit and dependency lockfile for production and record its environment manifest, smoke tests, and forward-recovery commit. Production-scoped values may be baked at build time, so Preview is not treated as a promotable binary artifact.
+
+**Done when:** the complete Supabase application and data import pass in staging, the public UI is unchanged, maintenance/canary behavior is rehearsed, and the exact source/lockfile are frozen. Production still runs the legacy Firestore application until the controlled Phase 5 window.
+
+### Phase 5 — Rehearsed Firestore → Supabase production cutover
+
+This phase is intentionally split into separately approved actions. There is no casual “run migration” step.
+
+- [ ] **`[TEST]`** Transform a restored Firestore export into staging using preserved `legacy_firestore_id`; emit only redacted counts/anomalies.
+- [ ] **`[TEST]`** Reconcile source IDs and totals: appointments, blocks, vacations, subscribers, status counts, future confirmed bookings, date/time conversions, duration/buffer, duplicates, and quarantine. Source must equal imported plus explicitly reviewed quarantine.
+- [ ] **`[TEST]`** Build and test reverse ETL before cutover: imported rows update their original Firestore IDs; Supabase-created rows use deterministic Firestore IDs and retain `supabase_id`; service/variant values map back to the legacy shape; all creates/edits/reschedules/cancellations/blocks/vacations/subscriber mutations are selected by a reliable high-water mark; reruns are idempotent.
+- [ ] **`[TEST]`** Repeat the exact import from a clean database, rerun it to prove idempotency, test overlap violations, restore a Supabase backup/logical dump, and rehearse pre-reopen and post-reopen failure recovery against isolated clones.
+- [ ] **`[TEST]`** Rehearse the safe failure posture: once Firestore deny-write rules are active, do not reactivate the insecure direct-client legacy app. Keep maintenance active, preserve/reverse-sync data if needed, and repair or restore Supabase forward from the recorded source/backup.
+- [ ] **`[PROD-CONFIG]`** Through the protected operator workflow, apply and verify all reviewed migrations, extensions, functions, least-privilege roles, default privilege revocations, Data API denial, indexes, grants/RLS, webhook secrets, and backup settings on the empty EU Production project. Run advisors and negative direct-access tests before import.
+- [ ] **`[PROD-CONFIG]`** Configure Production Auth outside SQL migrations: site/redirect URLs, custom SMTP, session/JWT policy, MFA decision, owner invite/reset, explicit admin app metadata/allowlist, logout/revocation checks, and preserved Firebase Auth access for recovery evidence during the 30-day window.
+- [ ] **`[PROD-CONFIG]`** Set Production-only Vercel variables to the allowlisted Supabase Production/Auth targets; keep Development/Preview pointed at Local/staging and verify scope resolution.
+- [ ] **`[PROD-APP]`** Before the freeze, build a staged Production deployment from the exact frozen Phase 4 source/lockfile with Production env vars but no assigned public domain (`--prod --skip-domain` or equivalent). Record its deployment ID/resolved refs and verify read-free health/static routes privately.
+- [ ] **`[PROD-DATA]`** Obtain explicit approval for a short booking/dashboard write freeze and display the final preflight: targets, commit, run ID, backup IDs, expected counts, writes, quarantine, stop conditions, and forward-recovery plan.
+- [ ] **`[PROD-APP]` / `[PROD-CONFIG]`** Enable maintenance mode, disable current server writes, deploy the tested temporary Firestore deny-write rules so stale browser tabs cannot mutate, and run negative public/admin write probes. The freeze is not active until every write path fails except the audited cutover-operator bypass.
+- [ ] **`[PROD-READ]` / `[PROD-CONFIG]`** Under the active freeze, take the final named Firestore backup/managed full export and production counts/checksums; the rules freeze and the export are separately approved and logged.
+- [ ] **`[PROD-DATA]`** Run the idempotent full import in bounded/checkpointed batches. Because legacy `updatedAt` is incomplete, prefer a frozen full import over timestamp-based delta guessing or long-lived dual writes.
+- [ ] **`[PROD-DATA]`** Reconcile again. Any silent loss, unexpected overwrite, duplicate active interval, count mismatch, or unmapped future appointment is a stop condition.
+- [ ] **`[PROD-CONFIG]` / `[PROD-DATA]`** Verify Supabase Pro backups are active, create an immediate encrypted post-import logical export/recovery point, restore it into an isolated target, and reconcile it before accepting customer writes. Record owner-approved RPO/RTO.
+- [ ] **`[PROD-APP]`** Verify the already-built staged Production deployment privately against the reconciled import, then assign/promote that exact deployment without rebuilding.
+- [ ] **`[PROD-APP]` / `[PROD-DATA]`** While public/admin writes remain frozen, use the audited one-time cutover-operator bypass to smoke-test owner login, availability, controlled booking, block, edit/reschedule, soft cancellation, newsletter, export, database record, and email/outbox state. Include every bypass mutation in reconciliation and rollback.
+- [ ] **`[PROD-APP]`** Reopen both public booking and dashboard mutations only after canary cleanup/reconciliation and the full smoke checklist pass.
+- [ ] **`[PROD-CONFIG]`** Replace temporary deny-write rules with tested final deny-all browser rules and run negative probes. Do not restore the insecure direct-client legacy app merely to shorten an outage.
+- [ ] **`[PROD-DATA]`** Keep Firestore read-only, Firebase Auth recovery access, encrypted backups, import/reverse-ETL tooling, and high-water evidence for **30 days**. Reverse ETL preserves data portability; it is not permission to reopen unsafe browser writes.
+
+Failure recovery has two explicit branches, both preferring customer-data safety over availability:
+
+- **Before reopening writes:** keep maintenance and Firestore deny-write rules active, reverse canary mutations if required, and fix forward or restore the empty/imported Supabase target. The old direct-client app is not a safe writable rollback.
+- **After reopening writes:** immediately freeze every Supabase public/admin/server write path, record the change-log high-water mark, restore/fix forward in Supabase, and reconcile every create/edit/reschedule/cancellation/block/vacation/subscriber mutation before reopening. Reverse ETL to the frozen Firestore copy is an emergency preservation path only; reactivation requires a separately built and tested secure server adapter plus explicit approval.
+
+**Done when:** Supabase is authoritative, all source/target invariants reconcile, live booking/admin/email flows pass, and Firestore remains read-only and recoverable. Nothing is deleted.
+
+### Phase 6 — Delete legacy architecture, then convert survivors
+
+- [ ] **`[LOCAL]`** Delete dead hooks/files before converting them.
+- [ ] **`[LOCAL]`** Adopt one TanStack Query hook family backed by server APIs; delete both hand-rolled caches and `lib/utils/performance.js`.
+- [ ] **`[LOCAL]`** Dismantle `AppointmentContext`; keep only genuine local UI state.
+- [ ] **`[LOCAL]`** Collapse duplicate submission, validation, date-normalization, and end-time implementations into the typed core.
+- [ ] **`[LOCAL]`** Split `Dashy.jsx`, `BookAppointment.jsx`, and notification/loading sprawl into small route/domain components without public visual change.
+- [ ] **`[LOCAL]`** Convert only surviving code to strict TypeScript in dependency order; `tsc --noEmit` stays mandatory.
+- [ ] **`[LOCAL]`** Consolidate UI libraries only when screenshot/interaction parity proves it safe.
+- [ ] **`[LOCAL]`** Remove Firebase client/admin packages, transition readers, legacy scripts, and hardcoded project configuration only after the 30-day recovery-retention window.
+- [ ] **`[DESTRUCTIVE]`** After 30 days, a successful restore drill, zero fallback usage, and separate approval, retire obsolete Firestore projects/fields—or retain them inert if deletion has no operational benefit.
+
+**Done when:** one path exists per operation; Firebase and custom caches are gone; no file exceeds roughly 400 lines; strict TypeScript and all tests pass.
+
+### Phase 7 — Operations, supported framework, security headers, SEO, and performance
+
+- [ ] **`[PROD-CONFIG]` / `[PROD-APP]`** Complete Sentry EU/PII-safe setup, source maps, release tags, handled Resend-error capture, uptime alerts, owner escalation, and `docs/OPERATIONS.md`.
+- [ ] **`[LOCAL]`** Add one dependency-update system (Dependabot or Renovate), recurring audit gates, and an explicit patch cadence.
+- [ ] **`[LOCAL]` / `[TEST]` / `[PROD-APP]`** Upgrade to the current supported Next 16.x/React line using official codemods and compatibility tests; replace `next lint` with ESLint CLI/flat config.
+- [ ] **`[LOCAL]` / `[PROD-APP]`** Roll out CSP in Report-Only first; handle inline scripts and Vercel/Sentry/Supabase/map origins; then enforce with `frame-ancestors`, `nosniff`, Referrer-Policy, and Permissions-Policy. HSTS already exists.
+- [ ] **`[LOCAL]` / `[PROD-APP]`** Remove the observed wildcard CORS response from business/API routes; allow only required same-origin or explicit origins and add negative preflight tests.
+- [ ] **`[LOCAL]`** Fix sitemap field names/stable modification dates, remove noindexed policy from sitemap or change the indexing decision, and add route-specific canonicals.
+- [ ] **`[PROD-CONFIG]` / `[PROD-APP]`** Resolve Via Emilia 58/60 and placeholder contact data with the owner; centralize verified NAP across site, privacy policy, schema, Google Business Profile, Instagram, and directories.
+- [ ] **`[PROD-APP]`** Render real visible FAQ content before retaining FAQ schema. Do not promise Google FAQ rich results for a salon.
+- [ ] **`[PROD-APP]`** Add useful service-category pages only when each has unique, owner-approved content; make the checklist and done criterion agree.
+- [ ] **`[LOCAL]` / `[PROD-APP]`** Measure first: split the gallery modal, audit images, fix hero LCP priority/alt text, remove unused fonts, and set evidence-based bundle/Lighthouse budgets with repeated runs.
+- [ ] **`[PROD-CONFIG]`** Keep key facts server-rendered; allow actual search crawlers such as OAI-SearchBot as desired; treat GPTBot/training separately. `llms.txt` is optional, not a ranking requirement; Google says normal SEO powers its AI features.
+- [ ] **`[PROD-CONFIG]`** Choose a booking-funnel metric available on the actual Vercel plan. Hobby does not include custom events; use a PII-free server aggregate or approve Pro.
+- [ ] **`[PROD-CONFIG]`** Verify Search Console, sitemap, Rich Results/schema validators, Google/Apple business listings, and Speed Insights. Use Speed Insights when low traffic yields insufficient CrUX data.
+
+**Done when:** supported dependencies are in production, alerts have been test-fired, security headers are enforced, measured performance budgets pass, and business facts are consistent.
+
+### Phase 8 — Owner-led dashboard redesign
+
+- [ ] **`[LOCAL]`** Interview the owner before design: daily workflow, devices, pain points, cancellation/reschedule behavior, preferred calendar/list views, and recovery needs.
+- [ ] **`[LOCAL]` / `[TEST]`** Design and test mobile-first appointments, day/week views, filters, blocks, vacations, newsletter, export, and notes.
+- [ ] **`[LOCAL]` / `[TEST]`** Add explicit loading/empty/error/offline/session-expiry states, conflict feedback, keyboard/a11y behavior, confirmation for destructive actions, and visible email retry state.
+- [ ] **`[TEST]`** Acceptance test create/edit/reschedule/cancel/block/vacation/export on phone and desktop with bounded query counts.
+- [ ] **`[PROD-APP]`** Deploy only after owner preview approval and preserve a rollback build.
+- [ ] **`[PROD-READ]`** Compare live error rate, booking completion, owner workflow, and database query load after rollout.
+
+**Done when:** the owner confirms the dashboard is faster and clearer in real use, the acceptance checklist passes, and reads remain bounded.
+
+### Phase 9 — Optional future work
+
+- SMS/WhatsApp reminders.
+- Owner-editable services/prices after audit/versioning rules are defined.
+- Booking modification links with secure single-use tokens.
+- English/i18n if clientele warrants it.
+- More detailed business reporting.
+
+---
+
+## 5. Load-bearing sequence
+
+```text
+0 emergency containment
+→ 1 isolation + CI + backup/restore + Supabase approval
+→ 2 tested relational schema and booking kernel
+→ 3 complete server/auth/email vertical slice in staging
+→ 4 full Supabase application cutover in staging + frozen source/lockfile
+→ 5 frozen, reconciled Firestore→Supabase cutover
+→ 6 delete legacy code, then TypeScript-convert survivors
+→ 7 operations/framework/security/SEO/performance
+→ 8 owner-led dashboard redesign
+```
+
+The central rule is:
+
+> **Never canonicalize production Firestore and then migrate it to Supabase. Choose the target first, prove it locally and against a restored snapshot, and perform one production-data transition.**
+
+### Realistic duration
+
+The original 4–5 week “part-time” estimate was too optimistic. The implementation is approximately **25–40 focused development days**, plus the DMARC observation window, production cutover scheduling, the 30-day recovery-retention window, and owner testing. A realistic part-time calendar is roughly **8–12 weeks before dashboard redesign**, depending on review speed and migration anomalies.
+
+---
+
+## 6. Success metrics
+
+- **Production safety:** local/normal-CI/Preview cannot reach production; every production action has a label, target, approval, backup/recovery evidence, and worklog entry.
+- **Security:** public raw-PII/mail routes gone; browser business-table access denied; owner authorization is explicit; public operations are validated and abuse-limited.
+- **Reliability:** database-enforced active-interval overlap; parallel same-slot test yields exactly one booking; idempotent retries never duplicate; email failures persist and alert.
+- **Migration integrity:** every Firestore source ID is imported or explicitly quarantined; future bookings, blocks, vacations, subscribers, statuses, and date/time conversions reconcile; Firestore remains read-only for 30 days.
+- **Privacy:** concrete retention/anonymization matrix, consent/unsubscribe evidence, processor inventory, data-subject workflow, no PII logs, and PII-safe monitoring.
+- **Cost:** non-booking public routes perform zero database calls; availability responses contain slots only; dashboard queries are bounded; Supabase/Vercel budgets and alerts are documented.
+- **Maintainability:** one canonical operation path, one typed booking core, strict TypeScript for surviving code, no custom cache infrastructure, small modules, reproducible local database.
+- **Quality gates:** mandatory CI, exhaustive slot/DST/migration/rules/auth/email tests, preview and production smoke tests, screenshot/accessibility regression checks.
+- **Operations:** restore drill succeeds; RPO/RTO and failure recovery are documented; alerts reach the owner/operator; supported dependency line stays current.
+- **Business:** booking completion is measurable without PII, service information is accurate, and the owner validates the final dashboard workflow.
+
+---
+
+## 7. Rules of engagement
+
+1. Read `docs/PRODUCTION-SAFETY.md` before any database, auth, deployment, DNS, email-provider, or environment work.
+2. Every plan, commentary update, PR, and worklog entry names labels, target environment/project, and data impact.
+3. Public UI remains pixel-frozen unless an explicitly approved public content/SEO item says otherwise; additive pages still require visual review.
+4. No production database mutation occurs from local development, CI, Preview, a browser client, or an ad-hoc dashboard query.
+5. Backups precede migrations; restore proof precedes production writes; additive and destructive changes are separate approvals.
+6. Stale clients fail visibly and safely. Compatibility spans at least two production releases before cleanup.
+7. Every database query is bounded or aggregate. Every production change states expected reads/writes/rows and verifies the actual result.
+8. If evidence invalidates the foundation, redesign it. Do not preserve architecture merely because work has already started.

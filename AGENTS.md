@@ -13,25 +13,26 @@ This is a real business, not a demo: bugs lose bookings, and Firestore reads cos
 **At session start:**
 1. Read this file, then the newest entry in `docs/WORKLOG.md` — its "Next" line is usually your task.
 2. Check `docs/MASTERPLAN.md` for the current phase (first phase with unchecked boxes).
-3. `git checkout refactor && git pull` — **all work happens on the `refactor` branch.** Never commit to `main`; merging to `main` happens only via PR reviewed by Victor. *Sole exception:* urgent production fixes explicitly marked as hotfixes in the masterplan (e.g. the Phase 0 email hotfix) go on a `hotfix/<name>` branch cut from `main` and PR straight to `main`; afterwards merge `main` back into `refactor`.
+3. Run `git status --short --branch` first. If the tree is dirty, preserve the user's work and do not checkout/pull over it. If clean, `git checkout refactor && git pull`. Never commit directly to `main`; reviewed hotfix PRs and phase PRs are the only path to production.
+4. Declare the task's blast-radius label, environment/target, and data impact using `docs/PRODUCTION-SAFETY.md` before running DB/auth/deploy/provider commands.
 
 **At session end (do not skip, even if the task is unfinished):**
-1. Verify: `npm run build` passes; the affected flow works (see checklist at the bottom).
+1. Run the applicable verification checklist. App/runtime changes require a passing build; documentation-only work may record a pre-existing unchanged build failure. Before isolation, do not open the app merely to satisfy manual-flow verification.
 2. Tick completed `- [ ]` items in `docs/MASTERPLAN.md` (`- [x]`) — this is the at-a-glance progress tracker. Tick only what is actually done and verified; partial work stays unchecked and goes in the worklog instead.
-3. Append an entry to `docs/WORKLOG.md` (template at the top of that file). The "Next" line must let a cold session start without archaeology.
-4. Commit with a clear message (prefix with the phase, e.g. `phase-1: move booking writes server-side`) and **push to `origin/refactor`**.
+3. Insert the newest entry below the divider in `docs/WORKLOG.md` (template at the top). The "Next" line must let a cold session start without archaeology.
+4. Commit with a clear phase-prefixed message. Push only coherent work. Until environment isolation is complete, DB-aware work must not create a Preview deployment that can reach production; documentation-only pushes are safe.
 
 Small, coherent commits over one mega-commit — Victor reviews the branch diff before merging. If you discover something out of scope, note it in the worklog's Gotchas rather than fixing it opportunistically.
 
 ## ⚠️ Read the masterplan first
 
-**`docs/MASTERPLAN.md` governs all refactor work.** It contains the audited problem list, the target architecture, and 8 sequenced phases. Before making a change, find which phase it belongs to and follow that phase's checklist. Don't freelance improvements that skip the sequence (e.g. don't start renaming files before the security phase is done).
+**`docs/MASTERPLAN.md` governs all refactor work.** It contains the audited problem list, target architecture, production labels, nine sequenced implementation phases, and optional future work. Before making a change, find which phase it belongs to and follow that phase's checklist. Don't freelance improvements that skip the sequence.
 
 ## Stack
 
-- Next.js 14 (App Router), **JavaScript** today. From masterplan Phase 1 onward, *new* files are TypeScript (a minimal strict `tsconfig` lands at the start of Phase 1); *converting existing* `.js`/`.jsx` files is Phase 2 — don't convert ahead of that phase.
+- Next.js 14 (App Router), **JavaScript** today. The masterplan patches it immediately and later targets the current supported Next 16.x line. New core/server files are strict TypeScript after the Phase 1 compatibility gate; legacy code is deleted/consolidated before surviving files are converted.
 - Tailwind 3 + shadcn/ui (`components/ui/`)
-- Firebase: Auth + Firestore, **client SDK** (server-side data layer is planned, Phase 1)
+- Firebase Auth + Firestore client SDK today. The planned target is Supabase Postgres/Auth via one rehearsed migration, conditional on cost approval and staging proof; Firestore remains authoritative until the controlled cutover.
 - Resend for email (`/api/send`, `/api/cancel`), deployed on Vercel (project `gioia-beauty`)
 
 ## Commands
@@ -42,16 +43,28 @@ npm run build    # production build — run before considering any change done
 npm run lint     # eslint (next lint)
 ```
 
-There are no tests yet — Vitest arrives with masterplan Phase 3 (slot-logic extraction), CI with Phase 5. Until then, verification = `npm run build` + manually exercising the affected flow. Once `npm test` exists, run it too.
+**Current safety warning:** `npm run dev` is not local-only yet. The Firebase config points at production and root hooks auto-fetch live data. Do not interact with a local/Preview app until Phase 1 isolation lands, unless the action is explicitly classified and approved as production work. Static inspection, lint, and builds that do not start/load the application are safe.
+
+There are no tests yet. Masterplan Phase 1 introduces Vitest, Playwright, local Supabase, and CI **before** database/auth implementation. Until environment isolation lands, do not manually exercise the local app because it reaches production. Static verification is lint/build; after the test foundation lands, run the full affected unit/integration/E2E set.
 
 ## Hard rules
 
-1. **Public UI is pixel-frozen.** Do not change the visual appearance of any public page. Only the admin dashboard may change visually, and only as part of masterplan Phase 7. Internal refactors must render identically.
-2. **Be stingy with Firestore reads/writes.** History: this project once had a runaway read-cost problem. Never add unbounded queries (every query gets a date range or limit), never add Firestore listeners on public pages, never "optimize" by prefetching extra days/collections, count with `getCountFromServer` — not by fetching docs. If your change alters how often or how much the app reads, say so explicitly.
+1. **Public UI is pixel-frozen.** Internal refactors must render identically. Owner-approved public SEO/content additions are isolated in Phase 7; the admin dashboard may change visually only in Phase 8.
+2. **Be stingy with database operations.** Never add unbounded queries/listeners/prefetches. Every query has a date range, cursor, aggregate, or hard limit. State expected reads/writes/rows per user action and verify them. During the transition, Firestore rules still apply; after cutover, equivalent bounded-query discipline applies to Postgres.
 3. **Keep logic out of components.** The UI will be redesigned soon. Business logic (slot math, date handling, validation) belongs in `lib/` as pure functions; components render state and call actions. A change to booking rules should never require touching JSX.
 4. **Boring, simple code.** Small files (≤ ~300 lines), one canonical path per operation, no clever abstractions, no new hand-rolled caches — ever. Prefer deleting code to adding it.
 5. **Don't commit secrets.** No API keys in source (there's history here too). Env vars only; update `.env.example` when adding one.
 6. **Plan first for anything non-trivial.** The owner of this repo prefers a written plan/iteration before code changes.
+
+## Production-change safety (mandatory)
+
+Read `docs/PRODUCTION-SAFETY.md` before any database, auth, migration, deployment, DNS, email-provider, environment-variable, backup, or restore work.
+
+- Classify every action as `[LOCAL]`, `[TEST]`, `[REMOTE-CONFIG]`, `[PROD-READ]`, `[PROD-APP]`, `[PROD-CONFIG]`, `[PROD-DATA]`, or `[DESTRUCTIVE]` based on what it can reach—not where it runs.
+- Do not execute `[REMOTE-CONFIG]` or any production-labelled action without Victor's explicit approval for that exact action after showing target, data impact, expected reads/writes/rows, verification, and rollback.
+- Production migrations require a current backup, proven restore, staging rehearsal, dry-run reconciliation, idempotent tooling, stop conditions, and a written recovery path.
+- Local/normal-CI/Preview must fail closed if they resolve production credentials or project IDs. Production credentials never belong in `.env.local`, Preview, source, scripts, or client bundles; the only exception is the dedicated manually approved, short-lived production-operator environment defined in the safety policy.
+- Migration scripts default to dry-run and refuse ambiguous/inferred production targets. No production schema edit is made ad hoc in a provider dashboard.
 
 ## Architecture map (current, warts included)
 
@@ -69,9 +82,11 @@ data/           12 xxxData.js files = the services/price catalog
 scripts/        one-off newsletter migration scripts (not part of the app)
 ```
 
+Target architecture and relational tables are defined in `docs/MASTERPLAN.md` and `docs/DATA-MODEL.md`. Do not implement a canonical Firestore model first; the plan performs one Firestore → Supabase transition.
+
 ## Known landmines (verified, don't rediscover them the hard way)
 
-- **`selectedDate` exists in 4 formats in the DB** (date string, ISO string, Date, Firestore Timestamp). Runtime normalization branches handle this in several places. Don't add a fifth format; new writes follow the canonical model. **Exact formats with examples + transition rules: `docs/DATA-MODEL.md`** — read it before touching appointment data.
+- **`selectedDate` has 3 formats at rest** (date string, ISO string, Firestore Timestamp) plus JavaScript `Date` in memory/cache. Runtime normalization branches handle this in several places. **Exact formats and ETL rules: `docs/DATA-MODEL.md`** — read it before touching appointment data.
 - **Three booking-submission implementations exist**: `hooks/useBookingForm.js` (`submitBooking` — believed dead), `components/booking/BookAppointment.jsx` (the real public path), `components/dashboard/Dashy.jsx` (admin path). Each has its own `calculateEndTime` copy. If you touch booking, check all three.
 - **The "transaction" in `dataManager.createAppointmentSafe` does not prevent double-booking** — its conflict check queries outside the transaction's read set. Don't trust it; don't replicate the pattern.
 - **Zod schemas are duplicated**: the canonical ones live in `lib/utils/validationSchemas.js`; `useBookingForm.js` has a divergent inline copy (no email trim/lowercase). This many-validators-none-authoritative pattern let real production email failures through — always prefer the canonical schemas.
@@ -90,8 +105,9 @@ scripts/        one-off newsletter migration scripts (not part of the app)
 
 ## Verification checklist before "done"
 
-1. `npm run build` passes.
-2. The public booking flow still works end-to-end (pick service → date → slot → submit) and the site looks unchanged.
-3. No new unbounded Firestore queries or listeners; state how many reads/writes your change adds per user action.
+1. `npm run build` passes for application/runtime changes. For documentation-only work, record any pre-existing unchanged failure explicitly.
+2. After isolation, the affected public booking flow works end-to-end in the named Local/Test environment and the site looks unchanged. Before isolation, use static/build verification only unless a Production action was explicitly approved.
+3. No new unbounded database queries/listeners; state expected and observed reads/writes/rows per user action.
 4. No console.log with personal data (names, emails, phone numbers).
 5. If you touched anything in the masterplan's scope, tick the corresponding checklist item in `docs/MASTERPLAN.md`.
+6. State blast-radius labels, target environment/project, data impact, production actions (`none` if none), and rollback/next safe action in `docs/WORKLOG.md`.
