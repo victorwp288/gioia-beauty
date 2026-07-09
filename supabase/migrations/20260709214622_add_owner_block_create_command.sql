@@ -7,8 +7,7 @@ grant usage, select on sequence
   gioia_private.domain_change_log_sequence_id_seq
 to gioia_mutator;
 
-grant gioia_mutator to current_user
-  with admin false, inherit false, set true;
+grant gioia_mutator to postgres;
 grant create on schema gioia_private to gioia_mutator;
 
 set local role gioia_mutator;
@@ -122,7 +121,7 @@ $$;
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from current_user;
+revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.owner_create_block(
   uuid, text, bytea, date, smallint, smallint, smallint, text

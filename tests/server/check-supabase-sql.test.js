@@ -60,6 +60,21 @@ describe("Supabase SQL static validation", () => {
     ).toBe(true);
   });
 
+  it("rejects the Supabase-incompatible current-user role grant", () => {
+    const unsafe = [
+      "begin;",
+      "grant gioia_mutator to current_user",
+      "  with admin false, inherit false, set true;",
+      "commit;",
+    ].join("\n");
+
+    expect(
+      validateMigrationSql("20260709220004_unsafe_role_grant.sql", unsafe).some(
+        (error) => error.includes("explicit postgres principal"),
+      ),
+    ).toBe(true);
+  });
+
   it("requires bounded, planned pgTAP files", () => {
     expect(
       validateDatabaseTestSql(

@@ -63,6 +63,15 @@ export function validateMigrationSql(filename, sql) {
       "business data privileges must not be granted to Data API roles",
     );
   }
+  if (
+    /(?:grant\s+gioia_(?:mutator|migrator)\s+to|revoke\s+gioia_(?:mutator|migrator)\s+from)\s+current_user\b/i.test(
+      sql,
+    )
+  ) {
+    errors.push(
+      "migration role switching must target the explicit postgres principal",
+    );
+  }
 
   for (const block of securityDefinerBlocks(sql)) {
     if (!/set\s+search_path\s*=\s*''/i.test(block)) {

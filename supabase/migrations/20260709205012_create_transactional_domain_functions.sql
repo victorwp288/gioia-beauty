@@ -3,8 +3,7 @@ begin;
 set local lock_timeout = '5s';
 set local statement_timeout = '30s';
 
-grant gioia_mutator to current_user
-  with admin false, inherit false, set true;
+grant gioia_mutator to postgres;
 grant create on schema gioia_private to gioia_mutator;
 
 set local role gioia_mutator;
@@ -135,7 +134,7 @@ comment on function gioia_private.assert_vacation_span_clear(date, date) is
 reset role;
 
 revoke create on schema gioia_private from gioia_mutator;
-revoke gioia_mutator from current_user;
+revoke gioia_mutator from postgres;
 
 revoke all on function gioia_private.assert_enabled_owner(uuid)
   from public, anon, authenticated, service_role, app_runtime, gioia_migrator;

@@ -10,6 +10,14 @@ create extension if not exists pgcrypto with schema extensions;
 
 do $$
 begin
+  if current_user <> 'postgres' then
+    raise exception 'Migrations must run as the constrained postgres principal';
+  end if;
+end
+$$;
+
+do $$
+begin
   if not exists (select 1 from pg_roles where rolname = 'app_runtime') then
     create role app_runtime
       nologin
@@ -104,10 +112,8 @@ grant usage on schema gioia_private to app_runtime;
 grant usage on schema gioia_private to gioia_mutator;
 grant usage on schema gioia_private to gioia_migrator;
 
-grant gioia_mutator to current_user
-  with admin false, inherit false, set true;
-grant gioia_migrator to current_user
-  with admin false, inherit false, set true;
+grant gioia_mutator to postgres;
+grant gioia_migrator to postgres;
 
 alter default privileges for role postgres in schema gioia_private
   revoke all on tables from public, anon, authenticated, service_role;
@@ -136,8 +142,8 @@ alter default privileges for role gioia_migrator
 alter default privileges for role gioia_migrator in schema gioia_private
   revoke execute on functions from public, anon, authenticated, service_role;
 
-revoke gioia_mutator from current_user;
-revoke gioia_migrator from current_user;
+revoke gioia_mutator from postgres;
+revoke gioia_migrator from postgres;
 
 revoke create on schema public from public;
 
