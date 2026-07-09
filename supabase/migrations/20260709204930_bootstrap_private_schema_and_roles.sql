@@ -66,9 +66,27 @@ alter role app_runtime nologin nocreatedb nocreaterole noinherit;
 alter role gioia_mutator nologin nocreatedb nocreaterole noinherit;
 alter role gioia_migrator nologin nocreatedb nocreaterole noinherit;
 
-revoke gioia_mutator from app_runtime, gioia_migrator, anon, authenticated, service_role;
-revoke gioia_migrator from app_runtime, gioia_mutator, anon, authenticated, service_role;
-revoke app_runtime from gioia_mutator, gioia_migrator, anon, authenticated, service_role;
+do $$
+begin
+  if exists (
+    select 1
+    from pg_catalog.pg_auth_members as membership
+    join pg_catalog.pg_roles as granted_role
+      on granted_role.oid = membership.roleid
+    join pg_catalog.pg_roles as member_role
+      on member_role.oid = membership.member
+    where granted_role.rolname in (
+      'app_runtime', 'gioia_mutator', 'gioia_migrator'
+    )
+      and member_role.rolname in (
+        'app_runtime', 'gioia_mutator', 'gioia_migrator',
+        'anon', 'authenticated', 'service_role'
+      )
+  ) then
+    raise exception 'Application and API roles must not have cross-membership';
+  end if;
+end
+$$;
 
 alter role app_runtime set statement_timeout = '10s';
 alter role app_runtime set lock_timeout = '3s';
