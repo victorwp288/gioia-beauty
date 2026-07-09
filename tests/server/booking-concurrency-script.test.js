@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { assertConcurrencyResults } from "../../scripts/test-booking-concurrency.mjs";
+import {
+  assertConcurrencyResults,
+  bookingQuery,
+  parseRaceTarget,
+  raceTargetQuery,
+} from "../../scripts/test-booking-concurrency.mjs";
 
 function successfulReconciliation(overrides = {}) {
   return {
@@ -14,6 +19,24 @@ function successfulReconciliation(overrides = {}) {
 }
 
 describe("booking concurrency reconciliation", () => {
+  it("builds a bounded race through the restricted runtime role", () => {
+    const target = {
+      local_date: "2035-08-13",
+      service_id: "manicure",
+      variant_id: "manicure-30-min",
+    };
+
+    expect(raceTargetQuery).toContain("generate_series(1, 14)");
+    expect(raceTargetQuery).toContain("extract(");
+    expect(raceTargetQuery).not.toContain("pg_catalog.extract");
+    expect(bookingQuery(1, parseRaceTarget(target))).toContain(
+      "set role app_runtime;",
+    );
+    expect(() =>
+      parseRaceTarget({ ...target, service_id: "unsafe'; select" }),
+    ).toThrow("invalid identifiers");
+  });
+
   it("accepts exactly one winner and nineteen persisted conflicts", () => {
     const results = [
       { http_status: 201, code: "BOOKING_CREATED", replayed: false },

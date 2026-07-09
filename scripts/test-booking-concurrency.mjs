@@ -5,22 +5,33 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const REQUEST_COUNT = 20;
+const CATALOG_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const supabaseBinary = path.join(
   process.cwd(),
   "node_modules",
   ".bin",
   "supabase",
 );
+const databaseCommandOptions = {
+  env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "1" },
+  maxBuffer: 1024 * 1024,
+  timeout: 30_000,
+};
+
+async function executeLocalDatabase(query) {
+  await execFileAsync(
+    supabaseBinary,
+    ["db", "query", "--local", query],
+    databaseCommandOptions,
+  );
+}
 
 async function queryLocalDatabase(query) {
   const { stdout } = await execFileAsync(
     supabaseBinary,
     ["db", "query", "--local", "--output", "json", query],
-    {
-      env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "1" },
-      maxBuffer: 1024 * 1024,
-      timeout: 30_000,
-    },
+    databaseCommandOptions,
   );
   const parsed = JSON.parse(stdout);
   if (!Array.isArray(parsed))
@@ -28,43 +39,68 @@ async function queryLocalDatabase(query) {
   return parsed;
 }
 
-function bookingQuery(requestNumber) {
-  const idempotencyKey = `concurrency-race-${String(requestNumber).padStart(2, "0")}`;
-  return `
-    with target_date as (
-      select (gioia_private.rome_today() + candidate.days)::date as local_date
-      from pg_catalog.generate_series(1, 14) as candidate(days)
-      where exists (
-        select 1 from gioia_private.business_hours as hours
-        where hours.weekday = pg_catalog.extract(
-          isodow from gioia_private.rome_today() + candidate.days
-        )::smallint
-      )
-      order by candidate.days
-      limit 1
-    ), target_variant as (
-      select service.id as service_id, variant.id as variant_id
-      from gioia_private.service_variants as variant
-      join gioia_private.services as service on service.id = variant.service_id
-      join gioia_private.service_categories as category
-        on category.id = service.category_id
-      where variant.active and service.active and category.active
-      order by variant.duration_minutes + variant.buffer_minutes,
-        service.id, variant.id
-      limit 1
+export const raceTargetQuery = `
+  with target_date as (
+    select (gioia_private.rome_today() + candidate.days)::date as local_date
+    from pg_catalog.generate_series(1, 14) as candidate(days)
+    where exists (
+      select 1 from gioia_private.business_hours as hours
+      where hours.weekday = extract(
+        isodow from gioia_private.rome_today() + candidate.days
+      )::smallint
     )
+    order by candidate.days
+    limit 1
+  ), target_variant as (
+    select service.id as service_id, variant.id as variant_id
+    from gioia_private.service_variants as variant
+    join gioia_private.services as service on service.id = variant.service_id
+    join gioia_private.service_categories as category
+      on category.id = service.category_id
+    where variant.active and service.active and category.active
+    order by variant.duration_minutes + variant.buffer_minutes,
+      service.id, variant.id
+    limit 1
+  )
+  select target_date.local_date, target_variant.service_id,
+    target_variant.variant_id
+  from target_date
+  cross join target_variant
+`;
+
+export function parseRaceTarget(row) {
+  const localDate = String(row?.local_date ?? "");
+  const serviceId = String(row?.service_id ?? "");
+  const variantId = String(row?.variant_id ?? "");
+  if (
+    !LOCAL_DATE.test(localDate) ||
+    !CATALOG_ID.test(serviceId) ||
+    !CATALOG_ID.test(variantId)
+  ) {
+    throw new Error("Concurrency target query returned invalid identifiers");
+  }
+  return { localDate, serviceId, variantId };
+}
+
+export function bookingQuery(requestNumber, target) {
+  const idempotencyKey = `concurrency-race-${String(requestNumber).padStart(2, "0")}`;
+  const { localDate, serviceId, variantId } = parseRaceTarget({
+    local_date: target.localDate,
+    service_id: target.serviceId,
+    variant_id: target.variantId,
+  });
+  return `
+    set role app_runtime;
     select booking.http_status, booking.result ->> 'code' as code,
       booking.replayed
-    from target_date
-    cross join target_variant
-    cross join lateral gioia_private.create_public_booking(
-      extensions.digest('synthetic-concurrency-principal', 'sha256'),
+    from gioia_private.create_public_booking(
+      decode(repeat('11', 32), 'hex'),
       '${idempotencyKey}',
-      extensions.digest('synthetic-concurrency-body', 'sha256'),
-      target_date.local_date,
+      decode(repeat('21', 32), 'hex'),
+      '${localDate}'::date,
       600::smallint,
-      target_variant.service_id,
-      target_variant.variant_id,
+      '${serviceId}',
+      '${variantId}',
       'Synthetic Concurrency',
       'concurrency@example.test',
       '+390000000000',
@@ -123,11 +159,21 @@ export function assertConcurrencyResults(results, reconciliation) {
 }
 
 async function main() {
-  const responses = await Promise.all(
-    Array.from({ length: REQUEST_COUNT }, (_, index) =>
-      queryLocalDatabase(bookingQuery(index + 1)),
-    ),
-  );
+  const [targetRow] = await queryLocalDatabase(raceTargetQuery);
+  if (!targetRow) throw new Error("Concurrency target query returned no row");
+  const target = parseRaceTarget(targetRow);
+
+  await executeLocalDatabase("grant app_runtime to postgres");
+  let responses;
+  try {
+    responses = await Promise.all(
+      Array.from({ length: REQUEST_COUNT }, (_, index) =>
+        queryLocalDatabase(bookingQuery(index + 1, target)),
+      ),
+    );
+  } finally {
+    await executeLocalDatabase("revoke app_runtime from postgres");
+  }
   const results = responses.flat();
   const [reconciliation] = await queryLocalDatabase(`
     select
