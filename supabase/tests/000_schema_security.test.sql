@@ -2,7 +2,7 @@ begin;
 
 set local search_path = extensions, public, pg_catalog;
 
-select plan(15);
+select plan(16);
 
 select has_schema('gioia_private', 'private application schema exists');
 
@@ -61,6 +61,12 @@ select ok(
     and not has_schema_privilege('authenticated', 'gioia_private', 'USAGE')
     and not has_schema_privilege('service_role', 'gioia_private', 'USAGE'),
   'only internal application roles can resolve the private schema'
+);
+
+select ok(
+  has_schema_privilege('gioia_mutator', 'extensions', 'USAGE')
+    and has_schema_privilege('gioia_migrator', 'extensions', 'USAGE'),
+  'internal build roles can resolve reviewed extension types and functions'
 );
 
 select ok(

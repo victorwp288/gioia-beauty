@@ -73,6 +73,9 @@ alter role app_runtime nologin nocreatedb nocreaterole noinherit;
 alter role gioia_mutator nologin nocreatedb nocreaterole noinherit;
 alter role gioia_migrator nologin nocreatedb nocreaterole noinherit;
 
+grant usage on schema extensions to gioia_mutator;
+grant usage on schema extensions to gioia_migrator;
+
 do $$
 begin
   if exists (
