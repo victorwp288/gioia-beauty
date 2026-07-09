@@ -36,7 +36,6 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_date date;
   v_distinct_count integer;
 begin
   if p_dates is null or cardinality(p_dates) = 0 then
@@ -60,15 +59,11 @@ begin
   order by requested.local_date
   on conflict (local_date) do nothing;
 
-  for v_date in
-    select lock.local_date
-    from gioia_private.schedule_day_locks as lock
-    where lock.local_date = any (p_dates)
-    order by lock.local_date
-    for update
-  loop
-    null;
-  end loop;
+  perform lock.local_date
+  from gioia_private.schedule_day_locks as lock
+  where lock.local_date = any (p_dates)
+  order by lock.local_date
+  for update;
 end;
 $$;
 

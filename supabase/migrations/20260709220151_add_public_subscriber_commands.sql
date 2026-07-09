@@ -138,11 +138,10 @@ declare
   v_command_id uuid;
   v_replayed boolean;
   v_status smallint;
-  v_stored jsonb;
   v_subscriber gioia_private.newsletter_subscribers%rowtype;
 begin
-  select command_request_id, command.replayed, stored_http_status, stored_response
-  into strict v_command_id, v_replayed, v_status, v_stored
+  select command_request_id, command.replayed, stored_http_status
+  into strict v_command_id, v_replayed, v_status
   from gioia_private.begin_command(
     'public_newsletter_confirm', p_principal_scope_hash,
     p_idempotency_key, p_request_fingerprint
@@ -192,11 +191,10 @@ declare
   v_command_id uuid;
   v_replayed boolean;
   v_status smallint;
-  v_stored jsonb;
   v_subscriber gioia_private.newsletter_subscribers%rowtype;
 begin
-  select command_request_id, command.replayed, stored_http_status, stored_response
-  into strict v_command_id, v_replayed, v_status, v_stored
+  select command_request_id, command.replayed, stored_http_status
+  into strict v_command_id, v_replayed, v_status
   from gioia_private.begin_command(
     'public_newsletter_unsubscribe', p_principal_scope_hash,
     p_idempotency_key, p_request_fingerprint
