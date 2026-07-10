@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added session-bound owner schedule command repository
+**Phase:** Phase 3 server vertical-slice foundation; Phase 2 remote TEST checkpoint remains pending
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; no database, Auth, fixture, schema, or provider call
+**Target:** local `refactor`; no remote or Production target
+**Expected reads/writes/rows:** verification performed 0 DB reads/writes; at runtime each method makes 1 owner transaction + 1 private function query bounded to 2 rows, while domain writes remain those of the existing reviewed command
+**Done:** Commit `061e24e` adds normalized, session-bound repositories for appointment/block create, schedule soft-cancel, and vacation create/cancel. Each uses exact SQL parameter contracts, copied 32-byte fingerprints, PostgreSQL integer bounds, operation-specific result/error validation, and no direct table access.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6/build and 475 tests pass; two independent repository contract/security re-audits report no blockers. Exact prior head `19b3da3` passed all six CI jobs in run `29071345565`; replacement CI for this head is pending.
+**Production actions performed:** none; no Firebase, Supabase, Vercel, DNS, Resend, `main`, or Production data/config access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `061e24e`; schema and remote TEST remain unchanged
+**Next:** Keep the 37-migration checkpoint stable: inject the authorized TEST operator DSN + publishable key and run the two-cycle checkpoint before migration 38. While credentials are unavailable, implement the reusable fresh-bound owner request guard and strict admin command handlers/routes against these repositories.
+**Gotchas:** Owner list/count/vacation-read functions require migration 38 and must wait until current TEST acceptance is captured. Middleware refreshes cookies but is not authorization; every future `/api/admin/**` route must enforce fresh Auth/binding/CSRF itself.
+
 ## 2026-07-10 — Added atomic two-cycle greenfield TEST acceptance operator
 **Phase:** Phase 2 TEST acceptance tooling; remote execution remains pending
 **Labels/environment:** [LOCAL] implementation/verification; [TEST] bounded read-only migration metadata inspection
