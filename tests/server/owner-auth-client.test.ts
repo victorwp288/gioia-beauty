@@ -62,16 +62,22 @@ describe("request-scoped owner auth client", () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const timeoutController = new AbortController();
+    const timeoutSpy = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockReturnValue(timeoutController.signal);
     const controller = new AbortController();
     await boundedOwnerAuthFetch("https://synthetic-project.supabase.co/auth", {
       signal: controller.signal,
     });
     const appliedSignal = fetchSpy.mock.calls[0]?.[1]?.signal;
     expect(OWNER_AUTH_REQUEST_TIMEOUT_MS).toBe(10_000);
+    expect(timeoutSpy).toHaveBeenCalledWith(OWNER_AUTH_REQUEST_TIMEOUT_MS);
     expect(appliedSignal).toBeInstanceOf(AbortSignal);
     expect(appliedSignal?.aborted).toBe(false);
     controller.abort();
     expect(appliedSignal?.aborted).toBe(true);
+    timeoutSpy.mockRestore();
     fetchSpy.mockRestore();
   });
 
