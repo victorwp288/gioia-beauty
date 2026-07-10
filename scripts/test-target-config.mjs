@@ -1,6 +1,11 @@
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import {
+  PROTECTED_OPERATOR_ENV_KEYS,
+  isProtectedOperatorEnvironmentKey,
+} from "../config/operatorEnvironmentPolicy.mjs";
+
 export const TEST_TARGET_REF = "lxvsspniipcotimbsfqm";
 export const TEST_TARGET_API_URL = `https://${TEST_TARGET_REF}.supabase.co`;
 export const TEST_TARGET_REGION = "eu-central-2";
@@ -16,33 +21,20 @@ const ALLOWED_SUPABASE_ENV_KEYS = new Set([
   "NEXT_PUBLIC_SUPABASE_URL",
   "SUPABASE_PROJECT_REF",
 ]);
+const ALLOWED_OPERATOR_ENV_KEYS = new Set([
+  ...ALLOWED_SUPABASE_ENV_KEYS,
+  "GIOIA_TEST_OPERATOR_DATABASE_URL",
+]);
 const FORBIDDEN_EXACT_ENV_KEYS = new Set([
-  "DATABASE_URL",
+  ...PROTECTED_OPERATOR_ENV_KEYS.filter(
+    (key) => !ALLOWED_OPERATOR_ENV_KEYS.has(key),
+  ),
   "EMAIL_TRANSPORT",
-  "GCLOUD_PROJECT",
   "GIOIA_PRODUCTION_APPROVAL_ID",
-  "GIOIA_TEST_OWNER_PASSWORD",
-  "GOOGLE_APPLICATION_CREDENTIALS",
-  "GOOGLE_CLOUD_PROJECT",
   "MIGRATION_BACKUP_EVIDENCE_ID",
   "MIGRATION_RESTORE_EVIDENCE_ID",
   "MIGRATION_WRITE_FREEZE_ID",
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-  "NEXT_PUBLIC_SUPABASE_SECRET_KEY",
-  "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY",
-  "POSTGRES_URL",
-  "POSTGRES_URL_NON_POOLING",
-  "POSTGRES_PRISMA_URL",
-  "SUPABASE_ACCESS_TOKEN",
-  "SUPABASE_ANON_KEY",
-  "SUPABASE_DATABASE_URL",
-  "SUPABASE_DB_PASSWORD",
-  "SUPABASE_PUBLISHABLE_KEY",
-  "SUPABASE_SECRET_KEY",
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "SUPABASE_URL",
   "VERCEL_ENV",
-  "VERCEL_TOKEN",
 ]);
 
 export class TestTargetConfigError extends Error {
@@ -79,6 +71,9 @@ function forbiddenEnvironmentReason(key) {
     !ALLOWED_SUPABASE_ENV_KEYS.has(key)
   ) {
     return "is an unexpected Supabase setting";
+  }
+  if (isProtectedOperatorEnvironmentKey(key, ALLOWED_OPERATOR_ENV_KEYS)) {
+    return "is a protected provider or database setting";
   }
   return null;
 }

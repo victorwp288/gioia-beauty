@@ -94,6 +94,18 @@ Migration/import tools must:
 - emit redacted reports only; raw exports/before-images remain encrypted, access-controlled, and outside git;
 - never write during module import, build, test discovery, application startup, or deployment startup.
 
+`npm run migration:preflight` is the inert v2 plan compiler for the only
+currently registered ledger actions: `inventory`, `import`, and `reconcile`.
+It accepts only code-owned source/target/table allowlists and canonical
+per-effect bounds, then binds the full commit, manifests, stop conditions,
+recovery plan, counts, bounds, and evidence hashes into one SHA-256 confirmation.
+It deliberately rejects inherited database/provider variables and performs no evidence
+lookup, network call, or mutation. An evidence hash identifies a protected
+artifact; it does not prove that the backup, restore, freeze, rehearsal, or
+recovery claim is true. The protected operator must verify those artifacts and
+the live stop conditions separately. Production remains disabled while
+`PRODUCTION_SUPABASE_REF` is unregistered.
+
 ## Production-data migration gate
 
 No production import/migration starts until all are true:
