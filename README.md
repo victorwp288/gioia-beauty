@@ -67,3 +67,10 @@ Do not run `npm run dev` simply as a smoke test. Start the application only when
 - short `idea/*` branches: coherent implementation slices when parallel work benefits from isolation.
 
 Production deployment, data access, provider configuration, migration, DNS, and cutover are not implied by code approval. Their required preflight and rollback evidence live in `docs/PRODUCTION-SAFETY.md` and the phase checklists in `docs/MASTERPLAN.md`.
+
+Privacy retention, subject-request, restore-replay, and processor activation are
+separate launch gates in
+[docs/PRIVACY-OPERATIONS.md](./docs/PRIVACY-OPERATIONS.md) and
+[docs/PROCESSORS.md](./docs/PROCESSORS.md). Proposed periods in those drafts are explicitly
+unapproved until the named owner/legal/provider decisions and executable tests
+are complete.

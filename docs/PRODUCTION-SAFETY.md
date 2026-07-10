@@ -37,13 +37,13 @@ Classification follows reachable state, not the machine. A command run on a lapt
 
 ## Environment matrix
 
-| Environment | Database | Data | Email | Allowed work |
-|---|---|---|---|---|
-| Local | Local Docker Supabase | Synthetic seed only | Mailpit/fake | Freely writable/resettable |
-| CI | Ephemeral local Supabase | Deterministic fixtures | Fake adapter | Freely writable/resettable |
-| Preview/staging | One serialized separate Supabase project | Synthetic by default; explicitly anonymized snapshot only when approved | Test inbox/non-delivering domain | Locked/reset integration, E2E, and migration rehearsals |
-| Restricted recovery | Isolated, access-controlled temporary project | Approved PII-bearing restore only; destroy by deadline | Disabled | Backup/restore proof and anonymized derivative creation only |
-| Production | Supabase production after cutover; Firestore until then | Real customer/business data | Real Resend domain | Only separately approved production operations |
+| Environment         | Database                                                | Data                                                                    | Email                            | Allowed work                                                 |
+| ------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------ |
+| Local               | Local Docker Supabase                                   | Synthetic seed only                                                     | Mailpit/fake                     | Freely writable/resettable                                   |
+| CI                  | Ephemeral local Supabase                                | Deterministic fixtures                                                  | Fake adapter                     | Freely writable/resettable                                   |
+| Preview/staging     | One serialized separate Supabase project                | Synthetic by default; explicitly anonymized snapshot only when approved | Test inbox/non-delivering domain | Locked/reset integration, E2E, and migration rehearsals      |
+| Restricted recovery | Isolated, access-controlled temporary project           | Approved PII-bearing restore only; destroy by deadline                  | Disabled                         | Backup/restore proof and anonymized derivative creation only |
+| Production          | Supabase production after cutover; Firestore until then | Real customer/business data                                             | Real Resend domain               | Only separately approved production operations               |
 
 Required controls:
 
@@ -127,6 +127,12 @@ For the Firestore → Supabase cutover:
 Long-lived dual writes are avoided unless a separate design proves they are necessary. For this small database, a short write freeze is easier to reason about and test.
 
 ## Backups and recovery
+
+The field/store retention matrix, subject-request evidence contract, and
+mandatory erasure replay before a restored target can reopen live in
+[PRIVACY-OPERATIONS.md](./PRIVACY-OPERATIONS.md). Provider-side copies and
+activation/decommission evidence are tracked in [PROCESSORS.md](./PROCESSORS.md).
+Pending values in either file are launch blockers, not approved defaults.
 
 - Keep a source Firestore backup/export before every rehearsal and production cutover.
 - Configure Supabase Pro backups before cutover; before reopening customer writes, create an immediate encrypted post-import logical export/recovery point, restore it into an isolated target, and reconcile it.

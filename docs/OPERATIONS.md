@@ -2,6 +2,12 @@
 
 This runbook defines the intended operating posture for the replacement system. Values marked **launch gate** are requirements, not evidence that the current Free TEST project or live Firebase source already satisfies them. Exact production actions still require the preflight in `PRODUCTION-SAFETY.md`.
 
+Privacy-specific retention, subject access/erasure, and post-restore replay gates
+are in [PRIVACY-OPERATIONS.md](./PRIVACY-OPERATIONS.md); provider ownership,
+DPA, retention, and deletion evidence is tracked in
+[PROCESSORS.md](./PROCESSORS.md). Unapproved entries in those registers prevent
+cutover.
+
 ## Ownership and escalation
 
 | Responsibility                                              | Primary                          | Escalation trigger                                                                 |

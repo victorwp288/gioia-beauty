@@ -2,6 +2,12 @@
 
 This file records environment identities and safety boundaries only. It must never contain passwords, access tokens, database connection strings, service-role/secret keys, or customer data.
 
+The data lifecycle and provider gates for every environment are defined in
+[PRIVACY-OPERATIONS.md](./PRIVACY-OPERATIONS.md) and
+[PROCESSORS.md](./PROCESSORS.md). Any target containing raw or restorable
+customer data is Production-classified even when it is temporary or not serving
+traffic.
+
 ## Greenfield integration / staging
 
 ### Supabase — authorized rebuild target
