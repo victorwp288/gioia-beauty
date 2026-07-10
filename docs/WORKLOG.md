@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Bound dashboard Auth refresh to the validated client
+**Phase:** Phase 3 owner Auth reliability/security hardening; the broad Auth checklist item remains open pending TEST/E2E proof
+**Labels/environment:** [LOCAL] middleware implementation and static/unit/build verification only
+**Data impact:** none; no database, route, schema, migration, fixture, provider, environment, remote, or customer-data action
+**Target:** local `refactor`; matcher remains `/dashboard/:path*` in the Node runtime
+**Expected reads/writes/rows:** a configured dashboard request makes at most 1 Supabase Auth `getUser` call through a 10-second bounded fetch and may refresh bounded request/response cookies; malformed/unconfigured requests make 0 SDK calls; every path makes 0 business-table calls, rows, or writes
+**Done:** Commit `f42d9ef` removes middleware's duplicate unvalidated Supabase client, reuses the strict Auth-only factory, preserves all refreshed cookies/SDK headers, and reasserts private no-store headers after cookie refresh. No masterplan item was ticked.
+**Verified/reconciled:** focused Auth 17/17; full format/lint/TS7/TS6, 109 files/1,452 tests, architecture graph, and production build pass. Independent final review found no P1/P2. Prior cursor head passed all six CI jobs, Gitleaks/history/dependencies, and two clean local database cycles in run `29102146944`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `f42d9ef`; no external recovery is required
+**Next:** Push and green replacement CI, then harden the repository-only migration preflight: remove Production registry injection, bind exact action/commit/per-effect bounds/full hashes, and make invalid CLI output non-reflective while Production remains unregistered.
+**Gotchas:** Middleware refresh is not authorization; every owner route still performs its own fresh bound Auth check. One build attempt hit a transient missing `.next` trace artifact after page generation; the immediate sequential rerun passed fully.
+
 ## 2026-07-10 — Authenticated bounded pagination context without activating reads
 **Phase:** Phase 3 owner-read/server-boundary foundation; database adapter and authenticated read operations remain open
 **Labels/environment:** [LOCAL] implementation/tests plus one bounded read-only [TEST] Supabase metadata refresh
