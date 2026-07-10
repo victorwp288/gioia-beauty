@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Bound inert owner schedule list and count contracts
+**Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
+**Labels/environment:** [LOCAL] pure server contracts, synthetic tests, static analysis, documentation, and build only
+**Data impact:** none; no SQL/function, repository executor, Auth/DB/provider call, route, UI activation, migration, environment key, remote, or customer-data action
+**Target:** local `refactor`; Production Supabase remains unregistered/null and the protected TEST operator DSN is absent
+**Expected reads/writes/rows:** this slice executes 0 DB/Auth/provider/network reads or writes and 0 rows. A future list executor is fixed to at most `pageSize + 1` rows (maximum 101) over at most 32 inclusive dates; count requests at most 7 groups and accepts at most 6 unique nonzero kind/status groups. Physical scan bounds remain unclaimed until TEST `EXPLAIN` evidence.
+**Done:** Commit `828e4fb` adds capability-issued request plans, exact proxy/accessor-safe query and DTO decoding, authenticated cursor filter/page/time/position binding, strict keyset ordering/lookahead, derived reconciled PII-free counts, block and appointment coverage, year-zero rejection, and production-graph/route-extension inertness guards. Live-page/count limitations and the future matching-index gate are documented. No masterplan item was ticked.
+**Verified/reconciled:** focused 5 files/38 tests; full format/static SQL/lint/TS7/TS6, 120 files/1,600 tests, both 56-test timezone runs, production build, and dependency audit pass (0 high/critical; 6 documented Firebase-Admin-chain moderate records). Three independent final reviews found no P1/P2. Prior readiness head passed all six CI jobs, including two clean database cycles, in run `29125067640`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `828e4fb`; no external recovery is required
+**Next:** Commit this handoff, push, and green replacement CI. Then run the guarded 37-migration TEST checkpoint if the exact protected session-pooler DSN is available; otherwise implement injected owner schedule list/count HTTP handlers over these contracts with strict query-before-Auth ordering, fresh bound owner authorization, private no-store responses, and synthetic executors only—no SQL/function, runtime singleton, route file, UI activation, or remote access.
+**Gotchas:** A page with `nextCursor` is not complete month coverage; count is a filtered range total, not per-day/all-time. List/count calls are live rather than snapshot-consistent across reschedules. The future read migration needs an index matching `(local_date,start_minutes,id)` plus TEST plan/bound proof before activation.
+
 ## 2026-07-10 — Locked outbox activation behind verifier-backed evidence
 **Phase:** Phase 3 reliable-side-effect/Cron foundation; broad atomic-outbox checklist remains open
 **Labels/environment:** [LOCAL] pure server contract, static import/activation guards, synthetic tests, documentation, and build only
