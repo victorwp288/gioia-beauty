@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Defined the inert newsletter confirmation email
+**Phase:** Phase 3 newsletter/outbox foundation; broad outbox and newsletter checklist items remain open
+**Labels/environment:** [LOCAL] pure server renderer contract, synthetic tests, static analysis, and build only
+**Data impact:** none; no route, worker catalog, database/provider singleton, environment key, schema, migration, fixture, remote, or customer-data action
+**Target:** local `refactor`; renderer has no production-source importer and Production Supabase remains unregistered/null
+**Expected reads/writes/rows:** import/factory/render makes 0 DB/Auth/provider/network calls, 0 writes, and 0 rows; one accepted synthetic render makes exactly 1 injected clock call, 1 deterministic token issue, and 1 exact-purpose/full-claim verification, producing 1 in-memory email message and 0 sends
+**Done:** Commit `a92c387` adds byte-pinned Italian HTML/text copy over the complete future immutable claim envelope, exact 24-hour/freshness checks, fixed fragment bearer URL, full codec round-trip claim binding, input-versus-operational error separation, and AST/import-graph inertness guards. `docs/DATA-MODEL.md` records expiry/reissue, key-retention, consent-cycle, fragment-scrub/POST, pseudonym, provider-retention, and no-log gates. No masterplan item was ticked.
+**Verified/reconciled:** focused renderer/activation 2 files/21 tests plus renderer/token/template 5 files/113 tests; full format/static SQL/lint/TS7/TS6, 116 files/1,562 tests, both 56-test timezone runs, production build, and dependency audit (0 high/critical; 6 documented Firebase-Admin-chain moderate records) pass. Three independent final reviews found no P1/P2. Exact prior head passed all six CI jobs including Gitleaks/history/dependencies and two clean database cycles in run `29121296305`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `a92c387`; no external recovery is required
+**Next:** Push and green replacement CI. Then run the guarded 37-migration TEST checkpoint if the exact protected session-pooler DSN is available; otherwise add a generic renderer operational-fault contract so future missing-key/clock faults become alertable uncertainty rather than permanent `OUTBOX_TEMPLATE_INVALID`, without importing or activating the newsletter renderer.
+**Gotchas:** Current migration 37 persists only `policy_version`; renderer registration remains unsafe until the reserved post-checkpoint migration snapshots token ID/timing/key ID atomically and confirmation SQL consumes the exact versioned consent cycle. `newsletter-consent-v1` still lacks an approved immutable Italian policy/form artifact, and no confirmation landing/POST route exists.
+
 ## 2026-07-10 — Proved the inert outbox execution deadline
 **Phase:** Phase 3 reliable-side-effect/Cron foundation; the broad outbox checklist item remains open
 **Labels/environment:** [LOCAL] injected server implementation, fake-clock tests, static analysis, and build only
