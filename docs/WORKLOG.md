@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added inactive bounded email-outbox worker foundation
+**Phase:** Phase 3 reliable-side-effect foundation; broad outbox checklist item remains open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; no database, Auth, fixture, provider, schema, or remote call
+**Target:** local `refactor`; no Cron route/schedule and no TEST or Production target
+**Expected reads/writes/rows:** verification performed 0 DB/Auth/provider operations. One future enabled invocation makes exactly 1 claim function call with batch 5/120-second lease, at most 5 provider attempts at concurrency 5, and at most 5 one-row completion calls: maximum 6 DB function calls, 5 sends, and 10 outbox row transitions.
+**Done:** Commit `65ebb2f` adds strict snake/camel claim and fenced completion repositories, immutable escaped v1 schedule email renderers, bounded Resend REST/idempotency handling, deterministic no-network fake delivery, a complete-renderer fail-closed gate, one-batch worker isolation, Production Resend-key validation, and the 24-hour completion-uncertainty launch policy.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6/build and 727 tests pass; independent security/code/acceptance re-reviews report no blockers. Prior head `554ea5d` passed all six CI jobs, including two clean 342-assertion database cycles, in run `29075261589`; replacement CI is pending. Local Gitleaks is unavailable and remains a required CI lane.
+**Production actions performed:** none; no Firebase, Supabase, Vercel, DNS, Resend, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `65ebb2f`; worker activation is intentionally unreachable and all schema/provider state remains unchanged
+**Next:** Push and green replacement CI, then implement the migration-free raw-body Resend webhook signature/freshness mapper and strict verified-webhook repository against the existing SQL command. Keep Cron exposure, newsletter action rendering, retry-age enforcement, dead-letter alerting, migration 38, and TEST credit blocked until the exact 37-migration TEST checkpoint and required contract evidence.
+**Gotchas:** Schedule-only renderers cannot instantiate the worker, so newsletter rows cannot be accidentally claimed. Resend idempotency expires after 24 hours; automatic/manual recovery beyond that window remains a launch stop, not a blind retry.
+
 ## 2026-07-10 — Added owner details, reschedule, and status commands
 **Phase:** Phase 3 authenticated server vertical slice; broad checklist items remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
