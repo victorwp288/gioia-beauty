@@ -34,11 +34,17 @@ select ok(
       'gioia_private.authenticated_owner_session_id(uuid)'::regprocedure
     ) !~ 'auth.uid\(\)|auth.jwt\(\)'
     and pg_get_functiondef(
+      'gioia_private.assert_enabled_owner_account(uuid)'::regprocedure
+    ) ~ 'gioia_private.owner_accounts'
+    and pg_get_functiondef(
       'gioia_private.assert_enabled_owner(uuid)'::regprocedure
     ) ~ 'gioia_private.authenticated_owner_session_id\(p_user_id\)'
     and pg_get_functiondef(
       'gioia_private.assert_enabled_owner(uuid)'::regprocedure
-    ) ~ 'gioia_private.owner_accounts'
+    ) ~ 'gioia_private.assert_enabled_owner_account\(p_user_id\)'
+    and pg_get_functiondef(
+      'gioia_private.assert_enabled_owner(uuid)'::regprocedure
+    ) ~ 'gioia_private.owner_sessions'
     and pg_get_functiondef(
       'gioia_private.authorize_owner_session(uuid,uuid)'::regprocedure
     ) ~ 'gioia_private.assert_enabled_owner\(p_actor_user_id\)'
@@ -136,7 +142,6 @@ select ok(
     ),
   'the current owner allowlist remains forced-RLS and hidden from callers'
 );
-
 do $setup$
 declare
   v_date date;
@@ -159,10 +164,8 @@ begin
     statement_timestamp(), '{"provider":"email","providers":["email"]}'::jsonb,
     '{}'::jsonb, statement_timestamp(), statement_timestamp()
   );
-
   insert into gioia_private.owner_accounts (user_id)
   values ('95000000-0000-4000-8000-000000000001');
-
   select min(candidate.local_date)::date
   into strict v_date
   from generate_series(
@@ -171,7 +174,6 @@ begin
     interval '1 day'
   ) as candidate(local_date)
   where extract(isodow from candidate.local_date) between 1 and 5;
-
   perform set_config('gioia.test_owner_auth_date', v_date::text, true);
   perform set_config('request.jwt.claim.sub', '', true);
   perform set_config('request.jwt.claim.session_id', '', true);
@@ -186,7 +188,6 @@ select throws_ok(
   'PT401', 'OWNER_AUTHENTICATION_REQUIRED',
   'session authorization without a Supabase identity returns 401'
 );
-
 reset role;
 select is(
   (select count(*) from gioia_private.command_requests
@@ -194,13 +195,11 @@ select is(
   0::bigint,
   'missing authentication writes no command state'
 );
-
 do $$begin
   perform set_config('request.jwt.claim.sub', '95000000-0000-4000-8000-000000000002', true);
   perform set_config('request.jwt.claim.session_id', '96000000-0000-4000-8000-000000000002', true);
 end$$;
 set local role app_runtime;
-
 select throws_ok(
   $$select gioia_private.authorize_owner_session(
     '95000000-0000-4000-8000-000000000001',
@@ -209,7 +208,6 @@ select throws_ok(
   'PT403', 'OWNER_IDENTITY_MISMATCH',
   'an actor UUID cannot impersonate a different authenticated identity'
 );
-
 select throws_ok(
   $$select gioia_private.authorize_owner_session(
     '95000000-0000-4000-8000-000000000002',
@@ -218,9 +216,7 @@ select throws_ok(
   'PT403', 'OWNER_AUTHORIZATION_REQUIRED',
   'an authenticated user outside the current owner allowlist returns 403'
 );
-
 reset role;
-
 select is(
   (select count(*) from gioia_private.command_requests
     where idempotency_key like 'auth-context:%'),
@@ -283,15 +279,18 @@ select throws_ok(
 
 reset role;
 
-select results_eq(
-  $$select
+select is(
+  (
+    select pg_catalog.jsonb_build_array(
       (select count(*) from gioia_private.command_requests
         where idempotency_key like 'auth-context:%'),
       (select count(*) from gioia_private.schedule_entries
         where created_by = '95000000-0000-4000-8000-000000000001'),
       (select count(*) from gioia_private.domain_change_log
-        where actor_user_id = '95000000-0000-4000-8000-000000000001')$$,
-  $$values (1::bigint, 1::bigint, 1::bigint)$$,
+        where actor_user_id = '95000000-0000-4000-8000-000000000001')
+    )
+  ),
+  '[1, 1, 1]'::jsonb,
   'revocation leaves exactly the one previously authorized mutation'
 );
 

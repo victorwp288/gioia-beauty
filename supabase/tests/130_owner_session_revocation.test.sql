@@ -109,19 +109,18 @@ select is(
   'active ledger session permits an existing owner mutation');
 reset role;
 
-select results_eq($$select user_id,expires_at-created_at,revoked_at is null
-  from gioia_private.owner_sessions
-  where session_id='b1000000-0000-4000-8000-000000000001'$$,
-  $$values('a1000000-0000-4000-8000-000000000001'::uuid,
-    interval '12 hours',true)$$,
+select ok(exists(select 1 from gioia_private.owner_sessions
+  where session_id='b1000000-0000-4000-8000-000000000001'
+    and user_id='a1000000-0000-4000-8000-000000000001'
+    and expires_at-created_at=interval '12 hours' and revoked_at is null),
   'started session is owner-bound, unrevoked, and twelve-hour bounded');
-select results_eq($$select
-  (select count(*) from gioia_private.owner_sessions),
-  (select count(*) from gioia_private.command_requests
-    where idempotency_key like 'session:%'),
-  (select count(*) from gioia_private.schedule_entries where created_by=
-    'a1000000-0000-4000-8000-000000000001')$$,
-  $$values(1::bigint,1::bigint,1::bigint)$$,
+select is((select pg_catalog.jsonb_build_array(
+    (select count(*) from gioia_private.owner_sessions),
+    (select count(*) from gioia_private.command_requests
+      where idempotency_key like 'session:%'),
+    (select count(*) from gioia_private.schedule_entries where created_by=
+      'a1000000-0000-4000-8000-000000000001'))),
+  '[1,1,1]'::jsonb,
   'idempotent start and active mutation create exact bounded writes');
 
 do $$begin
@@ -219,8 +218,9 @@ select throws_ok($$select gioia_private.start_owner_session(
   'b1000000-0000-4000-8000-000000000099')$$,
   'PT401','OWNER_SESSION_REVOKED','a revoke-before-start race cannot resurrect');
 reset role;
-select results_eq($$select count(*),count(*) filter(where revoked_at is not null)
-  from gioia_private.owner_sessions$$,$$values(3::bigint,2::bigint)$$,
+select is((select pg_catalog.jsonb_build_array(
+    count(*),count(*) filter(where revoked_at is not null))
+    from gioia_private.owner_sessions),'[3,2]'::jsonb,
   'absent-session revoke persists exactly one revoked tombstone');
 
 select * from finish();
