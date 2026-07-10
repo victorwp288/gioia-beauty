@@ -21,6 +21,7 @@ function commandRequest(
     startMinutes: 600,
   },
   headers: Record<string, string> = {},
+  url = "https://preview.example.test/api/admin/appointments",
 ) {
   const requestBody =
     body === null ||
@@ -29,7 +30,7 @@ function commandRequest(
     body instanceof ArrayBuffer
       ? body
       : JSON.stringify(body);
-  return new Request("https://preview.example.test/api/admin/appointments", {
+  return new Request(url, {
     method: "POST",
     headers: {
       host: "preview.example.test",
@@ -121,6 +122,49 @@ describe("admin command request reader", () => {
       expect(schema.safeParse).not.toHaveBeenCalled();
     },
   );
+
+  it("rejects a query after request security but before idempotency or body work", async () => {
+    const request = commandRequest(
+      undefined,
+      { "idempotency-key": "" },
+      "https://preview.example.test/api/admin/appointments?unexpected=1",
+    );
+    const getReader = vi.spyOn(request.body!, "getReader");
+    const schema = { safeParse: vi.fn() } as unknown as z.ZodType<
+      Record<string, unknown>
+    >;
+
+    await expect(read(request, schema)).resolves.toEqual({
+      ok: false,
+      status: 400,
+      code: "INVALID_REQUEST",
+    });
+    expect(getReader).not.toHaveBeenCalled();
+    expect(schema.safeParse).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Origin", { origin: "https://attacker.example.test" }],
+    ["CSRF", { "x-csrf-token": "B".repeat(43) }],
+  ])("keeps invalid %s ahead of a competing query", async (_label, headers) => {
+    const request = commandRequest(
+      undefined,
+      headers,
+      "https://preview.example.test/api/admin/appointments?unexpected=1",
+    );
+    const getReader = vi.spyOn(request.body!, "getReader");
+    const schema = { safeParse: vi.fn() } as unknown as z.ZodType<
+      Record<string, unknown>
+    >;
+
+    await expect(read(request, schema)).resolves.toEqual({
+      ok: false,
+      status: 403,
+      code: "FORBIDDEN_REQUEST",
+    });
+    expect(getReader).not.toHaveBeenCalled();
+    expect(schema.safeParse).not.toHaveBeenCalled();
+  });
 
   it("keeps idempotency, CSRF, and identity outside the normalized body", async () => {
     const permissiveSchema = z.object({}).passthrough();

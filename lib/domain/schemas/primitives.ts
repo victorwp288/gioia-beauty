@@ -66,12 +66,12 @@ export const SalonDateSchema = z
 export const StartMinutesSchema = z.number().int().min(0).max(1439);
 export const DurationMinutesSchema = z.number().int().min(1).max(480);
 export const BufferMinutesSchema = z.number().int().min(0).max(120);
-export const PositiveVersionSchema = z.number().int().min(1);
 export const PostgresIntegerSchema = z
   .number()
   .int()
   .min(-2_147_483_648)
   .max(2_147_483_647);
+export const PositiveVersionSchema = PostgresIntegerSchema.min(1);
 export const NonnegativePostgresIntegerSchema = PostgresIntegerSchema.min(0);
 export const NonnegativePostgresSmallintSchema = z
   .number()

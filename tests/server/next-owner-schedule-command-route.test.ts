@@ -121,6 +121,9 @@ function commandRequest(
 }
 
 const commandNames = commandCases.map(({ commandName }) => commandName);
+const versionedCommandCases = commandCases.filter(
+  ({ body }) => "expectedVersion" in body,
+);
 
 describe("Next owner schedule command route adapter", () => {
   it.each([
@@ -153,6 +156,89 @@ describe("Next owner schedule command route adapter", () => {
       for (const commandName of commandNames) {
         expect(repository[commandName]).not.toHaveBeenCalled();
       }
+    },
+  );
+
+  it.each(commandCases)(
+    "rejects a competing $commandName query before body, Auth, or repository work",
+    async ({ commandName, path }) => {
+      const repository = repositoryFixture();
+      const fixture = routeDependencies(repository);
+      const request = commandRequest(`${path}?unexpected=1`, "{not-json");
+      const getReader = vi.spyOn(request.body!, "getReader");
+
+      const response = await createNextOwnerScheduleCommandRoute(
+        commandName,
+        fixture.dependencies,
+      )(request);
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        code: "INVALID_REQUEST",
+        requestId: "50000000-0000-4000-8000-000000000001",
+      });
+      expect(fixture.readSecurityTokens).toHaveBeenCalledOnce();
+      expect(fixture.createAuthContext).not.toHaveBeenCalled();
+      expect(getReader).not.toHaveBeenCalled();
+      for (const commandName of commandNames) {
+        expect(repository[commandName]).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it.each(versionedCommandCases)(
+    "rejects an invalid PostgreSQL version for $commandName before Auth or repository work",
+    async ({ commandName, path, body }) => {
+      for (const expectedVersion of [0, 2_147_483_648]) {
+        const repository = repositoryFixture();
+        const fixture = routeDependencies(repository);
+        const response = await createNextOwnerScheduleCommandRoute(
+          commandName,
+          fixture.dependencies,
+        )(
+          commandRequest(path, {
+            ...body,
+            expectedVersion,
+          }),
+        );
+
+        expect(response.status).toBe(422);
+        expect(await response.json()).toEqual({
+          code: "INVALID_REQUEST",
+          requestId: "50000000-0000-4000-8000-000000000001",
+        });
+        expect(fixture.readSecurityTokens).toHaveBeenCalledOnce();
+        expect(fixture.createAuthContext).not.toHaveBeenCalled();
+        for (const repositoryCommandName of commandNames) {
+          expect(repository[repositoryCommandName]).not.toHaveBeenCalled();
+        }
+      }
+    },
+  );
+
+  it.each(versionedCommandCases)(
+    "accepts the PostgreSQL version maximum for $commandName",
+    async ({ commandName, path, body, status, code }) => {
+      const repository = repositoryFixture();
+      const fixture = routeDependencies(repository);
+      const response = await createNextOwnerScheduleCommandRoute(
+        commandName,
+        fixture.dependencies,
+      )(
+        commandRequest(path, {
+          ...body,
+          expectedVersion: 2_147_483_647,
+        }),
+      );
+
+      expect(response.status).toBe(status);
+      expect(await response.json()).toMatchObject({ code });
+      expect(fixture.createAuthContext).toHaveBeenCalledOnce();
+      expect(repository[commandName]).toHaveBeenCalledWith(
+        { userId, sessionId },
+        expect.objectContaining({ expectedVersion: 2_147_483_647 }),
+        expect.any(Buffer),
+      );
     },
   );
 

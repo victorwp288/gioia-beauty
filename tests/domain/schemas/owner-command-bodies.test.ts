@@ -127,6 +127,10 @@ const cases = [
     body: { vacationId: RESOURCE_ID, expectedVersion: 2 },
   },
 ] as const;
+const versionedCases = cases.filter(({ body }) => "expectedVersion" in body);
+const unversionedCases = cases.filter(
+  ({ body }) => !("expectedVersion" in body),
+);
 
 describe("owner command body schemas", () => {
   for (const testCase of cases) {
@@ -177,6 +181,54 @@ describe("owner command body schemas", () => {
         endDate: "2026-08-10",
       }).success,
     ).toBe(false);
+  });
+
+  it.each(versionedCases)(
+    "caps $name optimistic versions at the PostgreSQL integer boundary",
+    ({ bodySchema, commandSchema, body }) => {
+      const maximum = { ...body, expectedVersion: 2_147_483_647 };
+
+      expect(bodySchema.safeParse(maximum).success).toBe(true);
+      expect(
+        commandSchema.safeParse({
+          ...maximum,
+          idempotencyKey: IDEMPOTENCY_KEY,
+        }).success,
+      ).toBe(true);
+      for (const expectedVersion of [
+        0,
+        -1,
+        1.5,
+        2_147_483_648,
+        Number.MAX_SAFE_INTEGER,
+      ]) {
+        const invalid = { ...body, expectedVersion };
+        expect(bodySchema.safeParse(invalid).success).toBe(false);
+        expect(
+          commandSchema.safeParse({
+            ...invalid,
+            idempotencyKey: IDEMPOTENCY_KEY,
+          }).success,
+        ).toBe(false);
+      }
+    },
+  );
+
+  it("keeps version coverage exhaustive across seven updates and three creates", () => {
+    expect(versionedCases).toHaveLength(7);
+    expect(unversionedCases).toHaveLength(3);
+    for (const { bodySchema, commandSchema, body } of unversionedCases) {
+      expect(
+        bodySchema.safeParse({ ...body, expectedVersion: 1 }).success,
+      ).toBe(false);
+      expect(
+        commandSchema.safeParse({
+          ...body,
+          expectedVersion: 1,
+          idempotencyKey: IDEMPOTENCY_KEY,
+        }).success,
+      ).toBe(false);
+    }
   });
 
   it("requires a real appointment or block details patch", () => {

@@ -176,6 +176,9 @@ export async function readAdminCommandRequest<
   ) {
     return { ok: false, status: 403, code: "FORBIDDEN_REQUEST" };
   }
+  if (new URL(request.url).search !== "") {
+    return { ok: false, status: 400, code: "INVALID_REQUEST" };
+  }
 
   const idempotency = readCanonicalIdempotencyKey(request);
   if (!idempotency.ok) return idempotency;

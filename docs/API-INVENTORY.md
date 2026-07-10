@@ -76,10 +76,12 @@ All ten routes require exact Origin/Host, double-submit CSRF, a canonical
 lowercase UUID idempotency header, fresh Supabase `getSession` + `getUser`, an
 HMAC-bound session, and SQL-enforced enabled-owner/session authorization. Raw
 fatal-UTF-8 JSON is ≤8 KiB; content encoding is absent/`identity`; bodies are
-strict. Query strings are currently ignored. Each authorized, repository-valid
-request makes exactly one owner DB transaction/private command call; every path
-makes at most one. SQL is capped at 2 result rows and the application accepts
-exactly 1. There are no synchronous provider sends.
+strict; optimistic versions are positive PostgreSQL `integer` values. Origin
+and CSRF are checked before query rejection, and query rejection precedes
+idempotency/body/Auth/database work. Each authorized, repository-valid request
+makes exactly one owner DB transaction/private command call; every path makes
+at most one. SQL is capped at 2 result rows and the application accepts exactly
+1. There are no synchronous provider sends.
 Auth cleanup may add one local `signOut` for a maximum of 3 SDK invocations.
 
 A fresh handled 400/404/409 persists only one command row with two mutations
@@ -90,15 +92,15 @@ domain-change row. Day-lock rows are real persistent effects and are included.
 | Route                                     | Strict body                                                                           | Success                                 | Maximum fresh-success database effect                                                                                                                                  |
 | ----------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /api/admin/appointments`            | date/start, service/variant, name, nullable email/phone/note                          | `APPOINTMENT_CREATED` + ID              | Optional 1 day-lock insert; appointment + domain change + owner outbox + optional customer outbox; command insert+complete: **6 distinct rows/7 mutations**            |
-| `POST /api/admin/appointments/details`    | `entryId`, positive `expectedVersion`, and ≥1 contact/client-note/internal-note patch | `APPOINTMENT_DETAILS_UPDATED` + same ID | Appointment update + domain change; command insert+complete: **3 rows/4 mutations**                                                                                    |
-| `POST /api/admin/appointments/reschedule` | `entryId`, version, date/start, service/variant                                       | `APPOINTMENT_RESCHEDULED` + same ID     | Up to 2 day-lock inserts; appointment update + domain change + owner outbox + optional customer outbox; command insert+complete: **7 rows/8 mutations**                |
-| `POST /api/admin/appointments/status`     | `entryId`, version, `completed` or `no_show`                                          | `APPOINTMENT_STATUS_UPDATED` + same ID  | Optional 1 day lock; appointment update + domain change; command insert+complete: **4 rows/5 mutations**                                                               |
+| `POST /api/admin/appointments/details`    | `entryId`, `expectedVersion` 1..2,147,483,647, and ≥1 contact/client-note/internal-note patch | `APPOINTMENT_DETAILS_UPDATED` + same ID | Appointment update + domain change; command insert+complete: **3 rows/4 mutations**                                                                                    |
+| `POST /api/admin/appointments/reschedule` | `entryId`, `expectedVersion` 1..2,147,483,647, date/start, service/variant                    | `APPOINTMENT_RESCHEDULED` + same ID     | Up to 2 day-lock inserts; appointment update + domain change + owner outbox + optional customer outbox; command insert+complete: **7 rows/8 mutations**                |
+| `POST /api/admin/appointments/status`     | `entryId`, `expectedVersion` 1..2,147,483,647, `completed` or `no_show`                       | `APPOINTMENT_STATUS_UPDATED` + same ID  | Optional 1 day lock; appointment update + domain change; command insert+complete: **4 rows/5 mutations**                                                               |
 | `POST /api/admin/blocks`                  | date/start/duration, optional buffer/internal note                                    | `BLOCK_CREATED` + ID                    | Optional 1 day lock; block + domain change; command insert+complete: **4 rows/5 mutations**                                                                            |
-| `POST /api/admin/blocks/details`          | `entryId`, version, required internal-note patch                                      | `BLOCK_DETAILS_UPDATED` + same ID       | Block update + domain change; command insert+complete: **3 rows/4 mutations**                                                                                          |
-| `POST /api/admin/blocks/reschedule`       | `entryId`, version, date/start/duration, optional buffer                              | `BLOCK_RESCHEDULED` + same ID           | Up to 2 day locks; block update + domain change; command insert+complete: **5 rows/6 mutations**                                                                       |
-| `POST /api/admin/schedule/cancel`         | `entryId`, version, optional/null reason                                              | `SCHEDULE_ENTRY_CANCELLED` + same ID    | Appointment maximum: optional 1 day lock, entry update, domain change, up to 2 outbox rows, command insert+complete: **6 rows/7 mutations**. Block: 4 rows/5 mutations |
+| `POST /api/admin/blocks/details`          | `entryId`, `expectedVersion` 1..2,147,483,647, required internal-note patch                   | `BLOCK_DETAILS_UPDATED` + same ID       | Block update + domain change; command insert+complete: **3 rows/4 mutations**                                                                                          |
+| `POST /api/admin/blocks/reschedule`       | `entryId`, `expectedVersion` 1..2,147,483,647, date/start/duration, optional buffer           | `BLOCK_RESCHEDULED` + same ID           | Up to 2 day locks; block update + domain change; command insert+complete: **5 rows/6 mutations**                                                                       |
+| `POST /api/admin/schedule/cancel`         | `entryId`, `expectedVersion` 1..2,147,483,647, optional/null reason                           | `SCHEDULE_ENTRY_CANCELLED` + same ID    | Appointment maximum: optional 1 day lock, entry update, domain change, up to 2 outbox rows, command insert+complete: **6 rows/7 mutations**. Block: 4 rows/5 mutations |
 | `POST /api/admin/vacations`               | start/end date spanning ≤366 inclusive dates, optional/null reason                    | `VACATION_CREATED` + ID                 | Up to 366 day locks; vacation + domain change; command insert+complete: **369 rows/370 mutations**                                                                     |
-| `POST /api/admin/vacations/cancel`        | `vacationId`, positive `expectedVersion`                                              | `VACATION_CANCELLED` + same ID          | Up to 366 day locks; vacation update + domain change; command insert+complete: **369 rows/370 mutations**                                                              |
+| `POST /api/admin/vacations/cancel`        | `vacationId`, `expectedVersion` 1..2,147,483,647                                             | `VACATION_CANCELLED` + same ID          | Up to 366 day locks; vacation update + domain change; command insert+complete: **369 rows/370 mutations**                                                              |
 
 ## Temporary legacy mail routes
 
@@ -120,9 +122,6 @@ forbidden.
 
 ## Known hardening gaps
 
-- All ten owner command routes ignore query strings.
-- Owner request schemas accept any positive version; values above PostgreSQL
-  `int4` reach repository validation and return redacted 503 instead of edge 422.
 - Modern public booking, availability, owner commands, and Auth have no durable
   application-level abuse limiter. Idempotency and upstream Auth 429 are not
   rate limits.
