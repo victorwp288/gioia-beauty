@@ -57,8 +57,13 @@ export function parseLocalAuthStatus(status) {
 async function responseJson(response, operation) {
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload === null || typeof payload !== "object") {
+    const candidate = payload?.error_code ?? payload?.code;
+    const safeCode =
+      typeof candidate === "string" && /^[a-z0-9_]{1,64}$/u.test(candidate)
+        ? ` (${candidate})`
+        : "";
     throw new Error(
-      `Local Auth ${operation} failed with status ${response.status}`,
+      `Local Auth ${operation} failed with status ${response.status}${safeCode}`,
     );
   }
   return payload;

@@ -24,6 +24,10 @@ select is(
       and role = 'authenticated'
       and email = 'owner.local@gioia.test'
       and email_confirmed_at is not null
+      and confirmation_token = ''
+      and recovery_token = ''
+      and email_change_token_new = ''
+      and email_change = ''
       and not is_anonymous
   ),
   1::bigint,
