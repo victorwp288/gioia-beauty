@@ -61,7 +61,7 @@ export function authFailureResponse(
 }
 
 export async function clearSignedInState(
-  auth: OwnerAuthActions,
+  auth: Pick<OwnerAuthActions, "signOut">,
   securityCookies: Pick<SecurityCookieWriter, "clear">,
 ) {
   securityCookies.clear();

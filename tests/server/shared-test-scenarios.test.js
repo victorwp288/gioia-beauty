@@ -50,6 +50,20 @@ function jsonResponse(status, code, extra = {}, cookies = []) {
   );
 }
 
+function combinedSetCookieResponse(response, setCookie) {
+  return {
+    status: response.status,
+    headers: {
+      get(name) {
+        return name.toLowerCase() === "set-cookie"
+          ? setCookie
+          : response.headers.get(name);
+      },
+    },
+    json: () => response.json(),
+  };
+}
+
 function scenarioResponses() {
   return [
     jsonResponse(401, "OWNER_SESSION_REQUIRED"),
@@ -231,6 +245,55 @@ describe("shared Local and TEST scenarios", () => {
         fetchImpl: async () => responses.shift(),
       }),
     ).rejects.toThrow("unauthenticated session returned");
+  });
+
+  it("allows rejected routes to expire security cookies", async () => {
+    const responses = scenarioResponses();
+    responses[0] = combinedSetCookieResponse(
+      jsonResponse(401, "OWNER_SESSION_REQUIRED"),
+      [
+        "gioia_owner_session=; HttpOnly; Path=/; Max-Age=0",
+        "gioia_owner_csrf=; Path=/; Max-Age=0",
+        "sb-lxvsspniipcotimbsfqm-auth-token=; HttpOnly; Path=/; Max-Age=0",
+      ].join(", "),
+    );
+    await expect(
+      runOwnerAuthRouteScenario({
+        baseUrl: new URL("https://127.0.0.1:43123"),
+        owner: {
+          email: "owner.ephemeral@gioia.test",
+          password: "in-memory-random-password",
+        },
+        cookieSecurity: SECURE_COOKIE_EXPECTATIONS,
+        reconcileLedger: async () => {},
+        fetchImpl: async () => responses.shift(),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    "gioia_owner_session; Max-Age=0; Path=/, harmless=x; Path=/",
+    "gioia_owner_session=; Max-Age=3600; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/",
+    "gioia_owner_session=; Max-Age=0",
+    "gioia_owner_session=; Max-Age=0; Max-Age=3600; Path=/",
+  ])("rejects an ineffective security-cookie deletion: %s", async (cookie) => {
+    const responses = scenarioResponses();
+    responses[0] = combinedSetCookieResponse(
+      jsonResponse(401, "OWNER_SESSION_REQUIRED"),
+      cookie,
+    );
+    await expect(
+      runOwnerAuthRouteScenario({
+        baseUrl: new URL("https://127.0.0.1:43123"),
+        owner: {
+          email: "owner.ephemeral@gioia.test",
+          password: "in-memory-random-password",
+        },
+        cookieSecurity: SECURE_COOKIE_EXPECTATIONS,
+        reconcileLedger: async () => {},
+        fetchImpl: async () => responses.shift(),
+      }),
+    ).rejects.toThrow(/malformed cookie|issued security cookies/u);
   });
 
   it("rejects security cookies on revoked-session replay", async () => {

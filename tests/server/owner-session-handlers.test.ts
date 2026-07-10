@@ -50,12 +50,14 @@ describe("owner session and logout handlers", () => {
       bindingSecret: ownerBindingSecret,
       csrfToken,
       authorizeSession: fixture.sessionOperation,
+      securityCookies: fixture.securityCookies,
     })();
     expect(response.status).toBe(200);
     expect(await ownerResponseBody(response)).toEqual({
       code: "OWNER_SESSION_ACTIVE",
       csrfToken,
     });
+    expect(fixture.securityCookies.clear).not.toHaveBeenCalled();
   });
 
   it("returns 503 rather than 401 for a retryable verification outage", async () => {
@@ -69,11 +71,44 @@ describe("owner session and logout handlers", () => {
       bindingSecret: ownerBindingSecret,
       csrfToken,
       authorizeSession: fixture.sessionOperation,
+      securityCookies: fixture.securityCookies,
     })();
     expect(response.status).toBe(503);
     expect(await ownerResponseBody(response)).toMatchObject({
       code: "SERVICE_UNAVAILABLE",
     });
+    expect(fixture.securityCookies.clear).not.toHaveBeenCalled();
+  });
+
+  it("clears signed-in state after binding or owner authorization rejection", async () => {
+    const bindingFixture = createHandlerFixture();
+    const csrfToken = issueOwnerCsrfToken();
+    const bindingResponse = await createOwnerSessionHandler({
+      auth: bindingFixture.auth,
+      bindingToken: binding("30000000-0000-4000-8000-000000000001"),
+      bindingSecret: ownerBindingSecret,
+      csrfToken,
+      authorizeSession: bindingFixture.sessionOperation,
+      securityCookies: bindingFixture.securityCookies,
+    })();
+    expect(bindingResponse.status).toBe(401);
+    expect(bindingFixture.securityCookies.clear).toHaveBeenCalledOnce();
+    expect(bindingFixture.auth.signOut).toHaveBeenCalledWith({
+      scope: "local",
+    });
+
+    const ownerFixture = createHandlerFixture({ owner: false });
+    const ownerResponse = await createOwnerSessionHandler({
+      auth: ownerFixture.auth,
+      bindingToken: binding(),
+      bindingSecret: ownerBindingSecret,
+      csrfToken,
+      authorizeSession: ownerFixture.sessionOperation,
+      securityCookies: ownerFixture.securityCookies,
+    })();
+    expect(ownerResponse.status).toBe(403);
+    expect(ownerFixture.securityCookies.clear).toHaveBeenCalledOnce();
+    expect(ownerFixture.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
   });
 
   it("logs out only for an exact same-origin CSRF token", async () => {

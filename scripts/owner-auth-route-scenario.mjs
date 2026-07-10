@@ -8,16 +8,36 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 function assertNoSecurityCookies(response, supabasePrefix) {
   const forbidden = responseSetCookies(response).some((serialized) => {
-    const separator = serialized.indexOf("=");
+    const pairEnd = serialized.indexOf(";");
+    const pair = pairEnd < 0 ? serialized : serialized.slice(0, pairEnd);
+    const separator = pair.indexOf("=");
     if (separator < 1) {
       throw new Error("Rejected owner route returned a malformed cookie");
     }
-    const name = serialized.slice(0, separator).trim();
-    return (
+    const name = pair.slice(0, separator).trim();
+    const securityCookie =
       name === OWNER_SESSION_COOKIE ||
       name === OWNER_CSRF_COOKIE ||
-      name.startsWith(supabasePrefix)
+      name.startsWith(supabasePrefix);
+    if (!securityCookie) return false;
+    const value = pair.slice(separator + 1).trim();
+    const attributes = serialized
+      .slice(pairEnd < 0 ? serialized.length : pairEnd + 1)
+      .split(";")
+      .map((attribute) => attribute.trim().toLowerCase());
+    const maxAges = attributes.filter((attribute) =>
+      attribute.startsWith("max-age="),
     );
+    const paths = attributes.filter((attribute) =>
+      attribute.startsWith("path="),
+    );
+    const exactDeletion =
+      value === "" &&
+      maxAges.length === 1 &&
+      maxAges[0] === "max-age=0" &&
+      paths.length === 1 &&
+      paths[0] === "path=/";
+    return !exactDeletion;
   });
   if (forbidden) {
     throw new Error("Rejected owner route issued security cookies");

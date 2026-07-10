@@ -135,15 +135,17 @@ export function createOwnerSessionHandler({
   bindingSecret,
   csrfToken,
   authorizeSession,
+  securityCookies,
   responseHeaders = {},
 }: {
-  auth: OwnerAuthVerifier;
+  auth: OwnerAuthVerifier & Pick<OwnerAuthActions, "signOut">;
   bindingToken: string | null | undefined;
   bindingSecret: string;
   csrfToken: string | null | undefined;
   authorizeSession: (
     identity: FreshSupabaseIdentity,
   ) => Promise<OwnerAuthorizationDecision>;
+  securityCookies: Pick<SecurityCookieWriter, "clear">;
   responseHeaders?: HeadersInit;
 }) {
   return async function GET(): Promise<Response> {
@@ -155,6 +157,9 @@ export function createOwnerSessionHandler({
         authorizeSession,
       });
       if (!result.ok) {
+        if (result.status === 401 || result.status === 403) {
+          await clearSignedInState(auth, securityCookies);
+        }
         if (result.status === 429) {
           return authFailureResponse(
             "rate_limited",
@@ -170,6 +175,7 @@ export function createOwnerSessionHandler({
         );
       }
       if (!csrfToken || !validOwnerCsrfToken(csrfToken, csrfToken)) {
+        await clearSignedInState(auth, securityCookies);
         return apiErrorResponse(
           401,
           "OWNER_SESSION_REQUIRED",

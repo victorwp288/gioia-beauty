@@ -1,6 +1,9 @@
 import { createNextOwnerAuthContext } from "@/lib/server/auth/nextOwnerAuthContext.ts";
 import { createOwnerSessionHandler } from "@/lib/server/auth/ownerAuthHandlers.ts";
-import { readOwnerSecurityCookies } from "@/lib/server/auth/ownerSecurityCookies.ts";
+import {
+  clearOwnerSecurityCookies,
+  readOwnerSecurityCookies,
+} from "@/lib/server/auth/ownerSecurityCookies.ts";
 import { ownerAuthRepository } from "@/lib/server/database/ownerAuthRepository.ts";
 import { apiErrorResponse } from "@/lib/server/publicApiResponse.ts";
 
@@ -19,6 +22,13 @@ export async function GET(request: Request): Promise<Response> {
       bindingSecret: process.env.OWNER_SESSION_HMAC_SECRET ?? "",
       csrfToken,
       authorizeSession: ownerAuthRepository.authorizeSession,
+      securityCookies: {
+        clear: () =>
+          clearOwnerSecurityCookies(
+            context.securityCookieStore,
+            context.secure,
+          ),
+      },
       responseHeaders: context.responseHeaders,
     })();
   } catch {
