@@ -10,11 +10,11 @@ import {
 
 const MIGRATIONS: Readonly<Record<CatalogSqlSection, string>> = {
   categories:
-    "supabase/migrations/20260709210953_load_authoritative_catalog_categories.sql",
+    "supabase/migrations/20260709235606_load_authoritative_catalog_categories.sql",
   services:
-    "supabase/migrations/20260709210957_load_authoritative_catalog_services.sql",
+    "supabase/migrations/20260709235614_load_authoritative_catalog_services.sql",
   variants:
-    "supabase/migrations/20260709211000_load_authoritative_catalog_variants.sql",
+    "supabase/migrations/20260709235620_load_authoritative_catalog_variants.sql",
 };
 
 describe("catalog SQL migrations", () => {

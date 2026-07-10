@@ -2,7 +2,7 @@ begin;
 
 set local search_path = extensions, public, pg_catalog;
 
-select plan(17);
+select plan(18);
 
 select has_schema('gioia_private', 'private application schema exists');
 
@@ -43,14 +43,22 @@ select ok(
     select 1
     from pg_catalog.pg_auth_members as membership
     join pg_catalog.pg_roles as granted_role on granted_role.oid = membership.roleid
+    where granted_role.rolname in ('app_runtime', 'gioia_mutator', 'gioia_migrator')
+      and (membership.inherit_option or membership.set_option)
+  ),
+  'application roles have no inheritable or SET-capable memberships'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_catalog.pg_auth_members as membership
+    join pg_catalog.pg_roles as granted_role on granted_role.oid = membership.roleid
     join pg_catalog.pg_roles as member_role on member_role.oid = membership.member
     where granted_role.rolname in ('app_runtime', 'gioia_mutator', 'gioia_migrator')
-      and member_role.rolname in (
-        'app_runtime', 'gioia_mutator', 'gioia_migrator',
-        'anon', 'authenticated', 'service_role'
-      )
+      and (member_role.rolname <> 'postgres' or not membership.admin_option)
   ),
-  'runtime, mutator, migrator, and API roles have no cross-membership'
+  'only postgres creator-admin memberships may remain'
 );
 
 select ok(

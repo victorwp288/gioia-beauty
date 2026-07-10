@@ -11,7 +11,7 @@ import {
 
 const migration = readFileSync(
   new URL(
-    "../../../supabase/migrations/20260709204931_create_catalog_and_booking_policy.sql",
+    "../../../supabase/migrations/20260709235543_create_catalog_and_booking_policy.sql",
     import.meta.url,
   ),
   "utf8",
