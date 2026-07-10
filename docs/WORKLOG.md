@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Reconciled and enforced all active API contracts
+**Phase:** Phase 3 server-boundary verification; no broad checklist item completed
+**Labels/environment:** [LOCAL] documentation, static analysis, and tests only
+**Data impact:** none; no runtime, database, Auth, provider, schema, fixture, or remote call
+**Target:** local `refactor`; no remote or Production target
+**Expected reads/writes/rows:** verification and this commit perform 0 application DB/Auth/provider reads, 0 writes, and 0 rows
+**Done:** Commit `dd23995` replaces the stale 4-route list with all 19 exported route contracts, truthful result/mutation/Auth/provider bounds, physical-read caveats, day-lock costs, current activation state, and explicit hardening gaps. A TypeScript-AST/filesystem test now requires one exact marker and active table row per route across route groups and `.js/.jsx/.ts/.tsx`, rejects wildcard/type-only/malformed/misplaced exports/markers, and checks every removed-route extension.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6 and 80 files/806 tests pass; two independent accuracy/security re-reviews report no blockers. Exact prior booking-parser head `4cb9d75` passed all six CI jobs, dependency/secret checks, and both clean database cycles in run `29079779049`; runtime/build bytes are unchanged here and replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Vercel, DNS, Resend, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `dd23995`; no external state changed
+**Next:** Apply the public-booking streamed-body pattern to shared `readValidatedJson` for temporary `/api/send` and `/api/cancel`: strict query/media/identity/length gates, raw 8 KiB cap, fatal UTF-8, bounded bearer/origin handling, and regression-proof zero-delivery tests. Preserve owner authorization and process limiter order unless a reviewed security reason changes it.
+**Gotchas:** Owner commands still ignore query strings and accept versions above PostgreSQL int32 until repository validation; modern public routes lack durable abuse limits; legacy validation can reflect supplied unknown field names. The inventory now fails CI when any explicit API export changes without a contract update.
+
 ## 2026-07-10 — Bounded public booking streams before buffering
 **Phase:** Phase 3 public booking boundary; broad booking/abuse/E2E checklist items remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
