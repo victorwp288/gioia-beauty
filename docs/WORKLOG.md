@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Proved the inert outbox execution deadline
+**Phase:** Phase 3 reliable-side-effect/Cron foundation; the broad outbox checklist item remains open
+**Labels/environment:** [LOCAL] injected server implementation, fake-clock tests, static analysis, and build only
+**Data impact:** none; no route, database/provider singleton, environment key, Cron configuration, schema, migration, fixture, remote, or customer-data action
+**Target:** local `refactor`; the handler remains unreachable from HTTP and Production Supabase remains unregistered/null
+**Expected reads/writes/rows:** rejected requests make 0 deadline/worker/DB/provider calls. A future accepted invocation has a 16-second claim/provider cutoff, 24-second settlement cutoff, and 25-second response fail-safe; exactly 1 claim transaction returns at most 5 unique rows, with at most 5 provider attempts and 5 fenced completion transactions—6 DB function calls, 5 provider calls, 5 distinct rows, and at most 10 row transitions. This session executed 0 runtime calls/rows/writes.
+**Done:** Commit `b01255f` adds raced/sinked external awaits, parent cancellation, late-result continuation fences, timer cleanup, and fixed deadline responses. Provider timeout/network/invalid-success/5xx/concurrent-idempotency outcomes now remain completion-uncertain with no false failure write. `docs/OPERATIONS.md` records the budget composition. No masterplan item was ticked.
+**Verified/reconciled:** focused 2 files/46 tests; full format/static SQL/lint/TS7/TS6, 114 files/1,541 tests, both 56-test timezone runs, production build, and dependency audit (0 high/critical; 6 documented Firebase-Admin-chain moderate records) pass. Two independent final reviews found no P1/P2. Exact prior head passed all six CI jobs including Gitleaks/history/dependencies and two clean database cycles in run `29106539605`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `b01255f`; no external recovery is required
+**Next:** Push and green replacement CI. Then run the guarded 37-migration TEST checkpoint if the exact protected session-pooler DSN is available; otherwise implement the migration-free production newsletter-confirmation renderer and prove its immutable template contract without adding a route/provider activation.
+**Gotchas:** The response deadline cannot undo an already-started external side effect; the real worker prevents late claim/provider continuations, while a late fenced completion may still commit and is reported uncertain. Route activation remains blocked by the TEST checkpoint, dead-letter alerting, claim-time dead-letter undercount, persisted 24-hour provider-idempotency cutoff, and full newsletter/TEST proof.
+
 ## 2026-07-10 — Authenticated the inert outbox worker boundary
 **Phase:** Phase 3 reliable-side-effect/Cron foundation; the broad outbox checklist item remains open
 **Labels/environment:** [LOCAL] injected server implementation, tests, static analysis, and build only
