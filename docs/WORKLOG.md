@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Rejected ambiguous owner command targets at the edge
+**Phase:** Phase 3 authenticated server boundaries; broad owner-operation checklist remains open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; synthetic requests and injected Auth/repositories only, with no remote or database call
+**Target:** local `refactor`; no TEST or Production target
+**Expected reads/writes/rows:** verification performed 0 DB/Auth/provider operations and 0 rows. Origin/CSRF/query/version rejection performs 0 Auth/DB work; accepted requests retain 1 fresh Auth check and 1 owner transaction/private function call capped at 2 result rows, with operation-specific bounded writes unchanged.
+**Done:** Commit `8348323` makes all ten owner schedule mutations reject query parameters before idempotency/body/Auth/DB, caps all SQL-backed positive versions to PostgreSQL `integer` range 1..2,147,483,647, and returns edge 422 instead of allowing overflow to become a redacted repository 503. Exhaustive tests cover 10 query paths, 7 versioned commands, 3 strict creates, boundary acceptance, and conflicting Origin/CSRF precedence; the API inventory is reconciled.
+**Verified/reconciled:** 102 focused tests plus full format/static SQL/lint/TS7/TS6, 83 files/899 tests, and production build pass; two independent implementation/schema-impact reviews found no blocker. Exact prior legacy-mail head passed all six CI jobs, secrets/dependencies, and both clean 342-assertion database cycles in run `29082494439`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `8348323`; repository guards remain defense in depth and no external state changed
+**Next:** Push and green replacement CI, then reject query parameters on owner login, logout, and session routes before body/Auth/DB work while preserving their existing Origin/CSRF precedence; add three-route integration coverage and reconcile the enforced API inventory.
+**Gotchas:** `readSecurityTokens` reads local cookies before the shared command parser; it performs no Auth/network/DB work. The global positive-version cap is intentional because every consumer maps to a PostgreSQL `integer` column.
+
 ## 2026-07-10 — Hardened temporary legacy mail boundaries
 **Phase:** Phase 3 server-boundary containment; target atomic-outbox replacement remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
