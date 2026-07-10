@@ -27,6 +27,20 @@ describe("local synthetic Auth seed smoke test", () => {
     expect(config).not.toContain("[inbucket]");
   });
 
+  it("enables email login without enabling public local signups", () => {
+    const config = readFileSync(
+      new URL("../../supabase/config.toml", import.meta.url),
+      "utf8",
+    );
+    const authSection = config.match(/\[auth\]\n([\s\S]*?)(?=\n\[)/u)?.[1];
+    const emailSection = config.match(
+      /\[auth\.email\]\n([\s\S]*?)(?=\n\[)/u,
+    )?.[1];
+
+    expect(authSection).toContain("enable_signup = false");
+    expect(emailSection).toContain("enable_signup = true");
+  });
+
   it("accepts current opaque and legacy local publishable keys", () => {
     expect(
       parseLocalAuthStatus({
