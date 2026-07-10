@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added owner details, reschedule, and status commands
+**Phase:** Phase 3 authenticated server vertical slice; broad checklist items remain open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; no database, Auth, fixture, schema, or provider call
+**Target:** local `refactor`; no remote or Production target
+**Expected reads/writes/rows:** verification performed 0 DB/Auth reads/writes; accepted runtime requests make 1 fresh Auth user check and 1 owner transaction/1 private function query bounded to 2 result rows. A success changes 1 command row, 1 schedule row, and 1 audit row; appointment reschedule additionally queues exactly 2 outbox rows, while replay adds no domain write.
+**Done:** Commit `50cf783` adds appointment/block detail and reschedule plus appointment status routes/repositories; strict body/command parity; status-qualified failure pairs; exact resource/patch contracts; and 24 pgTAP assertions. The guarded TEST manifest remains 37 migrations and now pins 21 test files/342 assertions.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6/build and 682 tests pass; independent code and SQL reviews report no blockers. Prior ten-route head `c35f0ea` passed all six CI jobs in run `29074286432`; replacement CI must execute the new pgTAP file twice before this slice is complete.
+**Production actions performed:** none; no Firebase, Supabase, Vercel, DNS, Resend, `main`, or Production data/config access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `50cf783`; remote TEST and all migration bytes remain unchanged
+**Next:** Push and confirm replacement CI, then implement the migration-free server outbox claim/delivery completion worker and fake-transport tests against the existing reviewed SQL commands. Keep migration 38 and list/count/vacation-read work blocked until the exact 37-migration TEST checkpoint runs.
+**Gotchas:** Appointment detail patches translate only supplied camelCase fields to snake_case JSON; explicit null is preserved and absent fields stay absent. `STATUS_TRANSITION_INVALID` is valid at both 400 and 409 and is keyed by status plus code.
+
 ## 2026-07-10 — Exposed five transaction-authorized owner schedule commands
 **Phase:** Phase 3 authenticated server vertical slice; broad checklist items remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
