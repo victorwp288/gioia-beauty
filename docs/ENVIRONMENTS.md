@@ -28,6 +28,17 @@ to zero residue. The test-only `pgtap` extension remains installed in
 `extensions`; performance-advisor notices are limited to expected unused-index
 INFO on the empty integration database.
 
+The committed greenfield operator fails closed unless it sees the exact clean
+and pushed `refactor` SHA with a successful CI run, the allowlisted session
+pooler identity with certificate verification, an explicit project-specific
+confirmation, and the reviewed migration/pgTAP byte manifests. It holds one
+project advisory lock, applies teardown, all 37 migrations, exact migration
+history, and final reconciliation in one serializable transaction, then runs
+two complete synthetic acceptance/cleanup cycles and requires matching schema
+and reference-data fingerprints. As of 2026-07-10 this operator has not been
+executed remotely; the target therefore remains at the 35-migration snapshot
+described above.
+
 Safety rules:
 
 - Prefer Local Docker Supabase for rapid iteration, destructive experiments, and CI. Apply only reviewed, committed migrations to this project.

@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added atomic two-cycle greenfield TEST acceptance operator
+**Phase:** Phase 2 TEST acceptance tooling; remote execution remains pending
+**Labels/environment:** [LOCAL] implementation/verification; [TEST] bounded read-only migration metadata inspection
+**Data impact:** 35 TEST migration-history metadata rows read; 0 business rows and 0 remote writes
+**Target:** `refactor`; authorized TEST Supabase `lxvsspniipcotimbsfqm`; no Production target
+**Expected reads/writes/rows:** performed: 35 metadata reads/0 writes/0 business rows; a future operator run is separately bounded to one locked target, 37 migrations, 194 reference rows, synthetic fixtures only, and zero final residue
+**Done:** Commit `a4acf16` adds exact-SHA/green-CI preflight, allowlisted verify-full session-pooler access, reviewed-byte manifests, an atomic 35-or-37-to-37 rebuild, exact history/catalog/role/ACL reconciliation, bounded Data API/Auth-negative probes, two full acceptance cycles, and fail-closed cleanup. `526fc8a` makes the shared Auth probe require the exact safe error body and matching request-ID header.
+**Verified/reconciled:** local format/static SQL/lint/TS7/TS6/build and 457 tests pass; independent SQL and acceptance re-audits report no blockers. CI `29070605405` passed five lanes and exposed only the request-ID probe mismatch now fixed in `526fc8a`; exact-head replacement CI remains required.
+**Production actions performed:** none; no Firebase, Vercel, DNS, Resend, `main`, or Production data/config access
+**Backup/restore evidence:** n/a; no remote mutation. The pending TEST rebuild is one serializable transaction, so failure retains the exact prior clean state.
+**Rollback/forward recovery:** revert `526fc8a` then `a4acf16`; remote TEST remains on its clean 35-migration/17-table snapshot
+**Next:** Wait for exact-commit CI, then securely inject the TEST session-pooler operator DSN plus modern publishable key and run `npm run db:test:greenfield` with the exact confirmation; only tick Phase 2 TEST after both cycles reconcile.
+**Gotchas:** No operator DSN/public key is available in this process and GitHub Environment `gioia-test` does not exist; no remote rebuild, Auth, fixture, or schema mutation was attempted.
+
 ## 2026-07-10 — Proved twice-clean booking kernel and revocable owner sessions
 **Phase:** Phases 1–3; Local acceptance checkpoint
 **Labels/environment:** [LOCAL], ephemeral GitHub Actions Supabase and fail-closed loopback route probe
