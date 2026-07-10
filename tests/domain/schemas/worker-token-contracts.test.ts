@@ -4,7 +4,7 @@ import {
   OutboxClaimItemSchema,
   OutboxCompletionFailureResultSchema,
   VerifiedWebhookResultSchema,
-  parseVerifiedNewsletterActionClaims,
+  parseTimeBoundNewsletterActionClaims,
 } from "@/lib/domain/schemas/index.ts";
 
 const ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -14,14 +14,15 @@ describe("newsletter action claims", () => {
     version: 1,
     purpose: "newsletter_confirm",
     subscriberId: ID,
+    subscriberVersion: 7,
     tokenId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     issuedAt: "2026-07-09T10:00:00.000Z",
     expiresAt: "2026-07-10T10:00:00.000Z",
   };
 
-  it("accepts verified, unexpired, purpose-bound claims", () => {
+  it("accepts structurally valid, unexpired, purpose-bound claims", () => {
     expect(
-      parseVerifiedNewsletterActionClaims(
+      parseTimeBoundNewsletterActionClaims(
         claims,
         "newsletter_confirm",
         new Date("2026-07-09T12:00:00.000Z"),
@@ -31,21 +32,21 @@ describe("newsletter action claims", () => {
 
   it("rejects wrong-purpose, expired, and overlong claims", () => {
     expect(() =>
-      parseVerifiedNewsletterActionClaims(
+      parseTimeBoundNewsletterActionClaims(
         claims,
         "newsletter_unsubscribe",
         new Date("2026-07-09T12:00:00.000Z"),
       ),
     ).toThrow();
     expect(() =>
-      parseVerifiedNewsletterActionClaims(
+      parseTimeBoundNewsletterActionClaims(
         claims,
         "newsletter_confirm",
         new Date("2026-07-11T12:00:00.000Z"),
       ),
     ).toThrow();
     expect(() =>
-      parseVerifiedNewsletterActionClaims(
+      parseTimeBoundNewsletterActionClaims(
         {
           ...claims,
           expiresAt: "2026-09-10T10:00:00.000Z",
@@ -53,6 +54,25 @@ describe("newsletter action claims", () => {
         "newsletter_confirm",
       ),
     ).toThrow();
+  });
+
+  it("rejects invalid clocks and versions outside PostgreSQL int32", () => {
+    expect(() =>
+      parseTimeBoundNewsletterActionClaims(
+        claims,
+        "newsletter_confirm",
+        new Date(Number.NaN),
+      ),
+    ).toThrow();
+    for (const subscriberVersion of [0, 1.5, 2_147_483_648]) {
+      expect(() =>
+        parseTimeBoundNewsletterActionClaims(
+          { ...claims, subscriberVersion },
+          "newsletter_confirm",
+          new Date("2026-07-09T12:00:00.000Z"),
+        ),
+      ).toThrow();
+    }
   });
 });
 

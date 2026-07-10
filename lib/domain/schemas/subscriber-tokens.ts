@@ -1,17 +1,22 @@
 import { z } from "zod";
 
-import { IsoInstantSchema, UuidSchema } from "./primitives.ts";
+import {
+  IsoInstantSchema,
+  PositiveVersionSchema,
+  UuidSchema,
+} from "./primitives.ts";
 
 export const NewsletterActionPurposeSchema = z.enum([
   "newsletter_confirm",
   "newsletter_unsubscribe",
 ]);
 
-export const VerifiedNewsletterActionClaimsSchema = z
+export const NewsletterActionClaimsSchema = z
   .object({
     version: z.literal(1),
     purpose: NewsletterActionPurposeSchema,
     subscriberId: UuidSchema,
+    subscriberVersion: PositiveVersionSchema,
     tokenId: UuidSchema,
     issuedAt: IsoInstantSchema,
     expiresAt: IsoInstantSchema,
@@ -30,18 +35,20 @@ export const VerifiedNewsletterActionClaimsSchema = z
     }
   });
 
-export function parseVerifiedNewsletterActionClaims(
+export function parseTimeBoundNewsletterActionClaims(
   payload: unknown,
   expectedPurpose: z.infer<typeof NewsletterActionPurposeSchema>,
   now: Date = new Date(),
 ) {
-  const claims = VerifiedNewsletterActionClaimsSchema.parse(payload);
+  const claims = NewsletterActionClaimsSchema.parse(payload);
   const issuedAt = Date.parse(claims.issuedAt);
   const expiresAt = Date.parse(claims.expiresAt);
+  const currentTime = now.getTime();
   if (
+    !Number.isFinite(currentTime) ||
     claims.purpose !== expectedPurpose ||
-    issuedAt > now.getTime() + 5 * 60 * 1_000 ||
-    expiresAt <= now.getTime()
+    issuedAt > currentTime + 5 * 60 * 1_000 ||
+    expiresAt <= currentTime
   ) {
     throw new z.ZodError([
       {
@@ -54,6 +61,6 @@ export function parseVerifiedNewsletterActionClaims(
   return claims;
 }
 
-export type VerifiedNewsletterActionClaims = z.infer<
-  typeof VerifiedNewsletterActionClaimsSchema
+export type NewsletterActionClaims = z.infer<
+  typeof NewsletterActionClaimsSchema
 >;
