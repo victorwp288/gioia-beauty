@@ -4,9 +4,8 @@ grant usage on schema extensions to app_runtime;
 set local search_path = extensions, public, pg_catalog;
 select plan(17);
 select ok(
-  has_schema_privilege('gioia_mutator', 'auth', 'USAGE')
-    and has_function_privilege('gioia_mutator', 'auth.uid()', 'EXECUTE'),
-  'the mutator dependency can resolve the Supabase Auth identity helper'
+  not has_schema_privilege('gioia_mutator', 'auth', 'USAGE'),
+  'the mutator has no dependency on the private Supabase Auth schema'
 );
 select ok(
   (
@@ -27,20 +26,20 @@ select ok(
 select ok(
   pg_get_functiondef(
     'gioia_private.assert_enabled_owner(uuid)'::regprocedure
-  ) ~ 'auth.uid\(\)'
+  ) ~ 'request.jwt.claim.sub'
     and pg_get_functiondef(
       'gioia_private.assert_enabled_owner(uuid)'::regprocedure
     ) ~ 'gioia_private.owner_accounts'
     and pg_get_functiondef(
       'gioia_private.assert_enabled_owner(uuid)'::regprocedure
-    ) !~ 'auth.jwt\(\)'
+    ) !~ 'auth.uid\(\)|auth.jwt\(\)'
     and pg_get_functiondef(
       'gioia_private.authorize_owner_session(uuid,uuid)'::regprocedure
     ) ~ 'gioia_private.assert_enabled_owner\(p_actor_user_id\)'
     and pg_get_functiondef(
       'gioia_private.authorize_owner_session(uuid,uuid)'::regprocedure
     ) !~ 'gioia_private.owner_accounts',
-  'one central helper binds auth.uid to the allowlist without JWT metadata'
+  'one central helper binds the verified transaction sub to the allowlist'
 );
 select ok(
   has_function_privilege(
@@ -194,7 +193,6 @@ do $$begin
   perform set_config('request.jwt.claim.sub', '95000000-0000-4000-8000-000000000002', true);
   perform set_config('request.jwt.claim.session_id', '96000000-0000-4000-8000-000000000002', true);
 end$$;
-
 set local role app_runtime;
 
 select throws_ok(
@@ -231,8 +229,9 @@ end$$;
 
 set local role app_runtime;
 
-select results_eq(
-  $$with started as materialized (
+select is(
+  (
+    with started as materialized (
       select gioia_private.start_owner_session(
         '95000000-0000-4000-8000-000000000001',
         '96000000-0000-4000-8000-000000000001') as authorized
@@ -240,8 +239,9 @@ select results_eq(
     select gioia_private.authorize_owner_session(
       '95000000-0000-4000-8000-000000000001',
       '96000000-0000-4000-8000-000000000001')
-    from started where authorized$$,
-  $$values (true)$$,
+    from started where authorized
+  ),
+  true,
   'a matching enabled owner receives one PII-free authorization boolean'
 );
 

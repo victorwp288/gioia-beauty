@@ -4,33 +4,43 @@ set local search_path = extensions, public, pg_catalog;
 
 select plan(8);
 
-select results_eq(
-  $$select attribute.attname::text, pg_catalog.format_type(
-      attribute.atttypid, attribute.atttypmod), attribute.attnotnull
+select is(
+  (
+    select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(
+      attribute.attname::text,
+      pg_catalog.format_type(attribute.atttypid, attribute.atttypmod),
+      attribute.attnotnull
+    ) order by attribute.attnum)
     from pg_catalog.pg_attribute as attribute
     where attribute.attrelid = 'gioia_private.owner_sessions'::regclass
       and attribute.attnum > 0 and not attribute.attisdropped
-    order by attribute.attnum$$,
-  $$values
-    ('session_id'::text,'uuid'::text,true),
-    ('user_id'::text,'uuid'::text,true),
-    ('created_at'::text,'timestamp with time zone'::text,true),
-    ('expires_at'::text,'timestamp with time zone'::text,true),
-    ('revoked_at'::text,'timestamp with time zone'::text,false)$$,
+  ),
+  '[
+    ["session_id", "uuid", true],
+    ["user_id", "uuid", true],
+    ["created_at", "timestamp with time zone", true],
+    ["expires_at", "timestamp with time zone", true],
+    ["revoked_at", "timestamp with time zone", false]
+  ]'::jsonb,
   'owner session ledger has only the reviewed non-PII columns'
 );
 
-select results_eq(
-  $$select constraint_data.conname::text
+select is(
+  (
+    select pg_catalog.jsonb_agg(
+      pg_catalog.to_jsonb(constraint_data.conname::text)
+      order by constraint_data.conname
+    )
     from pg_catalog.pg_constraint as constraint_data
     where constraint_data.conrelid = 'gioia_private.owner_sessions'::regclass
-    order by constraint_data.conname$$,
-  $$values
-    ('owner_sessions_expiry_after_creation'::text),
-    ('owner_sessions_lifetime_bounded'::text),
-    ('owner_sessions_pkey'::text),
-    ('owner_sessions_revocation_after_creation'::text),
-    ('owner_sessions_user_id_fkey'::text)$$,
+  ),
+  '[
+    "owner_sessions_expiry_after_creation",
+    "owner_sessions_lifetime_bounded",
+    "owner_sessions_pkey",
+    "owner_sessions_revocation_after_creation",
+    "owner_sessions_user_id_fkey"
+  ]'::jsonb,
   'owner session ledger has exact identity, lifetime, and chronology constraints'
 );
 
@@ -51,17 +61,22 @@ select ok(
   'owner sessions are forced-RLS with no direct caller table privileges'
 );
 
-select results_eq(
-  $$select index_relation.relname::text
+select is(
+  (
+    select pg_catalog.jsonb_agg(
+      pg_catalog.to_jsonb(index_relation.relname::text)
+      order by index_relation.relname
+    )
     from pg_catalog.pg_index as index_data
     join pg_catalog.pg_class as index_relation
       on index_relation.oid = index_data.indexrelid
     where index_data.indrelid = 'gioia_private.owner_sessions'::regclass
-    order by index_relation.relname$$,
-  $$values
-    ('owner_sessions_active_expiry_idx'::text),
-    ('owner_sessions_pkey'::text),
-    ('owner_sessions_user_id_idx'::text)$$,
+  ),
+  '[
+    "owner_sessions_active_expiry_idx",
+    "owner_sessions_pkey",
+    "owner_sessions_user_id_idx"
+  ]'::jsonb,
   'owner session lookups, FK checks, and bounded expiry scans are indexed'
 );
 

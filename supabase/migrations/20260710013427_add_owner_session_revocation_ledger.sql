@@ -52,22 +52,25 @@ security invoker
 set search_path = ''
 as $$
 declare
+  v_user_claim text := nullif(
+    pg_catalog.current_setting('request.jwt.claim.sub', true), ''
+  );
   v_authenticated_user_id uuid;
   v_session_claim text := nullif(
     pg_catalog.current_setting('request.jwt.claim.session_id', true), ''
   );
   v_authenticated_session_id uuid;
 begin
+  if v_user_claim is null then
+    raise sqlstate 'PT401' using message = 'OWNER_AUTHENTICATION_REQUIRED';
+  end if;
+
   begin
-    v_authenticated_user_id := auth.uid();
+    v_authenticated_user_id := v_user_claim::uuid;
   exception
     when invalid_text_representation then
       raise sqlstate 'PT401' using message = 'OWNER_AUTHENTICATION_REQUIRED';
   end;
-
-  if v_authenticated_user_id is null then
-    raise sqlstate 'PT401' using message = 'OWNER_AUTHENTICATION_REQUIRED';
-  end if;
   if v_session_claim is null then
     raise sqlstate 'PT401' using message = 'OWNER_SESSION_REQUIRED';
   end if;

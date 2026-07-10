@@ -85,17 +85,17 @@ reset role;
 do $$begin perform set_config('request.jwt.claim.session_id',
   'b1000000-0000-4000-8000-000000000001',true); end$$;
 set local role app_runtime;
-select results_eq($$select gioia_private.start_owner_session(
+select is(gioia_private.start_owner_session(
   'a1000000-0000-4000-8000-000000000001',
-  'b1000000-0000-4000-8000-000000000001')$$,$$values(true)$$,
+  'b1000000-0000-4000-8000-000000000001'),true,
   'enabled owner starts one session');
-select results_eq($$select gioia_private.start_owner_session(
+select is(gioia_private.start_owner_session(
   'a1000000-0000-4000-8000-000000000001',
-  'b1000000-0000-4000-8000-000000000001')$$,$$values(true)$$,
+  'b1000000-0000-4000-8000-000000000001'),true,
   'starting the same active session is idempotent');
-select results_eq($$select gioia_private.authorize_owner_session(
+select is(gioia_private.authorize_owner_session(
   'a1000000-0000-4000-8000-000000000001',
-  'b1000000-0000-4000-8000-000000000001')$$,$$values(true)$$,
+  'b1000000-0000-4000-8000-000000000001'),true,
   'active matching session authorizes one PII-free boolean');
 select results_eq(
   $$select http_status,result->>'code' from gioia_private.owner_create_block(
@@ -143,18 +143,18 @@ select throws_ok($$select gioia_private.authorize_owner_session(
   'b1000000-0000-4000-8000-000000000001')$$,
   'PT403','OWNER_AUTHORIZATION_REQUIRED',
   'disabled owner cannot authorize an otherwise active session');
-select results_eq($$select gioia_private.revoke_owner_session(
+select is(gioia_private.revoke_owner_session(
   'a1000000-0000-4000-8000-000000000001',
-  'b1000000-0000-4000-8000-000000000001')$$,$$values(true)$$,
+  'b1000000-0000-4000-8000-000000000001'),true,
   'matching authenticated actor can revoke after owner disablement');
 reset role;
 do $$begin perform set_config('gioia.test_revoked_at',(select revoked_at::text
   from gioia_private.owner_sessions where session_id=
   'b1000000-0000-4000-8000-000000000001'),true); end$$;
 set local role app_runtime;
-select results_eq($$select gioia_private.revoke_owner_session(
+select is(gioia_private.revoke_owner_session(
   'a1000000-0000-4000-8000-000000000001',
-  'b1000000-0000-4000-8000-000000000001')$$,$$values(true)$$,
+  'b1000000-0000-4000-8000-000000000001'),true,
   'repeated revocation is idempotent');
 reset role;
 select is((select revoked_at::text from gioia_private.owner_sessions where
@@ -207,9 +207,9 @@ select is((select count(*) from gioia_private.command_requests
 do $$begin perform set_config('request.jwt.claim.session_id',
   'b1000000-0000-4000-8000-000000000099',true); end$$;
 set local role app_runtime;
-select results_eq($$select gioia_private.revoke_owner_session(
+select is(gioia_private.revoke_owner_session(
   'a1000000-0000-4000-8000-000000000001',
-  'b1000000-0000-4000-8000-000000000099')$$,$$values(true)$$,
+  'b1000000-0000-4000-8000-000000000099'),true,
   'revoking an absent matching session creates a safe tombstone');
 select throws_ok($$select gioia_private.start_owner_session(
   'a1000000-0000-4000-8000-000000000001',

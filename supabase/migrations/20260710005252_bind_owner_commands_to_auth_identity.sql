@@ -5,8 +5,6 @@ set local statement_timeout = '30s';
 
 grant gioia_mutator to postgres;
 grant create on schema gioia_private to gioia_mutator;
-grant usage on schema auth to gioia_mutator;
-grant execute on function auth.uid() to gioia_mutator;
 
 set local role gioia_mutator;
 
@@ -18,11 +16,21 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_authenticated_user_id uuid := auth.uid();
+  v_user_claim text := nullif(
+    pg_catalog.current_setting('request.jwt.claim.sub', true), ''
+  );
+  v_authenticated_user_id uuid;
 begin
-  if v_authenticated_user_id is null then
+  if v_user_claim is null then
     raise sqlstate 'PT401' using message = 'OWNER_AUTHENTICATION_REQUIRED';
   end if;
+
+  begin
+    v_authenticated_user_id := v_user_claim::uuid;
+  exception
+    when invalid_text_representation then
+      raise sqlstate 'PT401' using message = 'OWNER_AUTHENTICATION_REQUIRED';
+  end;
 
   if p_user_id is distinct from v_authenticated_user_id then
     raise sqlstate 'PT403' using message = 'OWNER_IDENTITY_MISMATCH';
