@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { SignedCursorTokenSchema } from "./cursors.ts";
+import { PaginationCursorTokenWireSchema } from "./cursors.ts";
 import { AdminOutboxDtoSchema } from "./outbox-dtos.ts";
 import {
   CatalogServiceIdSchema,
@@ -69,7 +69,7 @@ export const ApiErrorResponseSchema = z
   .strict();
 
 const paginationResponseFields = {
-  nextCursor: SignedCursorTokenSchema.nullable(),
+  nextCursor: PaginationCursorTokenWireSchema.nullable(),
 };
 
 export const AdminScheduleListResponseSchema = z

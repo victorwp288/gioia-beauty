@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { daysBetweenSalonDates } from "../booking/primitives.ts";
-import { SignedCursorTokenSchema } from "./cursors.ts";
+import { PaginationCursorTokenWireSchema } from "./cursors.ts";
 import { OutboxStatusSchema } from "./outbox-persistence.ts";
 import {
   CatalogServiceIdSchema,
@@ -17,7 +17,7 @@ const dateRangeFields = {
 };
 const paginationFields = {
   pageSize: z.number().int().min(1).max(100).default(50),
-  cursor: SignedCursorTokenSchema.optional(),
+  cursor: PaginationCursorTokenWireSchema.optional(),
 };
 
 function validateDateRange(
@@ -128,7 +128,7 @@ export const ScheduleExportQuerySchema = z
     format: z.literal("csv").default("csv"),
     includeNotes: z.boolean().default(false),
     pageSize: z.number().int().min(1).max(500).default(250),
-    cursor: SignedCursorTokenSchema.optional(),
+    cursor: PaginationCursorTokenWireSchema.optional(),
   })
   .strict()
   .superRefine((query, context) => validateDateRange(query, 365, context));

@@ -9,6 +9,8 @@ afterEach(cleanupFixtures);
 
 describe("client/server boundary policy", () => {
   it.each([
+    "@supabase/ssr",
+    "@supabase/supabase-js",
     "server-only",
     "postgres/cf",
     "resend",

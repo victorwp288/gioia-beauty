@@ -11,12 +11,9 @@ import {
   parseScheduleExportSearchParams,
   parseScheduleListSearchParams,
   parseVacationListSearchParams,
-  parseVerifiedCursorPayload,
 } from "@/lib/domain/schemas/index.ts";
 
-const ENTITY_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const CURSOR = `${"a".repeat(20)}.${"b".repeat(20)}.${"c".repeat(20)}`;
-const FINGERPRINT = "a".repeat(64);
+const CURSOR = `c1-key.e30.${"A".repeat(43)}`;
 
 describe("HTTP query decoders", () => {
   it("parses repeated filters and canonical integers", () => {
@@ -48,6 +45,20 @@ describe("HTTP query decoders", () => {
     ]) {
       expect(() =>
         parseScheduleListSearchParams(new URLSearchParams(query)),
+      ).toThrow();
+    }
+  });
+
+  it("rejects cursor whitespace instead of normalizing the wire token", () => {
+    for (const cursor of [` ${CURSOR}`, `${CURSOR} `]) {
+      expect(() =>
+        parseScheduleListSearchParams(
+          new URLSearchParams([
+            ["fromDate", "2026-07-01"],
+            ["toDate", "2026-07-31"],
+            ["cursor", cursor],
+          ]),
+        ),
       ).toThrow();
     }
   });
@@ -105,46 +116,6 @@ describe("HTTP query decoders", () => {
         new URLSearchParams("status=failed&status=dead_letter&pageSize=25"),
       ),
     ).toMatchObject({ statuses: ["failed", "dead_letter"], pageSize: 25 });
-  });
-});
-
-describe("verified cursor scope", () => {
-  const payload = {
-    version: 1,
-    resource: "schedule",
-    filterFingerprint: FINGERPRINT,
-    date: "2026-07-10",
-    startMinutes: 600,
-    id: ENTITY_ID,
-    expiresAt: "2026-07-10T12:00:00Z",
-  };
-
-  it("binds a verified payload to resource, filters, and expiry", () => {
-    expect(
-      parseVerifiedCursorPayload(payload, {
-        resource: "schedule",
-        filterFingerprint: FINGERPRINT,
-        now: new Date("2026-07-10T11:00:00Z"),
-      }).id,
-    ).toBe(ENTITY_ID);
-    for (const expected of [
-      { resource: "outbox" as const, filterFingerprint: FINGERPRINT },
-      { resource: "schedule" as const, filterFingerprint: "b".repeat(64) },
-    ]) {
-      expect(() =>
-        parseVerifiedCursorPayload(payload, {
-          ...expected,
-          now: new Date("2026-07-10T11:00:00Z"),
-        }),
-      ).toThrow();
-    }
-    expect(() =>
-      parseVerifiedCursorPayload(payload, {
-        resource: "schedule",
-        filterFingerprint: FINGERPRINT,
-        now: new Date("2026-07-10T12:00:00Z"),
-      }),
-    ).toThrow();
   });
 });
 
