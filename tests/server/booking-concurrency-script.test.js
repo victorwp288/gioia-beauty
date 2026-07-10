@@ -106,6 +106,16 @@ describe("booking concurrency target and safety", () => {
         "postgresql://app_runtime:secret@127.0.0.1:54322/postgres",
       ),
     ).toThrow("safe local database URL");
+    expect(() =>
+      parseLocalDatabaseUrl(
+        "postgresql://postgres:secret@127.0.0.1:6543/postgres",
+      ),
+    ).toThrow("safe local database URL");
+    expect(() =>
+      parseLocalDatabaseUrl(
+        "postgresql://postgres:secret@127.0.0.1:54322/postgres?sslmode=require",
+      ),
+    ).toThrow("safe local database URL");
   });
 
   it("builds restricted commands and rejects injected reconciliation IDs", () => {

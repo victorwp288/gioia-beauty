@@ -54,9 +54,13 @@ export function parseLocalDatabaseUrl(value) {
     const url = new URL(value);
     if (
       !["postgres:", "postgresql:"].includes(url.protocol) ||
-      !["127.0.0.1", "localhost", "::1"].includes(url.hostname) ||
+      url.hostname !== "127.0.0.1" ||
+      url.port !== "54322" ||
       url.username !== "postgres" ||
-      url.pathname !== "/postgres"
+      !url.password ||
+      url.pathname !== "/postgres" ||
+      url.search ||
+      url.hash
     ) {
       throw new Error();
     }
