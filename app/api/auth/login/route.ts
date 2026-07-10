@@ -2,6 +2,7 @@ import { apiErrorResponse } from "@/lib/server/publicApiResponse.ts";
 import { ownerAuthRepository } from "@/lib/server/database/ownerAuthRepository.ts";
 import { createOwnerLoginHandler } from "@/lib/server/auth/ownerAuthHandlers.ts";
 import { createNextOwnerAuthContext } from "@/lib/server/auth/nextOwnerAuthContext.ts";
+import { observeServerRoute } from "@/lib/server/observability/runtime";
 import {
   clearOwnerSecurityCookies,
   writeOwnerSecurityCookies,
@@ -10,7 +11,7 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(request: Request): Promise<Response> {
+async function loginPostHandler(request: Request): Promise<Response> {
   try {
     const context = await createNextOwnerAuthContext(request);
     return await createOwnerLoginHandler({
@@ -38,3 +39,5 @@ export async function POST(request: Request): Promise<Response> {
     return apiErrorResponse(503, "SERVICE_UNAVAILABLE");
   }
 }
+
+export const POST = observeServerRoute("auth.login", "POST", loginPostHandler);

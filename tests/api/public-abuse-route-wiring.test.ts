@@ -10,6 +10,9 @@ const createAvailabilityHandler = vi.hoisted(() =>
   vi.fn(() => availabilityGet),
 );
 const createBookingHandler = vi.hoisted(() => vi.fn(() => bookingPost));
+const observeRoute = vi.hoisted(() =>
+  vi.fn((_route: string, _method: string, handler: unknown) => handler),
+);
 
 vi.mock("@/lib/server/publicAbuseBoundary.ts", () => ({
   publicAbuseGuard: abuseGuard,
@@ -22,6 +25,9 @@ vi.mock("@/lib/server/availabilityHandler.ts", () => ({
 }));
 vi.mock("@/lib/server/publicBookingHandler.ts", () => ({
   createPublicBookingPostHandler: createBookingHandler,
+}));
+vi.mock("@/lib/server/observability/runtime", () => ({
+  observeServerRoute: observeRoute,
 }));
 
 describe("public abuse route wiring", () => {
@@ -37,6 +43,11 @@ describe("public abuse route wiring", () => {
       abuseGuard,
       database,
     });
+    expect(observeRoute).toHaveBeenCalledWith(
+      "public.availability",
+      "GET",
+      availabilityGet,
+    );
     expect(availability.GET).toBe(availabilityGet);
 
     expect(bookings.dynamic).toBe("force-dynamic");
@@ -46,6 +57,11 @@ describe("public abuse route wiring", () => {
       abuseGuard,
       database,
     });
+    expect(observeRoute).toHaveBeenCalledWith(
+      "public.booking",
+      "POST",
+      bookingPost,
+    );
     expect(bookings.POST).toBe(bookingPost);
   });
 });

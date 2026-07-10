@@ -5,10 +5,21 @@ const createRoute = vi.hoisted(() =>
     Object.assign(vi.fn(), { ownerScheduleCommandName: commandName }),
   ),
 );
+const observeRoute = vi.hoisted(() =>
+  vi.fn((route: string, method: string, handler: object) =>
+    Object.assign(handler, {
+      observedMethod: method,
+      observedRoute: route,
+    }),
+  ),
+);
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/server/nextOwnerScheduleCommandRoute.ts", () => ({
   createNextOwnerScheduleCommandRoute: createRoute,
+}));
+vi.mock("@/lib/server/observability/runtime", () => ({
+  observeServerRoute: observeRoute,
 }));
 
 import * as appointmentRoute from "@/app/api/admin/appointments/route.ts";
@@ -23,24 +34,38 @@ import * as vacationCancelRoute from "@/app/api/admin/vacations/cancel/route.ts"
 import * as vacationRoute from "@/app/api/admin/vacations/route.ts";
 
 type ConfiguredPost = {
+  readonly observedMethod?: string;
+  readonly observedRoute?: string;
   readonly ownerScheduleCommandName?: string;
 };
 
 describe("admin schedule route wiring", () => {
   it.each([
-    [appointmentRoute, "createAppointment"],
-    [appointmentDetailsRoute, "updateAppointment"],
-    [appointmentRescheduleRoute, "rescheduleAppointment"],
-    [appointmentStatusRoute, "setAppointmentStatus"],
-    [blockRoute, "createBlock"],
-    [blockDetailsRoute, "updateBlock"],
-    [blockRescheduleRoute, "rescheduleBlock"],
-    [scheduleCancelRoute, "cancelScheduleEntry"],
-    [vacationRoute, "createVacation"],
-    [vacationCancelRoute, "cancelVacation"],
-  ])("binds each route to its exact command", (route, commandName) => {
-    expect((route.POST as ConfiguredPost).ownerScheduleCommandName).toBe(
-      commandName,
-    );
-  });
+    [appointmentRoute, "createAppointment", "admin.appointment.create"],
+    [appointmentDetailsRoute, "updateAppointment", "admin.appointment.details"],
+    [
+      appointmentRescheduleRoute,
+      "rescheduleAppointment",
+      "admin.appointment.reschedule",
+    ],
+    [
+      appointmentStatusRoute,
+      "setAppointmentStatus",
+      "admin.appointment.status",
+    ],
+    [blockRoute, "createBlock", "admin.block.create"],
+    [blockDetailsRoute, "updateBlock", "admin.block.details"],
+    [blockRescheduleRoute, "rescheduleBlock", "admin.block.reschedule"],
+    [scheduleCancelRoute, "cancelScheduleEntry", "admin.schedule.cancel"],
+    [vacationRoute, "createVacation", "admin.vacation.create"],
+    [vacationCancelRoute, "cancelVacation", "admin.vacation.cancel"],
+  ])(
+    "binds each route to its exact command and observation label",
+    (route, commandName, observationLabel) => {
+      const post = route.POST as ConfiguredPost;
+      expect(post.observedRoute).toBe(observationLabel);
+      expect(post.observedMethod).toBe("POST");
+      expect(post.ownerScheduleCommandName).toBe(commandName);
+    },
+  );
 });

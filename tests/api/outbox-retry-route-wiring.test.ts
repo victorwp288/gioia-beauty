@@ -4,9 +4,15 @@ vi.mock("server-only", () => ({}));
 
 const guardedPost = vi.hoisted(() => vi.fn());
 const createGuardedRoute = vi.hoisted(() => vi.fn(() => guardedPost));
+const observeRoute = vi.hoisted(() =>
+  vi.fn((_route: string, _method: string, handler: unknown) => handler),
+);
 
 vi.mock("@/lib/server/nextOwnerOutboxRetryRoute.ts", () => ({
   createNextOwnerOutboxRetryRoute: createGuardedRoute,
+}));
+vi.mock("@/lib/server/observability/runtime", () => ({
+  observeServerRoute: observeRoute,
 }));
 
 describe("owner outbox retry route wiring", () => {
@@ -18,6 +24,11 @@ describe("owner outbox retry route wiring", () => {
     expect(route.runtime).toBe("nodejs");
     expect(createGuardedRoute).toHaveBeenCalledOnce();
     expect(createGuardedRoute).toHaveBeenCalledWith();
+    expect(observeRoute).toHaveBeenCalledWith(
+      "admin.outbox.retry",
+      "POST",
+      guardedPost,
+    );
     expect(route.POST).toBe(guardedPost);
   });
 });

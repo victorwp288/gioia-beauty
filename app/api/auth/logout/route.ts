@@ -6,11 +6,12 @@ import {
 } from "@/lib/server/auth/ownerSecurityCookies.ts";
 import { ownerAuthRepository } from "@/lib/server/database/ownerAuthRepository.ts";
 import { apiErrorResponse } from "@/lib/server/publicApiResponse.ts";
+import { observeServerRoute } from "@/lib/server/observability/runtime";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(request: Request): Promise<Response> {
+async function logoutPostHandler(request: Request): Promise<Response> {
   try {
     const context = await createNextOwnerAuthContext(request);
     const { bindingToken, csrfToken } = readOwnerSecurityCookies(
@@ -35,3 +36,9 @@ export async function POST(request: Request): Promise<Response> {
     return apiErrorResponse(503, "SERVICE_UNAVAILABLE");
   }
 }
+
+export const POST = observeServerRoute(
+  "auth.logout",
+  "POST",
+  logoutPostHandler,
+);

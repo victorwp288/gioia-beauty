@@ -1,6 +1,12 @@
 import { createNextOwnerOutboxRetryRoute } from "@/lib/server/nextOwnerOutboxRetryRoute.ts";
+import { observeServerRoute } from "@/lib/server/observability/runtime";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export const POST = createNextOwnerOutboxRetryRoute();
+const postHandler = createNextOwnerOutboxRetryRoute();
+export const POST = observeServerRoute(
+  "admin.outbox.retry",
+  "POST",
+  postHandler,
+);
