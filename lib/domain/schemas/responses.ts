@@ -15,6 +15,10 @@ import { AdminScheduleEntryDtoSchema } from "./schedule-dtos.ts";
 import { AdminSubscriberDtoSchema } from "./subscribers.ts";
 import { AdminVacationDtoSchema } from "./vacations.ts";
 
+export const HealthResponseSchema = z
+  .object({ status: z.literal("ok") })
+  .strict();
+
 export const PublicAvailabilityResponseSchema = z
   .object({
     date: SalonDateSchema,

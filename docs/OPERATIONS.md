@@ -79,7 +79,9 @@ On a stop, preserve the source and target, keep writes frozen, and follow the pr
 
 ## Routine checks after launch
 
-- Shallow read-free health endpoint and uptime check.
+- Shallow read-free `/api/health` uptime check. A 200 proves only process
+  liveness; it does not prove database, Auth, provider, migration, queue, or
+  restore readiness.
 - Error rate, latency, rate-limit, database connection/pool, and outbox pending/failed/dead-letter alerts.
 - Bounded daily review of failed webhook/outbox machine codes; no payload logging.
 - Supabase security and performance advisors after every migration and on a regular schedule.
