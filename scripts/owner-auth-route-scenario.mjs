@@ -58,7 +58,7 @@ async function expectStatus(
   status,
   code,
   operation,
-  expectedKeys = ["code"],
+  expectedKeys = status >= 400 ? ["code", "requestId"] : ["code"],
 ) {
   privateResponse(response, operation);
   const body = await responseBody(response, operation);
@@ -66,7 +66,19 @@ async function expectStatus(
   const exactBody =
     actualKeys.length === expectedKeys.length &&
     actualKeys.every((key, index) => key === [...expectedKeys].sort()[index]);
-  if (response.status !== status || body.code !== code || !exactBody) {
+  const requestIdIsExact =
+    !expectedKeys.includes("requestId") ||
+    (typeof body.requestId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        body.requestId,
+      ) &&
+      response.headers.get("x-request-id") === body.requestId);
+  if (
+    response.status !== status ||
+    body.code !== code ||
+    !exactBody ||
+    !requestIdIsExact
+  ) {
     const safeCode =
       typeof body.code === "string" && /^[A-Z0-9_]{1,64}$/u.test(body.code)
         ? body.code

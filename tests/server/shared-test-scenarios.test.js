@@ -30,15 +30,24 @@ const SECURE_COOKIE_EXPECTATIONS = {
 };
 
 function jsonResponse(status, code, extra = {}, cookies = []) {
+  const requestId = "00000000-0000-4000-8000-000000000099";
   const headers = new Headers({
     "cache-control": "private, no-store",
     "content-type": "application/json",
   });
+  if (status >= 400) headers.set("x-request-id", requestId);
   for (const cookie of cookies) headers.append("set-cookie", cookie);
-  return new Response(JSON.stringify({ code, ...extra }), {
-    status,
-    headers,
-  });
+  return new Response(
+    JSON.stringify({
+      code,
+      ...(status >= 400 ? { requestId } : {}),
+      ...extra,
+    }),
+    {
+      status,
+      headers,
+    },
+  );
 }
 
 function scenarioResponses() {
@@ -196,6 +205,32 @@ describe("shared Local and TEST scenarios", () => {
         fetchImpl: async () => responses.shift(),
       }),
     ).rejects.toThrow("owner login returned");
+  });
+
+  it("requires error request IDs to match the response header", async () => {
+    const responses = scenarioResponses();
+    responses[0] = new Response(
+      JSON.stringify({
+        code: "OWNER_SESSION_REQUIRED",
+        requestId: "00000000-0000-4000-8000-000000000099",
+      }),
+      {
+        status: 401,
+        headers: { "cache-control": "private, no-store" },
+      },
+    );
+    await expect(
+      runOwnerAuthRouteScenario({
+        baseUrl: new URL("https://127.0.0.1:43123"),
+        owner: {
+          email: "owner.ephemeral@gioia.test",
+          password: "in-memory-random-password",
+        },
+        cookieSecurity: SECURE_COOKIE_EXPECTATIONS,
+        reconcileLedger: async () => {},
+        fetchImpl: async () => responses.shift(),
+      }),
+    ).rejects.toThrow("unauthenticated session returned");
   });
 
   it("rejects security cookies on revoked-session replay", async () => {
