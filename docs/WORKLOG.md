@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Locked outbox activation behind verifier-backed evidence
+**Phase:** Phase 3 reliable-side-effect/Cron foundation; broad atomic-outbox checklist remains open
+**Labels/environment:** [LOCAL] pure server contract, static import/activation guards, synthetic tests, documentation, and build only
+**Data impact:** none; no route, schedule, database/provider singleton or call, migration, environment key, renderer registration, remote, or customer-data action
+**Target:** local `refactor`; Production Supabase remains unregistered/null and protected TEST evidence remains external
+**Expected reads/writes/rows:** readiness import/evaluation makes 0 DB/Auth/provider/network calls, 0 writes, and 0 rows; it accepts no evidence input and creates no timers, routes, or runtime composition
+**Done:** Commit `1575e2d` adds a zero-input, code-owned, deep-frozen v1 readiness contract structurally fixed to `ready: false` with exact blockers for claim dispositions, durable historical dead-letter monitoring, persisted provider retry cutoff, versioned newsletter snapshot, and TEST checkpoint. Forged booleans/hashes/env/PII cannot alter it; guards cover aliases, alternate route extensions, package scripts, workflows, and composition factories. Operations defines future verifier contracts and separates remote alert configuration. No masterplan item was ticked.
+**Verified/reconciled:** focused 3 files/42 tests; full format/static SQL/lint/TS7/TS6, 118 files/1,583 tests, both 56-test timezone runs, production build, and dependency audit (0 high/critical; 6 documented Firebase-Admin-chain moderate records) pass. Three independent final reviews found no P1/P2. Prior dead-letter head passed all six CI jobs, including two clean database cycles, in run `29124225944`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `1575e2d`; no external recovery is required
+**Next:** Commit this handoff, push, and green replacement CI. Then run the guarded 37-migration TEST checkpoint if the exact protected session-pooler DSN is available; otherwise audit and implement the next migration-free bounded owner schedule/list/count request and response contract without adding a database function, route/UI activation, or remote access.
+**Gotchas:** V1 deliberately has no success path; future readiness requires a contract-version change plus trusted proof producers. Hash presence is only artifact binding, not execution proof, and remote alert-receiver configuration remains a separately approved activation preflight.
+
 ## 2026-07-10 — Alerted on completion-observed outbox dead letters
 **Phase:** Phase 3 reliable-side-effect/Cron foundation; broad atomic-outbox checklist remains open
 **Labels/environment:** [LOCAL] inert response classification, synthetic tests, documentation, static analysis, and build only
