@@ -19,8 +19,8 @@ import {
   type OwnerAuthActions,
   type SecurityCookieWriter,
 } from "./auth/ownerAuthSupport.ts";
-import type { OwnerScheduleCommandOperation } from "./database/ownerScheduleCommandContracts.ts";
-import type { OwnerScheduleCommandResult } from "./database/ownerScheduleRepository.ts";
+import type { OwnerCommandOperation } from "./database/ownerScheduleCommandContracts.ts";
+import type { OwnerCommandResult } from "./database/ownerScheduleRepositorySupport.ts";
 import type { OwnerTransactionIdentity } from "./database/runtime.ts";
 import {
   classifyOwnerCommandDatabaseError,
@@ -40,19 +40,19 @@ export interface OwnerCommandRuntimeContext {
   readonly responseHeaders?: HeadersInit;
 }
 
-export interface OwnerScheduleCommandHandlerOptions<
+export interface OwnerCommandHandlerOptions<
   TBody extends Record<string, unknown>,
 > {
   readonly csrfCookieToken: string | null | undefined;
   readonly bodySchema: z.ZodType<TBody>;
-  readonly operation: OwnerScheduleCommandOperation;
+  readonly operation: OwnerCommandOperation;
   readonly version: 1;
   readonly loadRuntimeContext: () => Promise<OwnerCommandRuntimeContext>;
   readonly execute: (
     identity: OwnerTransactionIdentity,
     command: TBody & { readonly idempotencyKey: string },
     requestFingerprint: Buffer,
-  ) => Promise<OwnerScheduleCommandResult>;
+  ) => Promise<OwnerCommandResult>;
   readonly createRequestId?: () => string;
   readonly now?: Date;
 }
@@ -82,7 +82,11 @@ async function clearRejectedOwner(
   }
 }
 
-export function createOwnerScheduleCommandHandler<
+export type OwnerScheduleCommandHandlerOptions<
+  TBody extends Record<string, unknown>,
+> = OwnerCommandHandlerOptions<TBody>;
+
+export function createOwnerCommandHandler<
   TBody extends Record<string, unknown>,
 >({
   csrfCookieToken,
@@ -93,7 +97,7 @@ export function createOwnerScheduleCommandHandler<
   execute,
   createRequestId = randomUUID,
   now,
-}: OwnerScheduleCommandHandlerOptions<TBody>) {
+}: OwnerCommandHandlerOptions<TBody>) {
   return async function POST(request: Request): Promise<Response> {
     const requestId = createRequestId();
     let commandRequest: AdminCommandRequestResult<TBody>;
@@ -195,3 +199,5 @@ export function createOwnerScheduleCommandHandler<
     }
   };
 }
+
+export const createOwnerScheduleCommandHandler = createOwnerCommandHandler;

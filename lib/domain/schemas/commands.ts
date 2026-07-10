@@ -40,10 +40,13 @@ export const PublicCancelAppointmentCommandSchema = z
   })
   .strict();
 
+const adminRetryOutboxFields = {
+  outboxId: UuidSchema,
+  expectedVersion: PositiveVersionSchema,
+};
+export const AdminRetryOutboxBodySchema = z
+  .object(adminRetryOutboxFields)
+  .strict();
 export const AdminRetryOutboxCommandSchema = z
-  .object({
-    ...commandFields,
-    outboxId: UuidSchema,
-    expectedVersion: PositiveVersionSchema,
-  })
+  .object({ ...commandFields, ...adminRetryOutboxFields })
   .strict();

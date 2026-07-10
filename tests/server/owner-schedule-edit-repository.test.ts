@@ -216,7 +216,7 @@ describe("owner schedule edit repository", () => {
       const fixture = setup([result(200, code, otherResourceId)]);
       await expect(
         fixture.repository[method](identity, command, fingerprint),
-      ).rejects.toThrow("Unexpected owner schedule command result");
+      ).rejects.toThrow("Unexpected owner command result");
     },
   );
 
@@ -243,7 +243,7 @@ describe("owner schedule edit repository", () => {
         commandFor("updateBlock"),
         fingerprint,
       ),
-    ).rejects.toThrow("Unexpected owner schedule command result");
+    ).rejects.toThrow("Unexpected owner command result");
   });
 
   it.each([
@@ -277,7 +277,7 @@ describe("owner schedule edit repository", () => {
           commandFor("setAppointmentStatus"),
           fingerprint,
         ),
-      ).rejects.toThrow("Unexpected owner schedule command result");
+      ).rejects.toThrow("Unexpected owner command result");
     },
   );
 });

@@ -12,14 +12,20 @@ export type OwnerScheduleCommandOperation =
   | "owner_set_appointment_status"
   | "owner_update_appointment_details"
   | "owner_update_block_details";
+export type OwnerCommandOperation =
+  OwnerScheduleCommandOperation | "owner_outbox_retry";
 
-export interface OwnerScheduleCommandContract {
-  readonly operation: OwnerScheduleCommandOperation;
+export interface OwnerCommandContract {
+  readonly operation: OwnerCommandOperation;
   readonly fingerprintVersion: 1;
   readonly query: string;
   readonly httpStatus: 200 | 201;
   readonly code: string;
   readonly failures: readonly string[];
+}
+
+export interface OwnerScheduleCommandContract extends OwnerCommandContract {
+  readonly operation: OwnerScheduleCommandOperation;
 }
 
 export function ownerCommandFailureKey(

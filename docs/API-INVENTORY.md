@@ -19,6 +19,7 @@ explicit-export manifest. Keep the markers exact and unique.
 <!-- api-route {"method":"POST","path":"/api/admin/blocks"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/blocks/details"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/blocks/reschedule"} -->
+<!-- api-route {"method":"POST","path":"/api/admin/outbox/retry"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/schedule/cancel"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/vacations"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/vacations/cancel"} -->
@@ -64,11 +65,11 @@ handling, alert thresholds, and endpoint registration remain launch gates.
 Supabase Auth method counts are SDK invocations, not guaranteed outbound HTTP
 counts: refresh and internal retry behavior belong to the SDK/provider.
 
-| Route                   | Input and authorization                                                                                                       | Response / PII                                                                                                 | Rate and cache                                                          | Maximum effect                                                                                                                                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Route                   | Input and authorization                                                                                                  | Response / PII                                                                                                 | Rate and cache                                                          | Maximum effect                                                                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /api/auth/login`  | Owner; exact Origin/Host; no query; raw fatal-UTF-8 strict JSON ≤4 KiB; identity encoding; email ≤254 and password 8–256 | Session-created code, 43-character CSRF credential, and Auth/binding/CSRF cookies; email/password never echoed | No local limiter; upstream Auth 429 maps to `Retry-After: 60`; no-store | Normal success: 3 Auth SDK methods plus 1 DB session-start function/result and ≤1 ledger insert. Exceptional compensation: ≤4 Auth methods, 2 DB functions, at most 1 ledger insert, and at most 1 revoke update |
 | `GET /api/auth/session` | No query; owner Auth cookies, bounded extracted access token, HMAC binding, valid CSRF cookie; body ignored              | Active-session code, CSRF credential, and possible refreshed Auth cookies; no PII                              | No local limiter; upstream Auth may 429; no-store                       | Normal success: 2 Auth methods plus 1 DB authorization function/result and 0 writes. Cleanup maximum: 3 Auth methods; DB remains 1 call                                                                          |
-| `POST /api/auth/logout` | Owner; exact Origin plus 43-character CSRF; no query; fresh identity and HMAC binding; body ignored                       | Session-ended code and cleared cookies; no PII                                                                 | No local limiter; upstream Auth may 429; no-store                       | Normal success: 3 Auth methods plus 1 DB revoke function/result and ≤1 ledger insert/update. If sign-out throws, cleanup may make a fourth Auth invocation; DB remains 1 call                                    |
+| `POST /api/auth/logout` | Owner; exact Origin plus 43-character CSRF; no query; fresh identity and HMAC binding; body ignored                      | Session-ended code and cleared cookies; no PII                                                                 | No local limiter; upstream Auth may 429; no-store                       | Normal success: 3 Auth methods plus 1 DB revoke function/result and ≤1 ledger insert/update. If sign-out throws, cleanup may make a fourth Auth invocation; DB remains 1 call                                    |
 
 Login checks Origin before query and query before body/Auth/database work.
 Logout checks Origin/CSRF before query and query before Auth/database work;
@@ -86,26 +87,53 @@ and CSRF are checked before query rejection, and query rejection precedes
 idempotency/body/Auth/database work. Each authorized, repository-valid request
 makes exactly one owner DB transaction/private command call; every path makes
 at most one. SQL is capped at 2 result rows and the application accepts exactly
-1. There are no synchronous provider sends.
-Auth cleanup may add one local `signOut` for a maximum of 3 SDK invocations.
+one. There are no synchronous provider sends. Auth cleanup may add one local
+`signOut` for a maximum of 3 SDK invocations.
 
 A fresh handled 400/404/409 persists only one command row with two mutations
 (insert then fail). Exact replay writes 0 rows and skips schedule, vacation,
 domain-change, and outbox mutation. Each fresh success appends one PII-minimized
 domain-change row. Day-lock rows are real persistent effects and are included.
 
-| Route                                     | Strict body                                                                           | Success                                 | Maximum fresh-success database effect                                                                                                                                  |
-| ----------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/admin/appointments`            | date/start, service/variant, name, nullable email/phone/note                          | `APPOINTMENT_CREATED` + ID              | Optional 1 day-lock insert; appointment + domain change + owner outbox + optional customer outbox; command insert+complete: **6 distinct rows/7 mutations**            |
+| Route                                     | Strict body                                                                                   | Success                                 | Maximum fresh-success database effect                                                                                                                                  |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/admin/appointments`            | date/start, service/variant, name, nullable email/phone/note                                  | `APPOINTMENT_CREATED` + ID              | Optional 1 day-lock insert; appointment + domain change + owner outbox + optional customer outbox; command insert+complete: **6 distinct rows/7 mutations**            |
 | `POST /api/admin/appointments/details`    | `entryId`, `expectedVersion` 1..2,147,483,647, and ≥1 contact/client-note/internal-note patch | `APPOINTMENT_DETAILS_UPDATED` + same ID | Appointment update + domain change; command insert+complete: **3 rows/4 mutations**                                                                                    |
 | `POST /api/admin/appointments/reschedule` | `entryId`, `expectedVersion` 1..2,147,483,647, date/start, service/variant                    | `APPOINTMENT_RESCHEDULED` + same ID     | Up to 2 day-lock inserts; appointment update + domain change + owner outbox + optional customer outbox; command insert+complete: **7 rows/8 mutations**                |
 | `POST /api/admin/appointments/status`     | `entryId`, `expectedVersion` 1..2,147,483,647, `completed` or `no_show`                       | `APPOINTMENT_STATUS_UPDATED` + same ID  | Optional 1 day lock; appointment update + domain change; command insert+complete: **4 rows/5 mutations**                                                               |
-| `POST /api/admin/blocks`                  | date/start/duration, optional buffer/internal note                                    | `BLOCK_CREATED` + ID                    | Optional 1 day lock; block + domain change; command insert+complete: **4 rows/5 mutations**                                                                            |
+| `POST /api/admin/blocks`                  | date/start/duration, optional buffer/internal note                                            | `BLOCK_CREATED` + ID                    | Optional 1 day lock; block + domain change; command insert+complete: **4 rows/5 mutations**                                                                            |
 | `POST /api/admin/blocks/details`          | `entryId`, `expectedVersion` 1..2,147,483,647, required internal-note patch                   | `BLOCK_DETAILS_UPDATED` + same ID       | Block update + domain change; command insert+complete: **3 rows/4 mutations**                                                                                          |
 | `POST /api/admin/blocks/reschedule`       | `entryId`, `expectedVersion` 1..2,147,483,647, date/start/duration, optional buffer           | `BLOCK_RESCHEDULED` + same ID           | Up to 2 day locks; block update + domain change; command insert+complete: **5 rows/6 mutations**                                                                       |
 | `POST /api/admin/schedule/cancel`         | `entryId`, `expectedVersion` 1..2,147,483,647, optional/null reason                           | `SCHEDULE_ENTRY_CANCELLED` + same ID    | Appointment maximum: optional 1 day lock, entry update, domain change, up to 2 outbox rows, command insert+complete: **6 rows/7 mutations**. Block: 4 rows/5 mutations |
-| `POST /api/admin/vacations`               | start/end date spanning ≤366 inclusive dates, optional/null reason                    | `VACATION_CREATED` + ID                 | Up to 366 day locks; vacation + domain change; command insert+complete: **369 rows/370 mutations**                                                                     |
-| `POST /api/admin/vacations/cancel`        | `vacationId`, `expectedVersion` 1..2,147,483,647                                             | `VACATION_CANCELLED` + same ID          | Up to 366 day locks; vacation update + domain change; command insert+complete: **369 rows/370 mutations**                                                              |
+| `POST /api/admin/vacations`               | start/end date spanning ≤366 inclusive dates, optional/null reason                            | `VACATION_CREATED` + ID                 | Up to 366 day locks; vacation + domain change; command insert+complete: **369 rows/370 mutations**                                                                     |
+| `POST /api/admin/vacations/cancel`        | `vacationId`, `expectedVersion` 1..2,147,483,647                                              | `VACATION_CANCELLED` + same ID          | Up to 366 day locks; vacation update + domain change; command insert+complete: **369 rows/370 mutations**                                                              |
+
+## Owner email outbox command
+
+`POST /api/admin/outbox/retry` uses the same fresh owner, HMAC binding,
+Origin/CSRF, query-free, idempotency, and bounded strict-body boundary as the
+schedule commands. Its body is exactly `outboxId` plus `expectedVersion`
+1..2,147,483,647. It never sends email synchronously.
+
+The route is hard-disabled in Production and the protected operator environment
+before cookie/body/Auth/database work. It is executable only when the complete
+environment validates as Local/Test/Preview with fake email transport. In that
+safe runtime, one accepted request performs at most 2 Auth verification methods,
+1 owner transaction, and 1 private function query capped at 2 rows with exactly
+1 accepted. Rejected Auth/database identity may add 1 local `signOut`, for at
+most 3 Auth SDK invocations. A fresh success mutates 2 rows 3 times: command
+insert, outbox requeue/version update, and command completion. A fresh handled
+conflict mutates 1 command row twice; an exact replay writes 0 rows. Physical
+reads remain measurement-dependent.
+
+Production activation is a launch stop until a post-checkpoint migration records
+provider attempt/uncertainty timing and rejects automatic/manual retry at or
+beyond Resend's 24-hour idempotency window. An environment toggle cannot bypass
+this code gate.
+
+| Route                          | Strict body                                    | Response / activation                                        | Maximum safe-runtime effect                                                                                                   |
+| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/admin/outbox/retry` | `outboxId`, `expectedVersion` 1..2,147,483,647 | Retry code + ID/replay; Production/operator always fixed 503 | 1 owner transaction/function/≤2 rows; fresh success **2 rows/3 mutations**; conflict **1 row/2 mutations**; replay 0; 0 sends |
 
 ## Temporary legacy mail routes
 

@@ -10,7 +10,7 @@ import {
 
 import {
   ownerCommandFailureKey,
-  type OwnerScheduleCommandContract,
+  type OwnerCommandContract,
 } from "./ownerScheduleCommandContracts.ts";
 import type { OwnerTransactionIdentity, RuntimeDatabase } from "./runtime.ts";
 
@@ -34,9 +34,10 @@ const OwnerCommandRowSchema = z
   })
   .strict();
 
-export type OwnerScheduleCommandResult = z.infer<typeof OwnerCommandRowSchema>;
+export type OwnerCommandResult = z.infer<typeof OwnerCommandRowSchema>;
+export type OwnerScheduleCommandResult = OwnerCommandResult;
 
-interface ExpectedResult extends OwnerScheduleCommandContract {
+interface ExpectedResult extends OwnerCommandContract {
   readonly resourceId?: string;
 }
 
@@ -59,13 +60,13 @@ export function parsePostgresVersion(value: unknown): number {
 function parseCommandResult(
   rows: Array<Record<string, unknown>>,
   expected: ExpectedResult,
-): OwnerScheduleCommandResult {
+): OwnerCommandResult {
   if (rows.length !== 1 || !rows[0]) {
-    throw new Error("Unexpected owner schedule command result");
+    throw new Error("Unexpected owner command result");
   }
   const parsed = OwnerCommandRowSchema.safeParse(rows[0]);
   if (!parsed.success) {
-    throw new Error("Unexpected owner schedule command result");
+    throw new Error("Unexpected owner command result");
   }
 
   const row = parsed.data;
@@ -83,19 +84,21 @@ function parseCommandResult(
     ) &&
     resourceId === undefined;
   if (!validSuccess && !validFailure) {
-    throw new Error("Unexpected owner schedule command result");
+    throw new Error("Unexpected owner command result");
   }
   return row;
 }
 
-export async function executeOwnerScheduleCommand(
+export async function executeOwnerCommand(
   database: Pick<RuntimeDatabase, "ownerTransaction">,
   identity: OwnerTransactionIdentity,
   parameters: readonly unknown[],
   expected: ExpectedResult,
-): Promise<OwnerScheduleCommandResult> {
+): Promise<OwnerCommandResult> {
   const rows = await database.ownerTransaction(identity, (transaction) =>
     transaction.unsafe(expected.query, parameters),
   );
   return parseCommandResult(rows, expected);
 }
+
+export const executeOwnerScheduleCommand = executeOwnerCommand;

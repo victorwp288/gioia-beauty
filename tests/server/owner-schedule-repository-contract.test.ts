@@ -78,7 +78,7 @@ describe("owner schedule repository result contracts", () => {
           appointment,
           fingerprint,
         ),
-      ).rejects.toThrow("Unexpected owner schedule command result");
+      ).rejects.toThrow("Unexpected owner command result");
     }
   });
 
@@ -94,7 +94,7 @@ describe("owner schedule repository result contracts", () => {
           },
         },
       ]).cancelScheduleEntry(identity, scheduleCancellation, fingerprint),
-    ).rejects.toThrow("Unexpected owner schedule command result");
+    ).rejects.toThrow("Unexpected owner command result");
     await expect(
       repositoryWith([
         {
@@ -102,7 +102,7 @@ describe("owner schedule repository result contracts", () => {
           result: { code: "VACATION_CANCELLED", resource_id: wrongResource },
         },
       ]).cancelVacation(identity, vacationCancellation, fingerprint),
-    ).rejects.toThrow("Unexpected owner schedule command result");
+    ).rejects.toThrow("Unexpected owner command result");
   });
 
   it("rejects missing, duplicate, malformed, and extra command rows", async () => {
@@ -120,7 +120,7 @@ describe("owner schedule repository result contracts", () => {
           appointment,
           fingerprint,
         ),
-      ).rejects.toThrow("Unexpected owner schedule command result");
+      ).rejects.toThrow("Unexpected owner command result");
     }
   });
 
@@ -150,7 +150,7 @@ describe("owner schedule repository result contracts", () => {
           appointment,
           fingerprint,
         ),
-      ).rejects.toThrow("Unexpected owner schedule command result");
+      ).rejects.toThrow("Unexpected owner command result");
     }
   });
 });

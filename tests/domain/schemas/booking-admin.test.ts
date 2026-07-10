@@ -7,6 +7,7 @@ import {
   AdminCreateVacationCommandSchema,
   AdminRescheduleAppointmentCommandSchema,
   AdminRescheduleBlockCommandSchema,
+  AdminRetryOutboxBodySchema,
   AdminRetryOutboxCommandSchema,
   AdminSetAppointmentStatusCommandSchema,
   AdminUpdateAppointmentCommandSchema,
@@ -274,5 +275,25 @@ describe("admin schedule commands", () => {
         expectedVersion: 2,
       }).success,
     ).toBe(true);
+    expect(
+      AdminRetryOutboxBodySchema.parse({
+        outboxId: ENTRY_ID.toUpperCase(),
+        expectedVersion: 2_147_483_647,
+      }),
+    ).toEqual({ outboxId: ENTRY_ID, expectedVersion: 2_147_483_647 });
+    for (const candidate of [
+      { outboxId: ENTRY_ID, expectedVersion: 0 },
+      { outboxId: ENTRY_ID, expectedVersion: 2_147_483_648 },
+      {
+        outboxId: ENTRY_ID,
+        expectedVersion: 2,
+        idempotencyKey: IDEMPOTENCY_KEY,
+      },
+      { outboxId: ENTRY_ID, expectedVersion: 2, extra: true },
+    ]) {
+      expect(AdminRetryOutboxBodySchema.safeParse(candidate).success).toBe(
+        false,
+      );
+    }
   });
 });
