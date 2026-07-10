@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Bounded public booking streams before buffering
+**Phase:** Phase 3 public booking boundary; broad booking/abuse/E2E checklist items remain open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; no database, Auth, provider, schema, fixture, or remote call
+**Target:** local `refactor`; no remote or Production target
+**Expected reads/writes/rows:** rejected requests perform 0 DB/Auth/provider work. An accepted runtime request keeps the existing 1 transaction/1 private-function query/1 result-row contract; a fresh success has at most 7 row mutations across 6 distinct rows (command twice, optional day lock, appointment, domain change, and up to 2 pending outbox rows), while an exact replay writes 0 rows and no request calls a provider.
+**Done:** Commit `6a331f4` replaces unbounded `request.text()` buffering with a raw streamed 8 KiB cap/cancellation, fatal UTF-8 decoding, canonical query/origin/idempotency/media/encoding/length gates, explicit rejection precedence, and regression-proof zero-DB tests. Repository, SQL overlap, fingerprinting, and concurrency behavior are unchanged.
+**Verified/reconciled:** format/lint/TS7/TS6, 79 files/792 tests, 24 focused boundary tests, and production build pass; independent parser/security review reports no blockers. Exact prior health head `812a148` passed all six CI jobs, dependency/secret checks, and both clean 342-assertion database cycles in run `29079160588`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Vercel, DNS, Resend, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `6a331f4`; no external state changed
+**Next:** Reconcile `docs/API-INVENTORY.md` against all 19 current route modules and add an exact filesystem-to-document coverage test, including truthful logical-versus-observed effect bounds. Then apply the same streamed-cap correction to the two temporary legacy mail boundaries without changing their owner-only/fail-closed policy.
+**Gotchas:** Legitimate callers must send no query, lowercase canonical UUID idempotency, canonical same-origin when Origin is present, and JSON with only optional UTF-8 charset plus identity encoding. The legacy mail handlers still check 8 KiB only after `request.text()`; all 10 owner mutations currently ignore query strings, and version values above PostgreSQL int32 reach a redacted 503 instead of request validation.
+
 ## 2026-07-10 — Added constant read-free liveness endpoint
 **Phase:** Phase 3 observability foundation; combined Sentry/logging/metrics/health checklist item remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
