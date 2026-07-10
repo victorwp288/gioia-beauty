@@ -93,12 +93,9 @@ export function classifyOwnerCommandDatabaseError(
   return SERVICE_UNAVAILABLE;
 }
 
-export function ownerCommandDatabaseErrorResponse(
-  error: unknown,
-  requestId: string,
+export function ownerCommandAuthResponseHeaders(
   authRefreshHeaders: HeadersInit = {},
-): Response {
-  const classification = classifyOwnerCommandDatabaseError(error);
+): Headers {
   const supplied = new Headers(authRefreshHeaders);
   const responseHeaders = new Headers();
   if (supplied.get("expires") === "0") {
@@ -113,11 +110,19 @@ export function ownerCommandDatabaseErrorResponse(
   for (const cookie of setCookies) {
     responseHeaders.append("set-cookie", cookie);
   }
+  return responseHeaders;
+}
 
+export function ownerCommandDatabaseErrorResponse(
+  error: unknown,
+  requestId: string,
+  authRefreshHeaders: HeadersInit = {},
+): Response {
+  const classification = classifyOwnerCommandDatabaseError(error);
   return apiErrorResponse(
     classification.status,
     classification.code,
     requestId,
-    responseHeaders,
+    ownerCommandAuthResponseHeaders(authRefreshHeaders),
   );
 }

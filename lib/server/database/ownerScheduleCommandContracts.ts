@@ -1,8 +1,16 @@
 import "server-only";
 
 export type OwnerCommandFailureStatus = 400 | 404 | 409;
+export type OwnerScheduleCommandOperation =
+  | "owner_create_appointment"
+  | "owner_create_block"
+  | "owner_cancel_schedule_entry"
+  | "owner_create_vacation"
+  | "owner_cancel_vacation";
 
 export interface OwnerScheduleCommandContract {
+  readonly operation: OwnerScheduleCommandOperation;
+  readonly fingerprintVersion: 1;
   readonly query: string;
   readonly httpStatus: 200 | 201;
   readonly code: string;
@@ -17,6 +25,8 @@ function failures(
 
 export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
   createAppointment: Object.freeze({
+    operation: "owner_create_appointment",
+    fingerprintVersion: 1,
     query: `
       select command.http_status, command.result, command.replayed
       from gioia_private.owner_create_appointment(
@@ -41,6 +51,8 @@ export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
     ]),
   }),
   createBlock: Object.freeze({
+    operation: "owner_create_block",
+    fingerprintVersion: 1,
     query: `
       select command.http_status, command.result, command.replayed
       from gioia_private.owner_create_block(
@@ -64,6 +76,8 @@ export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
     ]),
   }),
   cancelScheduleEntry: Object.freeze({
+    operation: "owner_cancel_schedule_entry",
+    fingerprintVersion: 1,
     query: `
       select command.http_status, command.result, command.replayed
       from gioia_private.owner_cancel_schedule_entry(
@@ -82,6 +96,8 @@ export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
     ]),
   }),
   createVacation: Object.freeze({
+    operation: "owner_create_vacation",
+    fingerprintVersion: 1,
     query: `
       select command.http_status, command.result, command.replayed
       from gioia_private.owner_create_vacation(
@@ -100,6 +116,8 @@ export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
     ]),
   }),
   cancelVacation: Object.freeze({
+    operation: "owner_cancel_vacation",
+    fingerprintVersion: 1,
     query: `
       select command.http_status, command.result, command.replayed
       from gioia_private.owner_cancel_vacation(

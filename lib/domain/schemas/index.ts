@@ -1,5 +1,6 @@
 export * from "./audit.ts";
 export * from "./catalog.ts";
+export * from "./command-types.ts";
 export * from "./commands.ts";
 export * from "./cursors.ts";
 export * from "./outbox-dtos.ts";

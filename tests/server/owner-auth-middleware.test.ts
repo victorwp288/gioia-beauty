@@ -34,9 +34,9 @@ describe("owner Auth middleware", () => {
     else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalKey;
   });
 
-  it("matches only owner surfaces in the Node runtime", () => {
+  it("refreshes only dashboard navigation in the Node runtime", () => {
     expect(config).toEqual({
-      matcher: ["/dashboard/:path*", "/api/admin/:path*"],
+      matcher: ["/dashboard/:path*"],
       runtime: "nodejs",
     });
   });
@@ -73,7 +73,7 @@ describe("owner Auth middleware", () => {
     }));
 
     const response = await middleware(
-      new NextRequest("https://app.example.test/api/admin/appointments"),
+      new NextRequest("https://app.example.test/dashboard"),
     );
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("x-supabase-auth")).toBe("refreshed");

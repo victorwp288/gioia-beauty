@@ -74,12 +74,18 @@ export const PublicBookingCommandSchema = z
   })
   .strict();
 
+const adminCreateAppointmentFields = {
+  ...slotFields,
+  ...catalogFields,
+  ...optionalContactFields,
+};
+export const AdminCreateAppointmentBodySchema = z
+  .object(adminCreateAppointmentFields)
+  .strict();
 export const AdminCreateAppointmentCommandSchema = z
   .object({
     ...commandFields,
-    ...slotFields,
-    ...catalogFields,
-    ...optionalContactFields,
+    ...adminCreateAppointmentFields,
   })
   .strict();
 
@@ -105,27 +111,42 @@ export const AdminUpdateAppointmentCommandSchema = z
     ),
   );
 
+const adminCreateBlockFields = {
+  ...slotFields,
+  durationMinutes: DurationMinutesSchema,
+  bufferMinutes: BufferMinutesSchema.default(0),
+  internalNote: InternalNoteSchema,
+};
+function validateBlockWithinSalonDay(
+  command: {
+    startMinutes: number;
+    durationMinutes: number;
+    bufferMinutes: number;
+  },
+  context: z.RefinementCtx,
+) {
+  if (
+    command.startMinutes + command.durationMinutes + command.bufferMinutes >
+    1440
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Block must end within the salon-local day",
+      path: ["startMinutes"],
+    });
+  }
+}
+export const AdminCreateBlockBodySchema = z
+  .object(adminCreateBlockFields)
+  .strict()
+  .superRefine(validateBlockWithinSalonDay);
 export const AdminCreateBlockCommandSchema = z
   .object({
     ...commandFields,
-    ...slotFields,
-    durationMinutes: DurationMinutesSchema,
-    bufferMinutes: BufferMinutesSchema.default(0),
-    internalNote: InternalNoteSchema,
+    ...adminCreateBlockFields,
   })
   .strict()
-  .superRefine((command, context) => {
-    if (
-      command.startMinutes + command.durationMinutes + command.bufferMinutes >
-      1440
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Block must end within the salon-local day",
-        path: ["startMinutes"],
-      });
-    }
-  });
+  .superRefine(validateBlockWithinSalonDay);
 
 export const AdminUpdateBlockCommandSchema = z
   .object({
@@ -172,12 +193,18 @@ export const AdminRescheduleBlockCommandSchema = z
     }
   });
 
+const adminCancelScheduleEntryFields = {
+  entryId: UuidSchema,
+  expectedVersion: PositiveVersionSchema,
+  reason: CancellationReasonSchema,
+};
+export const AdminCancelScheduleEntryBodySchema = z
+  .object(adminCancelScheduleEntryFields)
+  .strict();
 export const AdminCancelScheduleEntryCommandSchema = z
   .object({
     ...commandFields,
-    entryId: UuidSchema,
-    expectedVersion: PositiveVersionSchema,
-    reason: CancellationReasonSchema,
+    ...adminCancelScheduleEntryFields,
   })
   .strict();
 
@@ -190,30 +217,50 @@ export const AdminSetAppointmentStatusCommandSchema = z
   })
   .strict();
 
+const adminCreateVacationFields = {
+  startDate: SalonDateSchema,
+  endDate: SalonDateSchema,
+  reason: VacationReasonSchema,
+};
+function validateVacationDateRange(
+  command: {
+    startDate: z.infer<typeof SalonDateSchema>;
+    endDate: z.infer<typeof SalonDateSchema>;
+  },
+  context: z.RefinementCtx,
+) {
+  const days = daysBetweenSalonDates(command.startDate, command.endDate);
+  if (days < 0 || days > 365) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Vacation must span between 1 and 366 inclusive dates",
+      path: ["endDate"],
+    });
+  }
+}
+export const AdminCreateVacationBodySchema = z
+  .object(adminCreateVacationFields)
+  .strict()
+  .superRefine(validateVacationDateRange);
 export const AdminCreateVacationCommandSchema = z
   .object({
     ...commandFields,
-    startDate: SalonDateSchema,
-    endDate: SalonDateSchema,
-    reason: VacationReasonSchema,
+    ...adminCreateVacationFields,
   })
   .strict()
-  .superRefine((command, context) => {
-    const days = daysBetweenSalonDates(command.startDate, command.endDate);
-    if (days < 0 || days > 365) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Vacation must span between 1 and 366 inclusive dates",
-        path: ["endDate"],
-      });
-    }
-  });
+  .superRefine(validateVacationDateRange);
 
+const adminCancelVacationFields = {
+  vacationId: UuidSchema,
+  expectedVersion: PositiveVersionSchema,
+};
+export const AdminCancelVacationBodySchema = z
+  .object(adminCancelVacationFields)
+  .strict();
 export const AdminCancelVacationCommandSchema = z
   .object({
     ...commandFields,
-    vacationId: UuidSchema,
-    expectedVersion: PositiveVersionSchema,
+    ...adminCancelVacationFields,
   })
   .strict();
 
@@ -231,41 +278,3 @@ export const AdminRetryOutboxCommandSchema = z
     expectedVersion: PositiveVersionSchema,
   })
   .strict();
-
-export type PublicBookingCommand = z.infer<typeof PublicBookingCommandSchema>;
-export type AdminCreateAppointmentCommand = z.infer<
-  typeof AdminCreateAppointmentCommandSchema
->;
-export type AdminCreateBlockCommand = z.infer<
-  typeof AdminCreateBlockCommandSchema
->;
-export type AdminUpdateAppointmentCommand = z.infer<
-  typeof AdminUpdateAppointmentCommandSchema
->;
-export type AdminUpdateBlockCommand = z.infer<
-  typeof AdminUpdateBlockCommandSchema
->;
-export type AdminRescheduleAppointmentCommand = z.infer<
-  typeof AdminRescheduleAppointmentCommandSchema
->;
-export type AdminRescheduleBlockCommand = z.infer<
-  typeof AdminRescheduleBlockCommandSchema
->;
-export type AdminCancelScheduleEntryCommand = z.infer<
-  typeof AdminCancelScheduleEntryCommandSchema
->;
-export type AdminSetAppointmentStatusCommand = z.infer<
-  typeof AdminSetAppointmentStatusCommandSchema
->;
-export type AdminCreateVacationCommand = z.infer<
-  typeof AdminCreateVacationCommandSchema
->;
-export type AdminCancelVacationCommand = z.infer<
-  typeof AdminCancelVacationCommandSchema
->;
-export type PublicCancelAppointmentCommand = z.infer<
-  typeof PublicCancelAppointmentCommandSchema
->;
-export type AdminRetryOutboxCommand = z.infer<
-  typeof AdminRetryOutboxCommandSchema
->;
