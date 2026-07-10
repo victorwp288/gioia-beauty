@@ -164,10 +164,26 @@ describe("owner mutation request security", () => {
       requestHasExpectedOrigin(
         new Request("https://preview.example.test/api/admin/appointments", {
           method: "POST",
-          headers: { origin: "https://preview.example.test" },
+          headers: {
+            host: "preview.example.test",
+            origin: "https://preview.example.test",
+          },
         }),
       ),
     ).toBe(true);
+
+    expect(
+      requestHasExpectedOrigin(
+        new Request("http://localhost:43123/api/admin/appointments", {
+          method: "POST",
+          headers: {
+            host: "127.0.0.1:43123",
+            origin: "http://127.0.0.1:43123",
+          },
+        }),
+      ),
+    ).toBe(true);
+
     for (const origin of [
       null,
       "https://attacker.example.test",
@@ -178,6 +194,36 @@ describe("owner mutation request security", () => {
       expect(
         requestHasExpectedOrigin(
           new Request("https://preview.example.test/api/admin/appointments", {
+            method: "POST",
+            headers: { host: "preview.example.test", ...headers },
+          }),
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it("rejects malformed or spoofed request authorities", () => {
+    const acceptedOrigin = "https://preview.example.test";
+    const rejectedHeaders: Array<Record<string, string>> = [
+      { origin: acceptedOrigin },
+      { host: "preview.example.test", origin: "http://preview.example.test" },
+      { host: "attacker.example.test", origin: acceptedOrigin },
+      {
+        host: "preview.example.test,attacker.example.test",
+        origin: acceptedOrigin,
+      },
+      { host: "preview.example.test/path", origin: acceptedOrigin },
+      { host: `preview.${"a".repeat(513)}`, origin: acceptedOrigin },
+      {
+        host: "preview.example.test",
+        "x-forwarded-host": "attacker.example.test",
+        origin: "https://attacker.example.test",
+      },
+    ];
+    for (const headers of rejectedHeaders) {
+      expect(
+        requestHasExpectedOrigin(
+          new Request("https://internal.local/api/admin/appointments", {
             method: "POST",
             headers,
           }),

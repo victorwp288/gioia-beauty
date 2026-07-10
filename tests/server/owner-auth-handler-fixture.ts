@@ -61,7 +61,11 @@ export function createHandlerFixture({
 export function ownerLoginRequest(origin = "https://app.example.test") {
   return new Request("https://app.example.test/api/auth/login", {
     method: "POST",
-    headers: { "content-type": "application/json", origin },
+    headers: {
+      "content-type": "application/json",
+      host: "app.example.test",
+      origin,
+    },
     body: JSON.stringify({
       email: " OWNER@EXAMPLE.TEST ",
       password: "synthetic-password",
@@ -75,7 +79,11 @@ export function ownerLogoutRequest(
 ) {
   return new Request("https://app.example.test/api/auth/logout", {
     method: "POST",
-    headers: { origin, "x-csrf-token": csrfToken },
+    headers: {
+      host: "app.example.test",
+      origin,
+      "x-csrf-token": csrfToken,
+    },
   });
 }
 
