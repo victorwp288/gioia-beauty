@@ -21,6 +21,7 @@ const SUMMARY = Object.freeze({
   retryScheduled: 0,
   deliveryDeadLettered: 0,
   completionUncertain: 0,
+  rendererOperationalFaults: 0,
   budgetReached: false,
 });
 
@@ -265,6 +266,47 @@ describe("inert authenticated outbox worker invocation", () => {
       expect(fixture.run).toHaveBeenCalledOnce();
       expect(text).not.toContain(privateValue);
     }
+  });
+
+  it("returns fixed renderer alerts and gives completion uncertainty precedence", async () => {
+    const operational = setup({
+      result: {
+        ...SUMMARY,
+        sent: 1,
+        retryScheduled: 1,
+        rendererOperationalFaults: 1,
+      },
+    });
+    const uncertain = setup({
+      result: {
+        ...SUMMARY,
+        sent: 0,
+        retryScheduled: 1,
+        completionUncertain: 1,
+        rendererOperationalFaults: 1,
+      },
+    });
+
+    await expect(json(await operational.handler(request()))).resolves.toEqual({
+      code: "OUTBOX_RENDERER_UNAVAILABLE",
+      requestId: REQUEST_ID,
+    });
+    await expect(json(await uncertain.handler(request()))).resolves.toEqual({
+      code: "OUTBOX_COMPLETION_UNCERTAIN",
+      requestId: REQUEST_ID,
+    });
+  });
+
+  it("rejects operational counters without a failure disposition", async () => {
+    const fixture = setup({
+      result: { ...SUMMARY, rendererOperationalFaults: 1 },
+    });
+    const response = await fixture.handler(request());
+    expect(response.status).toBe(503);
+    await expect(json(response)).resolves.toEqual({
+      code: "SERVICE_UNAVAILABLE",
+      requestId: REQUEST_ID,
+    });
   });
 
   it("returns a fixed response deadline for a non-cooperative worker", async () => {

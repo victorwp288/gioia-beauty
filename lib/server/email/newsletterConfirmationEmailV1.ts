@@ -12,6 +12,7 @@ import {
 import type { NewsletterActionTokenCodec } from "@/lib/server/newsletterActionToken.ts";
 
 import { EmailMessageSchema, type EmailMessage } from "./emailProvider.ts";
+import { OutboxRendererOperationalError } from "./outboxRendererFault.ts";
 
 const FROM = "Gioia Beauty <noreply@gioiabeauty.net>" as const;
 const PRODUCTION_ORIGIN = "https://www.gioiabeauty.net";
@@ -90,9 +91,9 @@ export class NewsletterConfirmationRendererInputError extends Error {
   }
 }
 
-export class NewsletterConfirmationRendererOperationalError extends Error {
+export class NewsletterConfirmationRendererOperationalError extends OutboxRendererOperationalError {
   constructor() {
-    super("Newsletter confirmation rendering is temporarily unavailable");
+    super();
     this.name = "NewsletterConfirmationRendererOperationalError";
   }
 }
@@ -221,6 +222,13 @@ export function createNewsletterConfirmationEmailRendererV1({
       ) {
         throw new NewsletterConfirmationRendererOperationalError();
       }
+      const currentMilliseconds = renderTime.getTime();
+      if (
+        Date.parse(action.issuedAt) > currentMilliseconds + 5 * 60 * 1_000 ||
+        Date.parse(action.expiresAt) <= currentMilliseconds
+      ) {
+        throw new NewsletterConfirmationRendererInputError();
+      }
       const token = issue({
         claims,
         signingKeyId: action.signingKeyId,
@@ -243,7 +251,10 @@ export function createNewsletterConfirmationEmailRendererV1({
         html: renderHtml(url),
         text: renderText(url),
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof NewsletterConfirmationRendererInputError) {
+        throw error;
+      }
       throw new NewsletterConfirmationRendererOperationalError();
     }
   });

@@ -11,6 +11,7 @@ import {
   NewsletterConfirmationRenderSnapshotV1Schema,
   createNewsletterConfirmationEmailRendererV1,
 } from "@/lib/server/email/newsletterConfirmationEmailV1.ts";
+import { OutboxRendererOperationalError } from "@/lib/server/email/outboxRendererFault.ts";
 
 import {
   CLAIMS,
@@ -164,9 +165,16 @@ describe("immutable newsletter confirmation email v1", () => {
     ["at expiry", new Date(CLAIMS.expiresAt)],
     ["after expiry", new Date("2026-07-10T10:00:00.001Z")],
     ["future issue", new Date("2026-07-09T09:54:59.999Z")],
-    ["invalid clock", new Date(Number.NaN)],
   ])("refuses an unusable action snapshot %s", (_label, now) => {
     const fixture = setup(now);
+    expect(() => fixture.render(snapshot())).toThrow(
+      NewsletterConfirmationRendererInputError,
+    );
+    expect(fixture.verifyToken).not.toHaveBeenCalled();
+  });
+
+  it("classifies an invalid injected clock as operational", () => {
+    const fixture = setup(new Date(Number.NaN));
     expect(() => fixture.render(snapshot())).toThrow(
       NewsletterConfirmationRendererOperationalError,
     );
@@ -287,6 +295,7 @@ describe("immutable newsletter confirmation email v1", () => {
     expect(error).toBeInstanceOf(
       NewsletterConfirmationRendererOperationalError,
     );
+    expect(error).toBeInstanceOf(OutboxRendererOperationalError);
     expect(String(error)).not.toContain(privateKeyId);
   });
 

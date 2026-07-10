@@ -101,6 +101,7 @@ function importIsAllowed(node: ts.ImportDeclaration): boolean {
       ["type:NewsletterActionTokenCodec"],
     ],
     ["./emailProvider.ts", ["type:EmailMessage", "value:EmailMessageSchema"]],
+    ["./outboxRendererFault.ts", ["value:OutboxRendererOperationalError"]],
   ]).get(node.moduleSpecifier.text);
   return (
     expected !== undefined &&

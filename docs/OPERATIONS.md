@@ -69,6 +69,13 @@ activate Cron or establish the missing persisted 24-hour retry cutoff.
 
 - A provider-accepted send whose database completion cannot be proven is an
   alertable recovery state, not an ordinary blind retry.
+- A renderer may signal only the fixed, branded operational-fault contract for
+  unavailable dependencies such as a signing key or injected clock. The worker
+  makes zero provider calls, fences one retryable `OUTBOX_RENDERER_UNAVAILABLE`
+  completion, and returns an alerting 503 even when that retry is durably
+  scheduled. Unknown renderer errors remain permanent `OUTBOX_TEMPLATE_INVALID`.
+  If the failure completion cannot be proven, completion uncertainty takes
+  alert precedence; neither response reflects the private thrown detail.
 - Provider timeout, network failure, invalid success response, 5xx, and
   concurrent-idempotency outcomes are also acceptance-uncertain; the worker
   must not persist them as proven delivery failures.

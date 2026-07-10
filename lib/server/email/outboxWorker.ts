@@ -26,6 +26,7 @@ import {
   mapWithConcurrency,
   settleBeforeAbort,
 } from "./outboxWorkerDeadline.ts";
+import { isOutboxRendererOperationalError } from "./outboxRendererFault.ts";
 
 export {
   OutboxWorkerConfigurationError,
@@ -36,7 +37,10 @@ type WorkerOutcome =
   | "sent"
   | "retry_scheduled"
   | "delivery_dead_lettered"
-  | "completion_uncertain";
+  | "completion_uncertain"
+  | "renderer_retry_scheduled"
+  | "renderer_delivery_dead_lettered"
+  | "renderer_completion_uncertain";
 
 const ACCEPTANCE_UNCERTAIN_PROVIDER_CODES = new Set([
   "PROVIDER_CONCURRENT_IDEMPOTENCY",
@@ -135,15 +139,22 @@ async function processClaim(
     const render = dependencies.renderers[parsedItem.templateKind];
     if (!render) throw new Error("Missing renderer");
     message = render(parsedItem);
-  } catch {
-    return persistFailure(
+  } catch (error) {
+    const operational = isOutboxRendererOperationalError(error);
+    const outcome = await persistFailure(
       dependencies.repository,
       workerId,
       item,
-      "OUTBOX_TEMPLATE_INVALID",
-      false,
+      operational ? "OUTBOX_RENDERER_UNAVAILABLE" : "OUTBOX_TEMPLATE_INVALID",
+      operational,
       settlementSignal,
     );
+    if (!operational) return outcome;
+    if (outcome === "retry_scheduled") return "renderer_retry_scheduled";
+    if (outcome === "delivery_dead_lettered") {
+      return "renderer_delivery_dead_lettered";
+    }
+    return "renderer_completion_uncertain";
   }
 
   let providerResult: unknown;
@@ -226,6 +237,18 @@ function countOutcomes(summary: WorkerSummary, outcomes: WorkerOutcome[]) {
       summary.deliveryDeadLettered += 1;
     }
     if (outcome === "completion_uncertain") summary.completionUncertain += 1;
+    if (outcome === "renderer_retry_scheduled") {
+      summary.retryScheduled += 1;
+      summary.rendererOperationalFaults += 1;
+    }
+    if (outcome === "renderer_delivery_dead_lettered") {
+      summary.deliveryDeadLettered += 1;
+      summary.rendererOperationalFaults += 1;
+    }
+    if (outcome === "renderer_completion_uncertain") {
+      summary.completionUncertain += 1;
+      summary.rendererOperationalFaults += 1;
+    }
   }
 }
 
@@ -255,6 +278,7 @@ export function createOutboxWorker(dependencies: WorkerDependencies) {
         retryScheduled: 0,
         deliveryDeadLettered: 0,
         completionUncertain: 0,
+        rendererOperationalFaults: 0,
         budgetReached: false,
       };
 

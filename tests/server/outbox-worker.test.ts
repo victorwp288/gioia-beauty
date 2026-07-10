@@ -12,6 +12,7 @@ import {
   OutboxWorkerConfigurationError,
   createOutboxWorker,
 } from "@/lib/server/email/outboxWorker.ts";
+import { OutboxRendererOperationalError } from "@/lib/server/email/outboxRendererFault.ts";
 
 const WORKER_ID = "cron:30000000-0000-4000-8000-000000000001";
 const completeRenderers = {
@@ -124,6 +125,7 @@ describe("bounded outbox worker", () => {
       retryScheduled: 0,
       deliveryDeadLettered: 0,
       completionUncertain: 0,
+      rendererOperationalFaults: 0,
       budgetReached: false,
     });
 
@@ -306,6 +308,179 @@ describe("bounded outbox worker", () => {
       sent: 1,
     });
     expect(newsletterRenderer).toHaveBeenCalledOnce();
+  });
+
+  it("alerts and retries a branded renderer operational fault without sending", async () => {
+    const fixture = setup([[claim(1)]]);
+    const provider = createFakeEmailProvider();
+    const send = vi.spyOn(provider, "send");
+    const worker = createOutboxWorker({
+      repository: fixture.repository,
+      provider,
+      renderers: {
+        ...completeRenderers,
+        booking_customer: () => {
+          throw new OutboxRendererOperationalError();
+        },
+      },
+    });
+
+    await expect(runWorker(worker)).resolves.toMatchObject({
+      claimed: 1,
+      sent: 0,
+      retryScheduled: 1,
+      deliveryDeadLettered: 0,
+      completionUncertain: 0,
+      rendererOperationalFaults: 1,
+    });
+    expect(send).not.toHaveBeenCalled();
+    expect(fixture.completeSuccess).not.toHaveBeenCalled();
+    expect(fixture.completeFailure).toHaveBeenCalledOnce();
+    expect(fixture.completeFailure).toHaveBeenCalledWith({
+      outboxId: claim(1).outboxId,
+      expectedVersion: claim(1).expectedVersion,
+      workerId: WORKER_ID,
+      errorCode: "OUTBOX_RENDERER_UNAVAILABLE",
+      retryable: true,
+    });
+  });
+
+  it("keeps unbranded renderer failures permanently template-invalid", async () => {
+    const fixture = setup([[claim(1)]]);
+    const provider = createFakeEmailProvider();
+    const send = vi.spyOn(provider, "send");
+    const privateValue = "private-renderer-detail@example.test";
+    const worker = createOutboxWorker({
+      repository: fixture.repository,
+      provider,
+      renderers: {
+        ...completeRenderers,
+        booking_customer: () => {
+          throw new Error(privateValue);
+        },
+      },
+    });
+
+    await expect(runWorker(worker)).resolves.toMatchObject({
+      claimed: 1,
+      deliveryDeadLettered: 1,
+      rendererOperationalFaults: 0,
+    });
+    expect(send).not.toHaveBeenCalled();
+    expect(fixture.completeFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: "OUTBOX_TEMPLATE_INVALID",
+        retryable: false,
+      }),
+    );
+    expect(JSON.stringify(fixture.completeFailure.mock.calls)).not.toContain(
+      privateValue,
+    );
+  });
+
+  it("reports an unproven operational-fault completion as both uncertain and operational", async () => {
+    const fixture = setup([[claim(1)]]);
+    fixture.completeFailure.mockRejectedValueOnce(new Error("private outage"));
+    const provider = createFakeEmailProvider();
+    const send = vi.spyOn(provider, "send");
+    const worker = createOutboxWorker({
+      repository: fixture.repository,
+      provider,
+      renderers: {
+        ...completeRenderers,
+        booking_customer: () => {
+          throw new OutboxRendererOperationalError();
+        },
+      },
+    });
+
+    await expect(runWorker(worker)).resolves.toMatchObject({
+      claimed: 1,
+      retryScheduled: 0,
+      completionUncertain: 1,
+      rendererOperationalFaults: 1,
+    });
+    expect(send).not.toHaveBeenCalled();
+    expect(fixture.completeFailure).toHaveBeenCalledOnce();
+    expect(fixture.completeSuccess).not.toHaveBeenCalled();
+  });
+
+  it("isolates operational, invalid, provider, and uncertain outcomes in one bounded batch", async () => {
+    const claims = [claim(1), claim(2), claim(3), claim(4), claim(5)];
+    const fixture = setup([claims]);
+    const provider = {
+      send: vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          providerMessageId: "provider-message-3",
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          errorCode: "PROVIDER_RATE_LIMITED",
+          retryable: true,
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          errorCode: "PROVIDER_UNAVAILABLE",
+          retryable: true,
+        }),
+    };
+    const worker = createOutboxWorker({
+      repository: fixture.repository,
+      provider,
+      renderers: {
+        ...completeRenderers,
+        booking_customer: (item) => {
+          if (item.outboxId === claims[0]!.outboxId) {
+            throw new OutboxRendererOperationalError();
+          }
+          if (item.outboxId === claims[1]!.outboxId) {
+            throw new Error("private deterministic detail");
+          }
+          return completeRenderers.booking_customer(item);
+        },
+      },
+    });
+
+    await expect(runWorker(worker)).resolves.toEqual({
+      claimCycles: 1,
+      claimed: 5,
+      sent: 1,
+      retryScheduled: 2,
+      deliveryDeadLettered: 1,
+      completionUncertain: 1,
+      rendererOperationalFaults: 1,
+      budgetReached: true,
+    });
+    expect(provider.send).toHaveBeenCalledTimes(3);
+    expect(fixture.completeSuccess).toHaveBeenCalledOnce();
+    expect(fixture.completeFailure).toHaveBeenCalledTimes(3);
+    expect(
+      fixture.completeFailure.mock.calls.map(([input]) => ({
+        outboxId: input.outboxId,
+        errorCode: input.errorCode,
+        retryable: input.retryable,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          outboxId: claims[0]!.outboxId,
+          errorCode: "OUTBOX_RENDERER_UNAVAILABLE",
+          retryable: true,
+        },
+        {
+          outboxId: claims[1]!.outboxId,
+          errorCode: "OUTBOX_TEMPLATE_INVALID",
+          retryable: false,
+        },
+        {
+          outboxId: claims[3]!.outboxId,
+          errorCode: "PROVIDER_RATE_LIMITED",
+          retryable: true,
+        },
+      ]),
+    );
   });
 
   it("marks provider-accepted rows uncertain when completion cannot be proven", async () => {

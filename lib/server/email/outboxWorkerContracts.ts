@@ -22,6 +22,7 @@ export const OutboxWorkerSummarySchema = z
     retryScheduled: z.number().int().min(0).max(5),
     deliveryDeadLettered: z.number().int().min(0).max(5),
     completionUncertain: z.number().int().min(0).max(5),
+    rendererOperationalFaults: z.number().int().min(0).max(5),
     budgetReached: z.boolean(),
   })
   .strict()
@@ -36,6 +37,17 @@ export const OutboxWorkerSummarySchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Every claimed item requires one terminal worker outcome",
+      });
+    }
+    if (
+      summary.rendererOperationalFaults >
+      summary.retryScheduled +
+        summary.deliveryDeadLettered +
+        summary.completionUncertain
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Renderer operational faults require a failure disposition",
       });
     }
   });
