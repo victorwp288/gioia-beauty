@@ -78,7 +78,7 @@ function databaseClient(
 ) {
   return clientFactory(databaseUrl, {
     prepare: false,
-    ssl: "require",
+    ssl: "verify-full",
     max,
     idle_timeout: persistent ? null : 5,
     connect_timeout: 10,

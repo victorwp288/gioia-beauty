@@ -15,11 +15,11 @@ import {
 } from "../../scripts/test-target-auth-server.mjs";
 
 const operatorSessionUrl =
-  "postgresql://postgres.ref:operator@pooler.test:5432/postgres?sslmode=require";
+  "postgresql://postgres.ref:operator@pooler.test:5432/postgres?sslmode=verify-full";
 const operatorWorkerUrl =
-  "postgresql://postgres.ref:operator@pooler.test:6543/postgres?sslmode=require";
+  "postgresql://postgres.ref:operator@pooler.test:6543/postgres?sslmode=verify-full";
 const runtimeUrl =
-  "postgresql://app_runtime.ref:runtime@pooler.test:6543/postgres?sslmode=require";
+  "postgresql://app_runtime.ref:runtime@pooler.test:6543/postgres?sslmode=verify-full";
 
 function config() {
   return {
@@ -100,6 +100,10 @@ describe("greenfield TEST advisory lock", () => {
       idle_timeout: null,
       max_lifetime: null,
       max: 1,
+      ssl: "verify-full",
+    });
+    expect(clientFactory.mock.calls[1][1]).toMatchObject({
+      ssl: "verify-full",
     });
   });
 

@@ -158,7 +158,7 @@ function parseOperatorDatabaseUrl(value, errors) {
     const url = new URL(value);
     const validQuery =
       url.searchParams.size === 1 &&
-      url.searchParams.get("sslmode") === "require";
+      url.searchParams.get("sslmode") === "verify-full";
     if (
       url.protocol !== "postgresql:" ||
       decodeURIComponent(url.username) !== OPERATOR_USERNAME ||
@@ -214,7 +214,7 @@ function safeConfig(publishableKey, runId, apiUrl, operatorUrl) {
     poolerRegion: TEST_TARGET_REGION,
     operatorSessionPort: 5432,
     operatorWorkerPort: 6543,
-    sslmode: "require",
+    sslmode: "verify-full",
   };
 
   Object.defineProperties(config, {

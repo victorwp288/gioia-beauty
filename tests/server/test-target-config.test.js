@@ -30,7 +30,7 @@ function validEnvironment(overrides = {}) {
     GIOIA_TEST_RUN_ID: RUN_ID,
     GIOIA_TEST_OPERATOR_DATABASE_URL:
       `postgresql://postgres.${TEST_TARGET_REF}:` +
-      `${OPERATOR_PASSWORD}@${POOLER_HOST}:5432/postgres?sslmode=require`,
+      `${OPERATOR_PASSWORD}@${POOLER_HOST}:5432/postgres?sslmode=verify-full`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE_KEY,
     NEXT_PUBLIC_SUPABASE_URL: TEST_TARGET_API_URL,
     SUPABASE_PROJECT_REF: TEST_TARGET_REF,
@@ -76,7 +76,7 @@ describe("greenfield TEST target configuration", () => {
       poolerRegion: "eu-central-2",
       projectRef: TEST_TARGET_REF,
       runId: RUN_ID,
-      sslmode: "require",
+      sslmode: "verify-full",
     });
     const diagnostic = JSON.stringify(config);
     expect(diagnostic).not.toContain(OPERATOR_PASSWORD);
@@ -113,7 +113,7 @@ describe("greenfield TEST target configuration", () => {
     );
     expect(decodeURIComponent(runtime.password)).toBe(runtimePassword);
     expect(runtime.port).toBe("6543");
-    expect(runtime.search).toBe("?sslmode=require");
+    expect(runtime.search).toBe("?sslmode=verify-full");
     expect(config.getPublishableKey()).toBe(PUBLISHABLE_KEY);
 
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_changed";
@@ -142,6 +142,7 @@ describe("greenfield TEST target configuration", () => {
     "postgresql://postgres.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=require",
     "postgresql://postgres.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:5432/postgres",
     "postgresql://postgres.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=prefer",
+    "postgresql://postgres.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=require",
     "postgresql://postgres.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=require&application_name=gioia",
   ])("rejects a non-exact operator DSN", (databaseUrl) => {
     const error = rejection(

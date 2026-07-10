@@ -211,6 +211,33 @@ describe("greenfield TEST fixture reconciliation", () => {
     ).toEqual({ commands: 3, entries: 1, vacations: 0, outbox: 2 });
   });
 
+  it("permits an exact no-op cleanup after a pre-fixture failure", () => {
+    expect(
+      assertOnlyKnownResidueRow(
+        residueRow({
+          commands: 0,
+          distinct_command_keys: 0,
+          completed_commands: 0,
+          failed_commands: 0,
+          distinct_completed_commands: 0,
+          booking_vacation_completed_commands: 0,
+          entries: 0,
+          outbox: 0,
+          changes: 0,
+          distinct_change_aggregates: 0,
+          locks: 0,
+          owners: 0,
+          owner_sessions: 0,
+          concurrency_session: 0,
+          revoked_route_session: 0,
+          auth_users: 0,
+          identities: 0,
+          auth_audit_rows: 0,
+        }),
+      ),
+    ).toEqual({ commands: 0, entries: 0, vacations: 0, outbox: 0 });
+  });
+
   it("refuses partial cleanup when any row exceeds fixture bounds", () => {
     expect(() =>
       assertOnlyKnownResidueRow(residueRow({ commands: 28 })),

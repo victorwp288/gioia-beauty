@@ -53,10 +53,20 @@ async function responseBody(response, operation) {
   return body;
 }
 
-async function expectStatus(response, status, code, operation) {
+async function expectStatus(
+  response,
+  status,
+  code,
+  operation,
+  expectedKeys = ["code"],
+) {
   privateResponse(response, operation);
   const body = await responseBody(response, operation);
-  if (response.status !== status || body.code !== code) {
+  const actualKeys = Object.keys(body).sort();
+  const exactBody =
+    actualKeys.length === expectedKeys.length &&
+    actualKeys.every((key, index) => key === [...expectedKeys].sort()[index]);
+  if (response.status !== status || body.code !== code || !exactBody) {
     const safeCode =
       typeof body.code === "string" && /^[A-Z0-9_]{1,64}$/u.test(body.code)
         ? body.code
@@ -190,6 +200,7 @@ export async function runOwnerAuthRouteScenario(options) {
     200,
     "OWNER_SESSION_CREATED",
     "owner login",
+    ["code", "csrfToken"],
   );
   jar.apply(login);
   if (
@@ -216,6 +227,7 @@ export async function runOwnerAuthRouteScenario(options) {
     200,
     "OWNER_SESSION_ACTIVE",
     "active owner session",
+    ["code", "csrfToken"],
   );
   jar.apply(active);
   if (activeResult.csrfToken !== loginResult.csrfToken) {
@@ -244,6 +256,7 @@ export async function runOwnerAuthRouteScenario(options) {
   const replay = await routeRequest(fetchImpl, baseUrl, "/api/auth/session", {
     cookie: replayCookie,
   });
+  assertNoSecurityCookies(replay, cookieSecurity.supabase.namePrefix);
   await expectStatus(
     replay,
     401,

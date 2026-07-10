@@ -177,4 +177,43 @@ describe("shared Local and TEST scenarios", () => {
       }),
     ).rejects.toThrow("issued security cookies");
   });
+
+  it("rejects extra response fields that could carry tokens or PII", async () => {
+    const responses = scenarioResponses();
+    responses[2] = jsonResponse(200, "OWNER_SESSION_CREATED", {
+      csrfToken: "synthetic-csrf-token",
+      access_token: "must-not-be-returned",
+    });
+    await expect(
+      runOwnerAuthRouteScenario({
+        baseUrl: new URL("https://127.0.0.1:43123"),
+        owner: {
+          email: "owner.ephemeral@gioia.test",
+          password: "in-memory-random-password",
+        },
+        cookieSecurity: SECURE_COOKIE_EXPECTATIONS,
+        reconcileLedger: async () => {},
+        fetchImpl: async () => responses.shift(),
+      }),
+    ).rejects.toThrow("owner login returned");
+  });
+
+  it("rejects security cookies on revoked-session replay", async () => {
+    const responses = scenarioResponses();
+    responses[5] = jsonResponse(401, "OWNER_SESSION_REQUIRED", {}, [
+      "gioia_owner_session=unsafe-replay; HttpOnly; Path=/",
+    ]);
+    await expect(
+      runOwnerAuthRouteScenario({
+        baseUrl: new URL("https://127.0.0.1:43123"),
+        owner: {
+          email: "owner.ephemeral@gioia.test",
+          password: "in-memory-random-password",
+        },
+        cookieSecurity: SECURE_COOKIE_EXPECTATIONS,
+        reconcileLedger: async () => {},
+        fetchImpl: async () => responses.shift(),
+      }),
+    ).rejects.toThrow("issued security cookies");
+  });
 });

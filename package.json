@@ -34,6 +34,7 @@
     "db:test:seed-auth": "node scripts/test-local-auth-seed.mjs",
     "db:test:auth-routes": "node scripts/test-local-owner-auth-routes.mjs",
     "db:test:concurrency": "node scripts/test-booking-concurrency.mjs",
+    "db:test:greenfield": "node scripts/test-greenfield-project.mjs",
     "db:stop": "SUPABASE_TELEMETRY_DISABLED=1 supabase stop --project-id gioia-beauty-local",
     "db:clean": "SUPABASE_TELEMETRY_DISABLED=1 supabase stop --project-id gioia-beauty-local --no-backup",
     "test": "EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-fake} NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-test} APP_ENV=${APP_ENV:-test} vitest run",

@@ -173,14 +173,12 @@ export function assertOnlyKnownResidueRow(row) {
     changes <= 5 &&
     integer(row, "distinct_change_aggregates") === changes &&
     integer(row, "locks") <= 5 &&
-    integer(row, "owners") >= 1 &&
     integer(row, "owners") <= 2 &&
     integer(row, "owner_sessions") <= 2 &&
     integer(row, "concurrency_session") <= 1 &&
     integer(row, "revoked_route_session") <= 1 &&
-    integer(row, "auth_users") >= 1 &&
     integer(row, "auth_users") <= 2 &&
-    integer(row, "identities") === 1 &&
+    integer(row, "identities") <= 1 &&
     integer(row, "auth_sessions") <= 1 &&
     integer(row, "refresh_tokens") <= 1 &&
     integer(row, "auth_audit_rows") <= 20;
