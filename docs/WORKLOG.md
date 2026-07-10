@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added strict public newsletter command repositories
+**Phase:** Phase 3 newsletter/double-opt-in server foundation; public routes and end-to-end confirmation remain open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; injected repositories only, with no database, route, UI, email, provider, fixture, schema, migration, or remote call
+**Target:** local `refactor`; the new singleton is unreachable from HTTP and opens no connection on import
+**Expected reads/writes/rows:** verification performed 0 DB/provider operations and 0 rows. Each future call is 1 transaction + 1 private function + exactly 1 accepted row. Changed subscribe is at most 4 distinct rows/5 mutations; existing/no-change or fresh invalid is 1 command row/2 mutations; changed confirm/unsubscribe is 3 rows/4 mutations; unknown/no-op is 1/2; exact replay is 0 writes; all paths make 0 synchronous sends.
+**Done:** Commit `4971588` adds strict subscribe/confirm/unsubscribe adapters for the existing migration-37 functions. Nested inputs require consent=true, canonical UUIDs/email, and cloned 32-byte scope/fingerprint hashes; fixed parameterized queries use `limit 2`; outputs are frozen non-enumerating `{httpStatus, code, replayed}` only. No API route, abuse action, renderer, token claim, or client caller was added.
+**Verified/reconciled:** 2 focused files/49 tests; full format/static SQL/lint/TS7/TS6, 89 files/1,043 tests, and production build pass. Independent SQL/security reviews found no blocker and confirmed exact signatures, role isolation, cardinality, PII rejection, replay/error behavior, effect bounds, frozen output, and zero route exposure. Exact prior abuse-boundary head passed all six CI jobs, secrets/dependencies, and both clean 342-assertion database cycles in run `29086509091`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `4971588`; no external state changed
+**Next:** Push and green replacement CI, then implement and exhaustively test a server-only newsletter action-token codec with fixed version/purpose, UUID token ID, subscriber ID/version, immutable issued/expiry instants, constant-time HMAC verification, and redacted errors. Do not add routes or a renderer until the post-checkpoint migration binds those claims to the consent cycle and outbox snapshot.
+**Gotchas:** Migration-free routes are unsafe: newsletter outbox rendering intentionally fails; token timing/version is not snapshotted; confirm SQL is not consent-cycle-bound; token consumption/retention is unresolved; pending confirmation cannot be reissued. The active UI still writes Firestore and belongs to Phase 4.
+
 ## 2026-07-10 — Added a fail-closed public abuse boundary seam
 **Phase:** Phase 3 public abuse-defense foundation; durable limiter/challenge checklist remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
