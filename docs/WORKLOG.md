@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added inert newsletter action-token authentication
+**Phase:** Phase 3 newsletter/double-opt-in server foundation; consent-cycle persistence, rendering, routes, and end-to-end confirmation remain open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; pure injected cryptography and schemas only, with no database, Auth, route, UI, email, provider, fixture, migration, environment-secret, or remote call
+**Target:** local `refactor`; the server-only factory has no singleton and is unreachable from HTTP or the outbox worker
+**Expected reads/writes/rows:** verification and runtime primitive perform 0 DB/Auth/provider/network operations and 0 rows. Issue/verify inspect at most 3 copied keys and perform one local HMAC; they never send, persist, authorize, consume, or revoke anything.
+**Done:** Commit `e6b2ac3` adds consent-cycle `subscriberVersion`, invalid-clock rejection, canonical `n1-<kid>.<payload>.<tag>` tokens, a strict 1..3-key injected rotation ring, snapshotted signing-key selection, 256-bit HMAC-SHA256, fatal UTF-8/canonical JSON and base64url checks, constant-time tag comparison, fixed redacted failures, and private branded authenticated claims. Structural parsing is no longer mislabeled as verification.
+**Verified/reconciled:** 3 focused files/87 tests; full format/static SQL/lint/TS7/TS6, 91 files/1,126 tests, and production build pass. Three independent crypto/contract/adversarial reviews are clear after sparse arrays, symbols, non-enumerable extras, accessors, and revoked proxies were made fixed-error cases. Exact prior subscriber-repository head passed all six CI jobs, including both clean database cycles, in run `29087353501`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `e6b2ac3`; no external state changed
+**Next:** Push and green replacement CI, then add and exhaustively test an inert purpose policy plus exact raw-wire parser: confirmation links expire at 24 hours, unsubscribe links at no more than 30 days, and no parser may trim or widen the codec's 512-byte three-segment grammar. Do not add a route, renderer, environment key, or migration 38 until the exact 37-migration TEST checkpoint is proven.
+**Gotchas:** The codec authenticates integrity, purpose, time, and opaque consent-cycle claims; it is replayable, non-confidential, and does not authorize or make a link single-use. Migration 38 must snapshot token ID, subscriber version, issue/expiry, purpose, and signing-key ID; atomically bind/consume the right consent cycle; define reissue/retention; and keep old keys until every referenced token expires. Current SQL and outbox snapshots do not satisfy this. Generic `SignedActionTokenSchema` trims input, so future HTTP code must use the exact raw parser.
+
 ## 2026-07-10 — Added strict public newsletter command repositories
 **Phase:** Phase 3 newsletter/double-opt-in server foundation; public routes and end-to-end confirmation remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
