@@ -246,6 +246,35 @@ updated_at            timestamptz not null
 
 Outbox rows and the booking/status/subscriber change commit together. Provider calls happen after commit. A Vercel Cron worker authenticated by an exact `CRON_SECRET` bearer claims bounded batches with a database lease/`FOR UPDATE SKIP LOCKED`; the bearer is not a per-request signature or replay fence, so duplicate and missed delivery must be safe. Expired leases are recoverable, provider idempotency prevents duplicate sends only inside its proven retention window, and dead letters alert the operator. Signed Resend webhooks are replay-deduplicated by provider event ID before state changes. Reports/errors contain identifiers and codes, not PII payloads. Field-level retention/anonymization and any additional encryption beyond managed database/storage encryption remain explicit privacy launch gates.
 
+The current 37-migration snapshot stores only `policy_version` for
+`newsletter_confirmation`; it is intentionally insufficient for delivery. The
+standalone v1 renderer requires an immutable action snapshot containing token
+version/purpose, token ID, exact issued/24-hour expiry instants, and signing-key
+ID, while the outbox envelope supplies subscriber ID/version and recipient.
+Those values must be created atomically with the consent cycle and outbox row,
+and the confirmation command must consume that exact cycle/version/token. The
+renderer signs only these snapshotted claims, uses a fixed fragment bearer URL,
+and remains absent from the worker catalog until the guarded TEST checkpoint
+permits the reserved follow-up migration and the route/POST flow is proven.
+Claim SQL must reject or terminally classify an action at/after expiry (and
+define the minimum useful remaining lifetime plus bounded reissue behavior)
+before provider work; retries never mint new timing or token IDs. Every
+snapshotted signing key remains available through all referenced pending rows
+and token expiry, and a missing key is an alertable operational fault rather
+than invalid template data. Before activation, the exact Italian consent/form
+wording and policy artifact must be versioned and bound to the same subscriber
+cycle; the mutable current row or `/policy` page alone is not consent evidence.
+The future fragment landing page performs no mutation on `GET`, runs no
+third-party/analytics code before synchronously extracting and scrubbing the
+fragment with `history.replaceState`, and sends the token only in a bounded,
+same-origin, CSRF-protected, `no-store` `POST` body with non-enumerating results.
+The signed token is authenticated but not encrypted: its base64url claims expose
+pseudonymous subscriber/version and token IDs, key ID, and timestamps to the
+email processor, mailbox, browser history, and client runtime. Treat the token
+and rendered URL as `P4/P5` plus a bearer credential under `RET-17`; never log
+them, retain them only for the functional TTL, and include provider retention
+and deletion evidence in the launch gate.
+
 ### `email_webhook_events`
 
 ```text
