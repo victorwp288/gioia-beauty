@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Defined the privacy and processor launch gates
+**Phase:** Phase 3 pre-cutover privacy foundation; the broad privacy checklist item remains open
+**Labels/environment:** [LOCAL] documentation, static inventory, and test verification only
+**Data impact:** none; no route, schema, migration, Auth, fixture, provider, environment, remote, or customer-data action
+**Target:** local `refactor`; TEST remains at the recorded 35-migration snapshot while the reviewed repository manifest has 37
+**Expected reads/writes/rows:** documentation/tests perform 0 application DB/Auth/provider/network operations, 0 writes, and 0 customer rows
+**Done:** Commit `4dac291` adds pending `RET-01`–`RET-17`/`RET-HOLD` decisions, exact field/copy/provider inventories, sensitive-note/consent/export/restore-replay gates, protected-case versus minimized `P4/P5` evidence, processor activation/decommission controls, cross-runbook links, and an 11-test launch-gate suite. No masterplan item was ticked.
+**Verified/reconciled:** focused 11/11; full format/static SQL/lint/TS7/TS6, 104 files/1,403 tests, both 56-test timezone runs, and production build pass. Three independent final audits found no P1/P2. Dependency audit is 0 high/critical with the 6 documented Firebase-Admin moderate records; CI must supply Gitleaks and two clean database cycles.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, Sentry, DNS, `main`, Production data, configuration, restore, or provider access
+**Backup/restore evidence:** n/a; no external state changed and the document explicitly does not prove restore
+**Rollback/forward recovery:** revert `4dac291`; no external recovery is required
+**Next:** Push and green all six CI jobs. If the protected exact TEST session-pooler DSN becomes available, run the guarded 37-migration two-cycle checkpoint before migration 38. Otherwise audit and implement the next migration-free bounded owner schedule/list/count read boundary without UI activation or remote access.
+**Gotchas:** All retention periods, processor/DPA facts, sensitive-note policy, public policy wording, and evidence lifetimes are pending owner/legal/provider decisions. Firebase Storage is configured but unproven; schedule locks are non-personal mutex state. A premature generic privacy executor was rejected and deleted because caller-declared target labels and stub replay would create false safety; executable privacy work waits for the durable SQL ledger/functions after the checkpoint and newsletter migration.
+
 ## 2026-07-10 — Added PII-safe API observability boundaries
 **Phase:** Phase 3 minimal observability foundation; the broad Sentry/alerts checklist item remains open
 **Labels/environment:** [LOCAL] server implementation, environment validation, static/unit/build verification only
