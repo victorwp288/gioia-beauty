@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import postgres from "postgres";
 
+import { withLocalRuntimeDatabase } from "./concurrency-harness.mjs";
 import {
   CookieJar,
   getLocalRouteStatus,
@@ -210,8 +211,10 @@ async function verifyOwnerAuthRoutes(baseUrl, status) {
 
 export async function runLocalOwnerAuthRouteTest() {
   const status = await getLocalRouteStatus();
-  await withLocalOwnerAuthServer(status, (baseUrl) =>
-    verifyOwnerAuthRoutes(baseUrl, status),
+  await withLocalRuntimeDatabase(() =>
+    withLocalOwnerAuthServer(status, (baseUrl) =>
+      verifyOwnerAuthRoutes(baseUrl, status),
+    ),
   );
   process.stdout.write(
     "Local owner route login, logout, and replay rejection passed.\n",
