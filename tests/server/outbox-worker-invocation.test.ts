@@ -246,6 +246,9 @@ describe("inert authenticated outbox worker invocation", () => {
     const throwing = setup();
     throwing.run.mockRejectedValueOnce(new Error(privateValue));
     const invalid = setup({ result: { ...SUMMARY, privateValue } });
+    const inconsistent = setup({
+      result: { ...SUMMARY, deliveryDeadLettered: 1 },
+    });
     const uncertain = setup({
       result: {
         ...SUMMARY,
@@ -257,6 +260,7 @@ describe("inert authenticated outbox worker invocation", () => {
     for (const [fixture, code] of [
       [throwing, "SERVICE_UNAVAILABLE"],
       [invalid, "SERVICE_UNAVAILABLE"],
+      [inconsistent, "SERVICE_UNAVAILABLE"],
       [uncertain, "OUTBOX_COMPLETION_UNCERTAIN"],
     ] as const) {
       const response = await fixture.handler(request());
@@ -294,6 +298,70 @@ describe("inert authenticated outbox worker invocation", () => {
     await expect(json(await uncertain.handler(request()))).resolves.toEqual({
       code: "OUTBOX_COMPLETION_UNCERTAIN",
       requestId: REQUEST_ID,
+    });
+  });
+
+  it("alerts on completion-time dead letters with severity precedence", async () => {
+    const deadLettered = setup({
+      result: {
+        ...SUMMARY,
+        sent: 1,
+        deliveryDeadLettered: 1,
+      },
+    });
+    const rendererDeadLettered = setup({
+      result: {
+        ...SUMMARY,
+        sent: 1,
+        deliveryDeadLettered: 1,
+        rendererOperationalFaults: 1,
+      },
+    });
+    const uncertainDeadLettered = setup({
+      result: {
+        ...SUMMARY,
+        sent: 0,
+        deliveryDeadLettered: 1,
+        completionUncertain: 1,
+      },
+    });
+
+    for (const fixture of [deadLettered, rendererDeadLettered]) {
+      const response = await fixture.handler(request());
+      expect(response.status).toBe(503);
+      const text = await response.text();
+      expect(JSON.parse(text)).toEqual({
+        code: "OUTBOX_DELIVERY_DEAD_LETTERED",
+        requestId: REQUEST_ID,
+      });
+      expect(text).not.toContain("summary");
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      expect(response.headers.get("x-robots-tag")).toBe(
+        "noindex, nofollow, noarchive",
+      );
+    }
+    const uncertainResponse = await uncertainDeadLettered.handler(request());
+    expect(uncertainResponse.status).toBe(503);
+    await expect(json(uncertainResponse)).resolves.toEqual({
+      code: "OUTBOX_COMPLETION_UNCERTAIN",
+      requestId: REQUEST_ID,
+    });
+  });
+
+  it("keeps an ordinary scheduled retry nonterminal", async () => {
+    const fixture = setup({
+      result: {
+        ...SUMMARY,
+        sent: 1,
+        retryScheduled: 1,
+      },
+    });
+    const response = await fixture.handler(request());
+
+    expect(response.status).toBe(200);
+    await expect(json(response)).resolves.toMatchObject({
+      code: "OUTBOX_BATCH_PROCESSED",
+      summary: { retryScheduled: 1, deliveryDeadLettered: 0 },
     });
   });
 

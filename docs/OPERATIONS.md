@@ -76,6 +76,23 @@ activate Cron or establish the missing persisted 24-hour retry cutoff.
   scheduled. Unknown renderer errors remain permanent `OUTBOX_TEMPLATE_INVALID`.
   If the failure completion cannot be proven, completion uncertainty takes
   alert precedence; neither response reflects the private thrown detail.
+- A completion that returns `dead_letter` makes the inert invocation return the
+  fixed alert `OUTBOX_DELIVERY_DEAD_LETTERED`. Completion uncertainty has higher
+  precedence because the persisted state is unknown; a proven dead letter has
+  higher precedence than a renderer-operational retry alert because it is
+  terminal. No response includes an outbox ID, recipient, provider detail, or
+  renderer exception.
+- The current claim function can itself move stale aggregate rows and exhausted
+  leases to `dead_letter` with `AGGREGATE_STATE_STALE` or `LEASE_EXPIRED`, then
+  filters those rows out of its returned `sending` set. Consequently,
+  `claimed`, `deliveryDeadLettered`, and `budgetReached` describe only returned
+  `sending` rows and can undercount the transaction's selected candidates and
+  effects. An HTTP 200, zero counter, or `budgetReached: false` therefore does
+  not prove that the claim created no dead letters or exhausted no full SQL
+  candidate batch, and this invocation does not query or re-alert historical
+  dead letters. Cron activation remains blocked until a reviewed migration
+  returns bounded claim-time disposition counts and a bounded durable monitor
+  covers existing terminal rows without exposing row data.
 - Provider timeout, network failure, invalid success response, 5xx, and
   concurrent-idempotency outcomes are also acceptance-uncertain; the worker
   must not persist them as proven delivery failures.

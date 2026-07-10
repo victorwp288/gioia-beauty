@@ -165,6 +165,9 @@ export function createOutboxWorkerInvocationGetHandler({
       if (result.data.completionUncertain > 0) {
         return fixedError(503, "OUTBOX_COMPLETION_UNCERTAIN", id);
       }
+      if (result.data.deliveryDeadLettered > 0) {
+        return fixedError(503, "OUTBOX_DELIVERY_DEAD_LETTERED", id);
+      }
       if (result.data.rendererOperationalFaults > 0) {
         return fixedError(503, "OUTBOX_RENDERER_UNAVAILABLE", id);
       }

@@ -345,6 +345,42 @@ describe("bounded outbox worker", () => {
     });
   });
 
+  it("surfaces an exhausted operational renderer fault as terminal", async () => {
+    const exhausted = claim(1, { attemptCount: 5 });
+    const fixture = setup([[exhausted]]);
+    fixture.completeFailure.mockResolvedValueOnce({
+      outboxId: exhausted.outboxId,
+      deliveryStatus: "dead_letter",
+      attemptCount: 5,
+      currentVersion: exhausted.expectedVersion + 1,
+      nextAttemptAt: "2035-02-05T10:00:00.000Z",
+    });
+    const provider = createFakeEmailProvider();
+    const send = vi.spyOn(provider, "send");
+    const worker = createOutboxWorker({
+      repository: fixture.repository,
+      provider,
+      renderers: {
+        ...completeRenderers,
+        booking_customer: () => {
+          throw new OutboxRendererOperationalError();
+        },
+      },
+    });
+
+    await expect(runWorker(worker)).resolves.toMatchObject({
+      claimed: 1,
+      sent: 0,
+      retryScheduled: 0,
+      deliveryDeadLettered: 1,
+      completionUncertain: 0,
+      rendererOperationalFaults: 1,
+    });
+    expect(send).not.toHaveBeenCalled();
+    expect(fixture.completeSuccess).not.toHaveBeenCalled();
+    expect(fixture.completeFailure).toHaveBeenCalledOnce();
+  });
+
   it("keeps unbranded renderer failures permanently template-invalid", async () => {
     const fixture = setup([[claim(1)]]);
     const provider = createFakeEmailProvider();
