@@ -24,6 +24,9 @@ export const PROTECTED_OPERATOR_ENV_KEYS = Object.freeze([
 ]);
 
 const EXACT_KEYS = new Set(PROTECTED_OPERATOR_ENV_KEYS);
+const NON_AUTHORITY_PROVIDER_ENV_KEYS = new Set([
+  "SUPABASE_TELEMETRY_DISABLED",
+]);
 const SENSITIVE_GIOIA_KEY =
   /^GIOIA_(?:TEST|PRODUCTION)_[A-Z0-9_]*(?:DATABASE_URL|PASSWORD|SECRET|TOKEN|KEY)$/i;
 const PROVIDER_KEY_FAMILIES = Object.freeze([
@@ -43,6 +46,7 @@ const PROVIDER_KEY_FAMILIES = Object.freeze([
 export function isProtectedOperatorEnvironmentKey(key, allowedKeys = null) {
   if (typeof key !== "string" || allowedKeys?.has(key)) return false;
   const canonical = key.toUpperCase();
+  if (NON_AUTHORITY_PROVIDER_ENV_KEYS.has(canonical)) return false;
   return (
     EXACT_KEYS.has(canonical) ||
     SENSITIVE_GIOIA_KEY.test(key) ||

@@ -288,4 +288,15 @@ describe("migration preflight hostile boundaries", () => {
       expect(JSON.stringify(result)).not.toContain(sentinel);
     }
   });
+
+  it("allows the CI telemetry toggle because it carries no authority", () => {
+    expect(
+      isProtectedOperatorEnvironmentKey("SUPABASE_TELEMETRY_DISABLED"),
+    ).toBe(false);
+    const result = evaluateMigrationPreflight(VALID_IMPORT_OPTIONS, {
+      SUPABASE_TELEMETRY_DISABLED: "1",
+    });
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
 });
