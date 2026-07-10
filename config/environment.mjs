@@ -167,6 +167,24 @@ function validatePublicVariables(env, errors) {
   }
 }
 
+function validateObservability(env, errors) {
+  if (
+    Object.hasOwn(env, "OBSERVABILITY_TRANSPORT") &&
+    env.OBSERVABILITY_TRANSPORT !== "console"
+  ) {
+    errors.push("OBSERVABILITY_TRANSPORT must be console when configured");
+  }
+
+  for (const [key, value] of Object.entries(env)) {
+    if (
+      hasValue(value) &&
+      (key.startsWith("SENTRY_") || key.startsWith("NEXT_PUBLIC_SENTRY_"))
+    ) {
+      errors.push(`${key} is forbidden until a Sentry target is registered`);
+    }
+  }
+}
+
 function validateBookingSecurity(appEnv, env, errors) {
   const secret = env.BOOKING_HMAC_SECRET;
   if (secret === undefined) {
@@ -371,6 +389,7 @@ export function validateEnvironment(env, { command = "application" } = {}) {
   }
 
   validatePublicVariables(env, errors);
+  validateObservability(env, errors);
   validateBookingSecurity(appEnv, env, errors);
   validateOwnerSessionSecurity(appEnv, env, errors);
   validateVercelScope(appEnv, env, errors);

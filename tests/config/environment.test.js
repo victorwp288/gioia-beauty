@@ -35,6 +35,61 @@ describe("environment isolation", () => {
     expect(validate()).toEqual({ ok: true, appEnv: "local", errors: [] });
   });
 
+  it("allows only the local structured-console observability transport", () => {
+    expect(validate({ OBSERVABILITY_TRANSPORT: "console" }).ok).toBe(true);
+    for (const transport of ["", "sentry", "otlp", "https://example.test"]) {
+      expect(validate({ OBSERVABILITY_TRANSPORT: transport }).errors).toContain(
+        "OBSERVABILITY_TRANSPORT must be console when configured",
+      );
+    }
+  });
+
+  it.each([
+    "SENTRY_DSN",
+    "SENTRY_AUTH_TOKEN",
+    "SENTRY_ORG",
+    "SENTRY_PROJECT",
+    "SENTRY_RELEASE",
+    "NEXT_PUBLIC_SENTRY_DSN",
+  ])("rejects unregistered Sentry variable %s in every environment", (key) => {
+    for (const environment of [
+      { APP_ENV: "local" },
+      { APP_ENV: "test" },
+      previewEnvironment(),
+      {
+        APP_ENV: "production",
+        VERCEL_ENV: "production",
+        GIOIA_PRODUCTION_APPROVAL_ID: "synthetic-approval",
+      },
+      { APP_ENV: "operator" },
+    ]) {
+      const result = validate({ ...environment, [key]: "synthetic-value" });
+      expect(result.errors).toContain(
+        `${key} is forbidden until a Sentry target is registered`,
+      );
+    }
+  });
+
+  it("keeps Production and operator startup disabled with console metrics", () => {
+    const production = validate({
+      APP_ENV: "production",
+      VERCEL_ENV: "production",
+      GIOIA_PRODUCTION_APPROVAL_ID: "synthetic-approval",
+      OBSERVABILITY_TRANSPORT: "console",
+    });
+    const operator = validate({
+      APP_ENV: "operator",
+      OBSERVABILITY_TRANSPORT: "console",
+    });
+
+    expect(production.errors.join(" ")).toContain(
+      "No Supabase Production target is registered",
+    );
+    expect(operator.errors).toContain(
+      "The protected operator environment cannot start the application",
+    );
+  });
+
   it("requires the non-delivering transport outside Production", () => {
     expect(validate({ EMAIL_TRANSPORT: "resend" }).errors).toContain(
       "EMAIL_TRANSPORT must be fake in local",
