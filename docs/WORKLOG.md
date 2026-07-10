@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Made renderer operational faults recoverable and alerting
+**Phase:** Phase 3 reliable-side-effect/newsletter foundation; broad outbox and newsletter checklist items remain open
+**Labels/environment:** [LOCAL] server-only contracts, synthetic tests, static analysis, and build only
+**Data impact:** none; no route, worker singleton/catalog registration, database/provider call, migration, environment key, fixture, remote, or customer-data action
+**Target:** local `refactor`; newsletter renderer remains absent from every production import path and Production Supabase remains unregistered/null
+**Expected reads/writes/rows:** verification made 0 DB/Auth/provider calls and 0 writes. Per future branded renderer fault: 0 provider calls and at most 1 fenced failure transaction affecting exactly its claimed row; a five-row invocation remains bounded to 1 claim plus at most 5 one-row completions, 5 provider attempts for unaffected rows, and 10 outbox transitions.
+**Done:** Commit `14522bc` adds a duplicate-module-safe, non-spoofable operational renderer fault; retryable fixed `OUTBOX_RENDERER_UNAVAILABLE` persistence; an orthogonal bounded summary counter; fixed 503 alerting with completion-uncertainty precedence; deterministic expiry/future classification; mixed-batch isolation proof; and inert newsletter subclass/import guards. No masterplan item was ticked.
+**Verified/reconciled:** focused 5 files/75 tests; full format/static SQL/lint/TS7/TS6, 117 files/1,570 tests, both 56-test timezone runs, production build, and dependency audit (0 high/critical; 6 documented Firebase-Admin-chain moderate records) pass. Three independent final reviews found no P1/P2. Prior newsletter head passed all six CI jobs in run `29122985040`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `14522bc`; no external recovery is required
+**Next:** Commit this handoff, push, and green replacement CI. Then run the guarded 37-migration TEST checkpoint if the exact protected session-pooler DSN is available; otherwise add migration-free dead-letter alert semantics to the inert invocation contract, including claim-time undercount documentation, without adding a Cron route/provider/database singleton or registering the newsletter renderer.
+**Gotchas:** Operational faults retry only while fenced completion is proven and still alert with 503; an unproven completion takes precedence. Expired or more-than-five-minute-future snapshots remain permanent invalid input. Route/catalog activation is still blocked by the TEST checkpoint, missing persisted 24-hour cutoff, claim-time dead-letter undercount, and complete dead-letter monitoring.
+
 ## 2026-07-10 — Defined the inert newsletter confirmation email
 **Phase:** Phase 3 newsletter/outbox foundation; broad outbox and newsletter checklist items remain open
 **Labels/environment:** [LOCAL] pure server renderer contract, synthetic tests, static analysis, and build only
