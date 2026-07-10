@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Bound inert migration plans to complete operator intent
+**Phase:** Phase 1 production-operator workflow foundation; the broad checklist item remains open
+**Labels/environment:** [LOCAL] pure plan/compiler implementation, tests, static analysis, and build only
+**Data impact:** none; no database, provider, network, Auth, route, schema, migration, fixture, environment, remote, or customer-data action
+**Target:** local `refactor`; TEST ref is code-owned and Production Supabase remains unregistered/null
+**Expected reads/writes/rows:** runtime compiler performs 0 DB/provider/network reads, 0 writes, and 0 rows; it accepts at most 96 CLI arguments of 4,096 UTF-8 bytes each, scans environment key names without reading values, and computes 1 local SHA-256 plan hash
+**Done:** Commit `b1419ad` replaces injectable/coercive preflight v1 with inert v2 for exact ledger actions `inventory|import|reconcile`, full commit/artifact/evidence/count/per-effect binding, canonical input, fixed redacted errors, code-owned targets, credential/provider isolation, and whole-result apply confirmation. No masterplan item was ticked.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6, 113 files/1,503 tests, both 56-test timezone runs, production build, focused preflight 5 files/56 tests, and TEST target config 41/41 pass. Two independent re-reviews found no P1/P2 after credential-family and positive-confirmation findings were fixed. Dashboard Auth CI run `29103067505` is green across all six jobs; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed, and plan evidence hashes deliberately do not prove protected artifacts
+**Rollback/forward recovery:** revert `b1419ad`; no external recovery is required
+**Next:** Commit this handoff, push, and green replacement CI. Then obtain the exact protected TEST session-pooler DSN and run the guarded 37-migration two-cycle checkpoint; if it remains unavailable, implement the next migration-free authenticated outbox-worker invocation boundary without route/provider activation.
+**Gotchas:** v2 is not an executor or authority grant; Production is disabled and its evidence must later be resolved outside this pure compiler. The repository has 37 reviewed migrations while the last authorized TEST metadata snapshot recorded 35; do not author reserved migration 38 before the checkpoint.
+
 ## 2026-07-10 — Bound dashboard Auth refresh to the validated client
 **Phase:** Phase 3 owner Auth reliability/security hardening; the broad Auth checklist item remains open pending TEST/E2E proof
 **Labels/environment:** [LOCAL] middleware implementation and static/unit/build verification only
