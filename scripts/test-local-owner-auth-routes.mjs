@@ -45,7 +45,13 @@ async function expectStatus(response, status, code, operation) {
   privateResponse(response, operation);
   const body = await responseBody(response, operation);
   if (response.status !== status || body.code !== code) {
-    throw new Error(`${operation} returned an unexpected safe result`);
+    const safeCode =
+      typeof body.code === "string" && /^[A-Z0-9_]{1,64}$/u.test(body.code)
+        ? body.code
+        : "UNSAFE_OR_MISSING_CODE";
+    throw new Error(
+      `${operation} returned status ${response.status} (${safeCode})`,
+    );
   }
   return body;
 }
