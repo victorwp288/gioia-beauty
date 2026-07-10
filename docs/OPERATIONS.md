@@ -104,6 +104,45 @@ activate Cron or establish the missing persisted 24-hour retry cutoff.
   immutable timing/disposition evidence to enforce this stop policy without
   reading private tables directly.
 
+## Outbox activation readiness
+
+The code-owned `outbox-activation-readiness-v1` contract is deliberately
+non-passable. It accepts no caller evidence and always reports these five fixed
+blockers; booleans, hashes, environment values, run IDs, and prose cannot
+self-attest readiness. A hash can bind an artifact but does not prove that its
+contents or claimed execution are authentic. The module performs no evidence
+lookup and is not imported by any production source.
+
+- `claim-dispositions-v2` must return one bounded atomic result that conserves
+  every selected candidate across returned sends and exact claim-time terminal
+  reasons. Candidate-limit saturation derives from selected candidates, not
+  only returned `sending` rows.
+- `dead-letter-monitor-v1` must durably and monotonically cover claim-time,
+  completion-time, and historical dead letters with a bounded cursor/lease/ack
+  scan. Progress advances only after PII-free alert acceptance and exposes
+  continuation/backlog. Remote alert-receiver configuration remains a separate
+  approved activation preflight; a local `configured: true` claim is not proof.
+- `provider-retry-window-v1` must persist an immutable first-provider-attempt
+  instant and inclusive 24-hour deadline after successful render but before the
+  provider side effect. Automatic claim/recovery and manual owner retry must
+  reuse the key, never reset the deadline, and stop at or after it.
+- `newsletter-confirmation-snapshot-v1` must atomically bind template and policy
+  versions, purpose, token ID, issue/expiry instants, signing-key ID, subscriber
+  consent cycle/version, and the approved versioned Italian artifact. Claim,
+  consumption, minimum remaining lifetime, reissue, and key-retention rules
+  must use that exact snapshot.
+- `greenfield-test-37-v1` requires protected evidence bound to the exact TEST
+  ref, commit, green push CI, reviewed 37-migration manifest/count, two clean
+  cycles, and matching schema/reference fingerprints. That checkpoint is only
+  a prerequisite: every later outbox migration still requires candidate-head
+  TEST proof before a future readiness-contract version may pass.
+
+Future success requires a reviewed contract-version change and verifier-backed
+proof producers. Merely editing the report, supplying structural input, or
+recording an unauthenticated digest is not activation authority. Cron route,
+schedule, provider/database composition, and newsletter renderer registration
+remain absent.
+
 ## Migration stop conditions
 
 Stop before or during import/cutover when any of these occurs:
