@@ -222,17 +222,21 @@ jobs:
       - name: Reset, lint, advise, and test first clean database
         run: |
           npm run db:reset
+          npm run db:seed:replay
           npm run db:lint
           npm run db:advisors
           npm run db:test
+          npm run db:test:seed-auth
           npm run db:test:concurrency
 
       - name: Repeat from a second clean database
         run: |
           npm run db:reset
+          npm run db:seed:replay
           npm run db:lint
           npm run db:advisors
           npm run db:test
+          npm run db:test:seed-auth
           npm run db:test:concurrency
 
       - name: Remove ephemeral database volumes

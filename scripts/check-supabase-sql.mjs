@@ -4,6 +4,8 @@ import path from "node:path";
 
 const MIGRATION_NAME = /^\d{14}_[a-z0-9]+(?:_[a-z0-9]+)*\.sql$/;
 const TEST_NAME = /^\d{3}_[a-z0-9]+(?:_[a-z0-9]+)*\.test\.sql$/;
+const SEED_NAME = /^\d{2}_[a-z0-9]+(?:_[a-z0-9]+)*\.sql$/;
+const EMAIL_ADDRESS = /[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+/giu;
 const MAXIMUM_LINES = 300;
 
 function countLines(sql) {
@@ -160,6 +162,55 @@ export function validateDatabaseTestSql(filename, sql) {
   return errors;
 }
 
+export function validateSeedSql(filename, sql) {
+  const errors = [];
+  const normalized = sql.trim();
+  const executable = withoutLeadingComments(sql);
+  const lineCount = countLines(sql);
+
+  if (!SEED_NAME.test(filename)) {
+    errors.push("seed filename must use NN_snake_case.sql");
+  }
+  if (normalized === "") errors.push("seed must not be empty");
+  if (lineCount > MAXIMUM_LINES) {
+    errors.push(`seed has ${lineCount} lines; maximum is ${MAXIMUM_LINES}`);
+  }
+  if (normalized !== "") {
+    if (!/^begin\s*;/i.test(executable))
+      errors.push("seed must begin a transaction");
+    if (!/commit\s*;$/i.test(normalized))
+      errors.push("seed must commit its transaction");
+  }
+  if (!/\bsynthetic\b/i.test(sql)) {
+    errors.push("seed must explicitly identify its data as synthetic");
+  }
+  if (!/\bon\s+conflict\b/i.test(sql)) {
+    errors.push("seed writes must be idempotent");
+  }
+  if (/\b(?:crypt|gen_salt)\s*\(/i.test(sql)) {
+    errors.push(
+      "seed passwords must use a fixed test hash, not plaintext hashing",
+    );
+  }
+  if (
+    /\bencrypted_password\b/i.test(sql) &&
+    !/\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/u.test(sql)
+  ) {
+    errors.push(
+      "seed encrypted passwords must contain a fixed bcrypt test hash",
+    );
+  }
+  if (
+    [...sql.matchAll(EMAIL_ADDRESS)].some(
+      (match) => !match[0].toLowerCase().endsWith(".test"),
+    )
+  ) {
+    errors.push("seed email addresses must use the reserved .test suffix");
+  }
+
+  return errors;
+}
+
 async function validateDirectory(directory, validator) {
   const entries = (await readdir(directory, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
@@ -185,9 +236,11 @@ async function validateDirectory(directory, validator) {
 export async function checkSupabaseSql(rootDirectory = process.cwd()) {
   const migrationDirectory = path.join(rootDirectory, "supabase", "migrations");
   const testDirectory = path.join(rootDirectory, "supabase", "tests");
+  const seedDirectory = path.join(rootDirectory, "supabase", "seeds");
   const failures = [
     ...(await validateDirectory(migrationDirectory, validateMigrationSql)),
     ...(await validateDirectory(testDirectory, validateDatabaseTestSql)),
+    ...(await validateDirectory(seedDirectory, validateSeedSql)),
   ];
 
   if (failures.length > 0) {
@@ -200,7 +253,7 @@ if (isCli) {
   try {
     await checkSupabaseSql();
     process.stdout.write(
-      "Supabase migrations and pgTAP files passed static validation.\n",
+      "Supabase migrations, seeds, and pgTAP files passed static validation.\n",
     );
   } catch (error) {
     process.stderr.write(
