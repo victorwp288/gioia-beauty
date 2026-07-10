@@ -30,7 +30,7 @@ export async function GET(request: Request): Promise<Response> {
           ),
       },
       responseHeaders: context.responseHeaders,
-    })();
+    })(request);
   } catch {
     return apiErrorResponse(503, "SERVICE_UNAVAILABLE");
   }

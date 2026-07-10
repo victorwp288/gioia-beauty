@@ -13,6 +13,7 @@ import {
   ownerBindingSecret,
   ownerLogoutRequest,
   ownerResponseBody,
+  ownerSessionRequest,
   ownerSessionId,
   ownerUserId,
 } from "./owner-auth-handler-fixture.ts";
@@ -51,7 +52,7 @@ describe("owner session and logout handlers", () => {
       csrfToken,
       authorizeSession: fixture.sessionOperation,
       securityCookies: fixture.securityCookies,
-    })();
+    })(ownerSessionRequest());
     expect(response.status).toBe(200);
     expect(await ownerResponseBody(response)).toEqual({
       code: "OWNER_SESSION_ACTIVE",
@@ -72,7 +73,7 @@ describe("owner session and logout handlers", () => {
       csrfToken,
       authorizeSession: fixture.sessionOperation,
       securityCookies: fixture.securityCookies,
-    })();
+    })(ownerSessionRequest());
     expect(response.status).toBe(503);
     expect(await ownerResponseBody(response)).toMatchObject({
       code: "SERVICE_UNAVAILABLE",
@@ -99,7 +100,7 @@ describe("owner session and logout handlers", () => {
       authorizeSession: fixture.sessionOperation,
       securityCookies: fixture.securityCookies,
       responseHeaders,
-    })();
+    })(ownerSessionRequest());
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("60");
     expect(response.headers.getSetCookie()).toEqual([
@@ -119,7 +120,7 @@ describe("owner session and logout handlers", () => {
       csrfToken,
       authorizeSession: bindingFixture.sessionOperation,
       securityCookies: bindingFixture.securityCookies,
-    })();
+    })(ownerSessionRequest());
     expect(bindingResponse.status).toBe(401);
     expect(bindingFixture.securityCookies.clear).toHaveBeenCalledOnce();
     expect(bindingFixture.auth.signOut).toHaveBeenCalledWith({
@@ -134,13 +135,13 @@ describe("owner session and logout handlers", () => {
       csrfToken,
       authorizeSession: ownerFixture.sessionOperation,
       securityCookies: ownerFixture.securityCookies,
-    })();
+    })(ownerSessionRequest());
     expect(ownerResponse.status).toBe(403);
     expect(ownerFixture.securityCookies.clear).toHaveBeenCalledOnce();
     expect(ownerFixture.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
   });
 
-  it("logs out only for an exact same-origin CSRF token", async () => {
+  it("revokes the ledger before completing an accepted logout", async () => {
     const fixture = createHandlerFixture();
     const csrfToken = issueOwnerCsrfToken();
     const handler = logoutHandler(fixture, csrfToken);
@@ -158,12 +159,71 @@ describe("owner session and logout handlers", () => {
         Number.NEGATIVE_INFINITY,
     );
     expect(fixture.securityCookies.clear).toHaveBeenCalledTimes(1);
+  });
 
-    const rejected = await handler(
-      ownerLogoutRequest(csrfToken, "https://attacker.example.test"),
+  it.each([
+    [(csrfToken: string) => csrfToken, "https://attacker.example.test"],
+    [() => "B".repeat(43), "https://app.example.test"],
+  ])(
+    "keeps invalid logout security ahead of a competing query",
+    async (requestCsrf, origin) => {
+      const fixture = createHandlerFixture();
+      const csrfToken = issueOwnerCsrfToken();
+      const response = await logoutHandler(
+        fixture,
+        csrfToken,
+      )(ownerLogoutRequest(requestCsrf(csrfToken), origin, "?unexpected=1"));
+
+      expect(response.status).toBe(403);
+      expect(fixture.auth.getSession).not.toHaveBeenCalled();
+      expect(fixture.auth.getUser).not.toHaveBeenCalled();
+      expect(fixture.auth.signOut).not.toHaveBeenCalled();
+      expect(fixture.revokeOperation).not.toHaveBeenCalled();
+      expect(fixture.securityCookies.clear).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects session and logout queries before Auth, database, or cookie mutation", async () => {
+    const sessionFixture = createHandlerFixture();
+    const csrfToken = issueOwnerCsrfToken();
+    const sessionResponse = await createOwnerSessionHandler({
+      auth: sessionFixture.auth,
+      bindingToken: binding(),
+      bindingSecret: ownerBindingSecret,
+      csrfToken,
+      authorizeSession: sessionFixture.sessionOperation,
+      securityCookies: sessionFixture.securityCookies,
+    })(ownerSessionRequest("?unexpected=1"));
+    expect(sessionResponse.status).toBe(400);
+    expect(await ownerResponseBody(sessionResponse)).toMatchObject({
+      code: "INVALID_REQUEST",
+    });
+    expect(sessionFixture.auth.getSession).not.toHaveBeenCalled();
+    expect(sessionFixture.auth.getUser).not.toHaveBeenCalled();
+    expect(sessionFixture.auth.signOut).not.toHaveBeenCalled();
+    expect(sessionFixture.sessionOperation).not.toHaveBeenCalled();
+    expect(sessionFixture.securityCookies.clear).not.toHaveBeenCalled();
+
+    const logoutFixture = createHandlerFixture();
+    const logoutResponse = await logoutHandler(
+      logoutFixture,
+      csrfToken,
+    )(
+      ownerLogoutRequest(
+        csrfToken,
+        "https://app.example.test",
+        "?unexpected=1",
+      ),
     );
-    expect(rejected.status).toBe(403);
-    expect(fixture.securityCookies.clear).toHaveBeenCalledTimes(1);
+    expect(logoutResponse.status).toBe(400);
+    expect(await ownerResponseBody(logoutResponse)).toMatchObject({
+      code: "INVALID_REQUEST",
+    });
+    expect(logoutFixture.auth.getSession).not.toHaveBeenCalled();
+    expect(logoutFixture.auth.getUser).not.toHaveBeenCalled();
+    expect(logoutFixture.auth.signOut).not.toHaveBeenCalled();
+    expect(logoutFixture.revokeOperation).not.toHaveBeenCalled();
+    expect(logoutFixture.securityCookies.clear).not.toHaveBeenCalled();
   });
 
   it("fails closed before revocation for a mismatched binding", async () => {

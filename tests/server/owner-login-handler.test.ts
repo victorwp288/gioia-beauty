@@ -135,12 +135,40 @@ describe("owner login handler", () => {
   it("rejects a missing or foreign Origin before Auth work", async () => {
     for (const origin of [undefined, "https://attacker.example.test"]) {
       const fixture = createHandlerFixture();
-      const request = ownerLoginRequest();
+      const request = ownerLoginRequest(
+        "https://app.example.test",
+        "?unexpected=1",
+      );
       if (origin) request.headers.set("origin", origin);
       else request.headers.delete("origin");
       const response = await handler(fixture)(request);
       expect(response.status).toBe(403);
       expect(fixture.auth.signInWithPassword).not.toHaveBeenCalled();
     }
+  });
+
+  it("rejects a query before body, Auth, database, or cookie mutation", async () => {
+    const fixture = createHandlerFixture();
+    const request = ownerLoginRequest(
+      "https://app.example.test",
+      "?unexpected=1",
+    );
+    const getReader = vi.spyOn(request.body!, "getReader");
+
+    const response = await handler(fixture)(request);
+
+    expect(response.status).toBe(400);
+    expect(await ownerResponseBody(response)).toMatchObject({
+      code: "INVALID_REQUEST",
+    });
+    expect(getReader).not.toHaveBeenCalled();
+    expect(fixture.auth.signInWithPassword).not.toHaveBeenCalled();
+    expect(fixture.auth.getSession).not.toHaveBeenCalled();
+    expect(fixture.auth.getUser).not.toHaveBeenCalled();
+    expect(fixture.auth.signOut).not.toHaveBeenCalled();
+    expect(fixture.sessionOperation).not.toHaveBeenCalled();
+    expect(fixture.revokeOperation).not.toHaveBeenCalled();
+    expect(fixture.securityCookies.set).not.toHaveBeenCalled();
+    expect(fixture.securityCookies.clear).not.toHaveBeenCalled();
   });
 });

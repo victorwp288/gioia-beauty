@@ -55,6 +55,14 @@ export function createOwnerLoginHandler({
         responseHeaders,
       );
     }
+    if (new URL(request.url).search !== "") {
+      return apiErrorResponse(
+        400,
+        "INVALID_REQUEST",
+        undefined,
+        responseHeaders,
+      );
+    }
     const body = await readBoundedLoginBody(request);
     if (!body.ok) {
       return apiErrorResponse(
@@ -148,7 +156,15 @@ export function createOwnerSessionHandler({
   securityCookies: Pick<SecurityCookieWriter, "clear">;
   responseHeaders?: HeadersInit;
 }) {
-  return async function GET(): Promise<Response> {
+  return async function GET(request: Request): Promise<Response> {
+    if (new URL(request.url).search !== "") {
+      return apiErrorResponse(
+        400,
+        "INVALID_REQUEST",
+        undefined,
+        responseHeaders,
+      );
+    }
     try {
       const result = await requireFreshOwnerSession({
         auth,
@@ -220,6 +236,14 @@ export function createOwnerLogoutHandler({
       return apiErrorResponse(
         403,
         "FORBIDDEN_REQUEST",
+        undefined,
+        responseHeaders,
+      );
+    }
+    if (new URL(request.url).search !== "") {
+      return apiErrorResponse(
+        400,
+        "INVALID_REQUEST",
         undefined,
         responseHeaders,
       );

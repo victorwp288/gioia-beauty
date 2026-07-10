@@ -58,8 +58,11 @@ export function createHandlerFixture({
   };
 }
 
-export function ownerLoginRequest(origin = "https://app.example.test") {
-  return new Request("https://app.example.test/api/auth/login", {
+export function ownerLoginRequest(
+  origin = "https://app.example.test",
+  query = "",
+) {
+  return new Request(`https://app.example.test/api/auth/login${query}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -76,8 +79,9 @@ export function ownerLoginRequest(origin = "https://app.example.test") {
 export function ownerLogoutRequest(
   csrfToken: string,
   origin = "https://app.example.test",
+  query = "",
 ) {
-  return new Request("https://app.example.test/api/auth/logout", {
+  return new Request(`https://app.example.test/api/auth/logout${query}`, {
     method: "POST",
     headers: {
       host: "app.example.test",
@@ -85,6 +89,10 @@ export function ownerLogoutRequest(
       "x-csrf-token": csrfToken,
     },
   });
+}
+
+export function ownerSessionRequest(query = "") {
+  return new Request(`https://app.example.test/api/auth/session${query}`);
 }
 
 export async function ownerResponseBody(response: Response) {
