@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { OutboxClaimItemSchema } from "@/lib/domain/schemas/index.ts";
-import { createFakeEmailProvider } from "@/lib/server/email/emailProvider.ts";
+import {
+  createFakeEmailProvider,
+  type EmailProvider,
+} from "@/lib/server/email/emailProvider.ts";
 import { scheduleEmailRenderersV1 } from "@/lib/server/email/emailTemplatesV1.ts";
 import {
   OutboxWorkerConfigurationError,
@@ -64,6 +67,16 @@ function successfulCompletion(input: {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function setup(claimBatches: ReturnType<typeof claim>[][]) {
   const claimItems = vi.fn();
   for (const batch of claimBatches) claimItems.mockResolvedValueOnce(batch);
@@ -85,6 +98,14 @@ function setup(claimBatches: ReturnType<typeof claim>[][]) {
   };
 }
 
+function runWorker(
+  worker: ReturnType<typeof createOutboxWorker>,
+  workerId = WORKER_ID,
+  signal = new AbortController().signal,
+) {
+  return worker.run({ workerId }, { signal });
+}
+
 describe("bounded outbox worker", () => {
   it("claims bounded cycles, sends deterministic messages, and completes each row", async () => {
     const fixture = setup([[claim(1), claim(2)]]);
@@ -96,7 +117,7 @@ describe("bounded outbox worker", () => {
       renderers: completeRenderers,
     });
 
-    await expect(worker.run({ workerId: WORKER_ID })).resolves.toEqual({
+    await expect(runWorker(worker)).resolves.toEqual({
       claimCycles: 1,
       claimed: 2,
       sent: 2,
@@ -156,7 +177,7 @@ describe("bounded outbox worker", () => {
       renderers: completeRenderers,
     });
 
-    const result = await worker.run({ workerId: WORKER_ID });
+    const result = await runWorker(worker);
     expect(result).toMatchObject({
       claimed: 2,
       sent: 0,
@@ -175,6 +196,73 @@ describe("bounded outbox worker", () => {
       }),
     ]);
   });
+
+  it.each([
+    [
+      "timeout",
+      () =>
+        Promise.resolve({
+          ok: false as const,
+          errorCode: "PROVIDER_TIMEOUT" as const,
+          retryable: true,
+        }),
+    ],
+    [
+      "network error",
+      () =>
+        Promise.resolve({
+          ok: false as const,
+          errorCode: "PROVIDER_NETWORK_ERROR" as const,
+          retryable: true,
+        }),
+    ],
+    [
+      "invalid accepted response",
+      () => Promise.resolve({ privateUnexpectedResponse: true }),
+    ],
+    [
+      "provider unavailable",
+      () =>
+        Promise.resolve({
+          ok: false as const,
+          errorCode: "PROVIDER_UNAVAILABLE" as const,
+          retryable: true,
+        }),
+    ],
+    [
+      "concurrent idempotency request",
+      () =>
+        Promise.resolve({
+          ok: false as const,
+          errorCode: "PROVIDER_CONCURRENT_IDEMPOTENCY" as const,
+          retryable: true,
+        }),
+    ],
+    [
+      "throw after dispatch",
+      () => Promise.reject(new Error("private provider detail")),
+    ],
+  ])(
+    "does not persist an acceptance-uncertain %s as a proven failure",
+    async (_label, send) => {
+      const fixture = setup([[claim(1)]]);
+      const worker = createOutboxWorker({
+        repository: fixture.repository,
+        provider: { send: vi.fn(send) } as unknown as EmailProvider,
+        renderers: completeRenderers,
+      });
+
+      await expect(runWorker(worker)).resolves.toMatchObject({
+        claimed: 1,
+        sent: 0,
+        retryScheduled: 0,
+        deliveryDeadLettered: 0,
+        completionUncertain: 1,
+      });
+      expect(fixture.completeSuccess).not.toHaveBeenCalled();
+      expect(fixture.completeFailure).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects incomplete renderer capability before claiming any row", () => {
     const fixture = setup([]);
@@ -213,7 +301,7 @@ describe("bounded outbox worker", () => {
       },
     });
 
-    await expect(worker.run({ workerId: WORKER_ID })).resolves.toMatchObject({
+    await expect(runWorker(worker)).resolves.toMatchObject({
       claimed: 1,
       sent: 1,
     });
@@ -231,7 +319,7 @@ describe("bounded outbox worker", () => {
       renderers: completeRenderers,
     });
 
-    await expect(worker.run({ workerId: WORKER_ID })).resolves.toMatchObject({
+    await expect(runWorker(worker)).resolves.toMatchObject({
       claimed: 1,
       sent: 0,
       completionUncertain: 1,
@@ -258,7 +346,7 @@ describe("bounded outbox worker", () => {
       renderers: completeRenderers,
     });
 
-    await worker.run({ workerId: WORKER_ID });
+    await runWorker(worker);
     expect(maximumActive).toBe(5);
   });
 
@@ -273,7 +361,7 @@ describe("bounded outbox worker", () => {
       renderers: completeRenderers,
     });
 
-    await expect(worker.run({ workerId: WORKER_ID })).resolves.toMatchObject({
+    await expect(runWorker(worker)).resolves.toMatchObject({
       claimCycles: 1,
       claimed: 5,
       sent: 5,
@@ -297,7 +385,7 @@ describe("bounded outbox worker", () => {
         renderers: completeRenderers,
       });
 
-      await expect(worker.run({ workerId: WORKER_ID })).rejects.toThrow(
+      await expect(runWorker(worker)).rejects.toThrow(
         "Unexpected outbox claim batch",
       );
       expect(send).not.toHaveBeenCalled();
@@ -306,16 +394,12 @@ describe("bounded outbox worker", () => {
     },
   );
 
-  it("does not call the provider when a slow claim reaches the send cutoff", async () => {
+  it("bounds a never-settling claim without late provider effects", async () => {
     vi.useFakeTimers();
     try {
       const fixture = setup([]);
-      fixture.claimItems.mockImplementationOnce(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(() => resolve([claim(1)]), 16_001),
-          ),
-      );
+      const lateClaim = deferred<ReturnType<typeof claim>[]>();
+      fixture.claimItems.mockReturnValueOnce(lateClaim.promise);
       const provider = createFakeEmailProvider();
       const send = vi.spyOn(provider, "send");
       const worker = createOutboxWorker({
@@ -324,17 +408,172 @@ describe("bounded outbox worker", () => {
         renderers: completeRenderers,
       });
 
-      const resultPromise = worker.run({ workerId: WORKER_ID });
-      await vi.advanceTimersByTimeAsync(16_001);
-      await expect(resultPromise).resolves.toMatchObject({
-        claimed: 1,
-        sent: 0,
-        retryScheduled: 1,
-      });
+      const resultPromise = runWorker(worker);
+      const rejection = expect(resultPromise).rejects.toThrow(
+        "Outbox worker claim deadline reached",
+      );
+      await vi.advanceTimersByTimeAsync(15_999);
       expect(send).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+      expect(send).not.toHaveBeenCalled();
+      expect(fixture.completeSuccess).not.toHaveBeenCalled();
+      expect(fixture.completeFailure).not.toHaveBeenCalled();
+
+      lateClaim.resolve([claim(1)]);
+      await Promise.resolve();
+      expect(send).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("bounds abort-ignoring provider calls without late completion effects", async () => {
+    vi.useFakeTimers();
+    try {
+      const claims = [claim(1), claim(2), claim(3), claim(4), claim(5)];
+      const fixture = setup([claims]);
+      const lateProviders = claims.map(() =>
+        deferred<{ ok: true; providerMessageId: string }>(),
+      );
+      const provider = {
+        send: vi.fn(
+          async (_message, _options) =>
+            await lateProviders[provider.send.mock.calls.length - 1]!.promise,
+        ),
+      };
+      const worker = createOutboxWorker({
+        repository: fixture.repository,
+        provider,
+        renderers: completeRenderers,
+      });
+
+      const resultPromise = runWorker(worker);
+      await vi.advanceTimersByTimeAsync(15_999);
+      expect(provider.send).toHaveBeenCalledTimes(5);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(resultPromise).resolves.toMatchObject({
+        claimed: 5,
+        sent: 0,
+        completionUncertain: 5,
+      });
+      expect(fixture.completeSuccess).not.toHaveBeenCalled();
+      expect(fixture.completeFailure).not.toHaveBeenCalled();
+
+      lateProviders
+        .slice(0, 4)
+        .forEach((pending, index) =>
+          pending.resolve({ ok: true, providerMessageId: `fake-${index}` }),
+        );
+      lateProviders[4]!.reject(new Error("private late provider detail"));
+      await Promise.resolve();
+      expect(fixture.completeSuccess).not.toHaveBeenCalled();
+      expect(fixture.completeFailure).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds a hung success completion and never attempts its opposite", async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = setup([[claim(1)]]);
+      const lateCompletion =
+        deferred<ReturnType<typeof successfulCompletion>>();
+      fixture.completeSuccess.mockReturnValueOnce(lateCompletion.promise);
+      const worker = createOutboxWorker({
+        repository: fixture.repository,
+        provider: createFakeEmailProvider(),
+        renderers: completeRenderers,
+      });
+
+      const resultPromise = runWorker(worker);
+      await vi.advanceTimersByTimeAsync(23_999);
+      expect(fixture.completeSuccess).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(resultPromise).resolves.toMatchObject({
+        claimed: 1,
+        sent: 0,
+        completionUncertain: 1,
+      });
+      expect(fixture.completeFailure).not.toHaveBeenCalled();
+
+      lateCompletion.resolve(successfulCompletion(claim(1)));
+      await Promise.resolve();
+      expect(fixture.completeSuccess).toHaveBeenCalledOnce();
+      expect(fixture.completeFailure).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds a hung failure completion and never attempts its opposite", async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = setup([[claim(1)]]);
+      const lateCompletion = deferred<{
+        outboxId: string;
+        deliveryStatus: "failed";
+        attemptCount: number;
+        currentVersion: number;
+        nextAttemptAt: string;
+      }>();
+      fixture.completeFailure.mockReturnValueOnce(lateCompletion.promise);
+      const worker = createOutboxWorker({
+        repository: fixture.repository,
+        provider: {
+          send: vi.fn(async () => ({
+            ok: false as const,
+            errorCode: "PROVIDER_RATE_LIMITED" as const,
+            retryable: true,
+          })),
+        },
+        renderers: completeRenderers,
+      });
+
+      const resultPromise = runWorker(worker);
+      await vi.advanceTimersByTimeAsync(24_000);
+      await expect(resultPromise).resolves.toMatchObject({
+        claimed: 1,
+        retryScheduled: 0,
+        completionUncertain: 1,
+      });
+      expect(fixture.completeFailure).toHaveBeenCalledOnce();
+      expect(fixture.completeSuccess).not.toHaveBeenCalled();
+
+      lateCompletion.resolve({
+        outboxId: claim(1).outboxId,
+        deliveryStatus: "failed",
+        attemptCount: 1,
+        currentVersion: 3,
+        nextAttemptAt: "2035-02-05T10:05:00.000Z",
+      });
+      await Promise.resolve();
+      expect(fixture.completeFailure).toHaveBeenCalledOnce();
+      expect(fixture.completeSuccess).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects an already-aborted execution before database work", async () => {
+    const fixture = setup([]);
+    const worker = createOutboxWorker({
+      repository: fixture.repository,
+      provider: createFakeEmailProvider(),
+      renderers: completeRenderers,
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      runWorker(worker, WORKER_ID, controller.signal),
+    ).rejects.toThrow("Outbox worker claim deadline reached");
+    expect(fixture.claimItems).not.toHaveBeenCalled();
   });
 
   it("validates configuration before database work and propagates claim outages", async () => {
@@ -345,14 +584,10 @@ describe("bounded outbox worker", () => {
       renderers: completeRenderers,
     });
 
-    await expect(
-      worker.run({ workerId: "invalid worker id" }),
-    ).rejects.toThrow();
+    await expect(runWorker(worker, "invalid worker id")).rejects.toThrow();
     expect(fixture.claimItems).not.toHaveBeenCalled();
 
     fixture.claimItems.mockRejectedValueOnce(new Error("synthetic outage"));
-    await expect(worker.run({ workerId: WORKER_ID })).rejects.toThrow(
-      "synthetic outage",
-    );
+    await expect(runWorker(worker)).rejects.toThrow("synthetic outage");
   });
 });

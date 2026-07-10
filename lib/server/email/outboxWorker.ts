@@ -19,6 +19,13 @@ import {
   type OutboxEmailRendererCatalog,
   type WorkerSummary,
 } from "./outboxWorkerContracts.ts";
+import {
+  OUTBOX_CLAIM_PROVIDER_CUTOFF_MS,
+  OUTBOX_WORKER_SETTLEMENT_CUTOFF_MS,
+  createDeadlineSignal,
+  mapWithConcurrency,
+  settleBeforeAbort,
+} from "./outboxWorkerDeadline.ts";
 
 export {
   OutboxWorkerConfigurationError,
@@ -30,6 +37,14 @@ type WorkerOutcome =
   | "retry_scheduled"
   | "delivery_dead_lettered"
   | "completion_uncertain";
+
+const ACCEPTANCE_UNCERTAIN_PROVIDER_CODES = new Set([
+  "PROVIDER_CONCURRENT_IDEMPOTENCY",
+  "PROVIDER_NETWORK_ERROR",
+  "PROVIDER_RESPONSE_INVALID",
+  "PROVIDER_TIMEOUT",
+  "PROVIDER_UNAVAILABLE",
+]);
 
 interface WorkerDependencies {
   repository: Pick<
@@ -43,7 +58,6 @@ interface WorkerDependencies {
 const BATCH_SIZE = 5;
 const CONCURRENCY = 5;
 const LEASE_SECONDS = 120;
-const PROVIDER_CUTOFF_MS = 16_000;
 const ClaimBatchSchema = z
   .array(OutboxClaimItemSchema)
   .max(BATCH_SIZE)
@@ -83,15 +97,22 @@ async function persistFailure(
   item: OutboxClaimItem,
   errorCode: string,
   retryable: boolean,
+  signal: AbortSignal,
 ): Promise<WorkerOutcome> {
+  if (signal.aborted) return "completion_uncertain";
   try {
-    const completion = await repository.completeFailure({
-      outboxId: item.outboxId,
-      expectedVersion: item.expectedVersion,
-      workerId,
-      errorCode,
-      retryable,
-    });
+    const result = await settleBeforeAbort(
+      repository.completeFailure({
+        outboxId: item.outboxId,
+        expectedVersion: item.expectedVersion,
+        workerId,
+        errorCode,
+        retryable,
+      }),
+      signal,
+    );
+    if (result.status === "aborted") return "completion_uncertain";
+    const completion = result.value;
     if (!completionMatches(completion, item)) return "completion_uncertain";
     return completion.deliveryStatus === "failed"
       ? "retry_scheduled"
@@ -105,7 +126,8 @@ async function processClaim(
   dependencies: WorkerDependencies,
   workerId: string,
   item: OutboxClaimItem,
-  signal: AbortSignal,
+  providerSignal: AbortSignal,
+  settlementSignal: AbortSignal,
 ): Promise<WorkerOutcome> {
   let message: EmailMessage;
   try {
@@ -120,24 +142,31 @@ async function processClaim(
       item,
       "OUTBOX_TEMPLATE_INVALID",
       false,
+      settlementSignal,
     );
   }
 
   let providerResult: unknown;
-  if (signal.aborted) {
+  if (providerSignal.aborted) {
     return persistFailure(
       dependencies.repository,
       workerId,
       item,
       "PROVIDER_TIMEOUT",
       true,
+      settlementSignal,
     );
   }
   try {
-    providerResult = await dependencies.provider.send(message, {
-      idempotencyKey: item.providerIdempotencyKey,
-      signal,
-    });
+    const result = await settleBeforeAbort(
+      dependencies.provider.send(message, {
+        idempotencyKey: item.providerIdempotencyKey,
+        signal: providerSignal,
+      }),
+      providerSignal,
+    );
+    if (result.status === "aborted") return "completion_uncertain";
+    providerResult = result.value;
   } catch {
     providerResult = {
       ok: false,
@@ -155,49 +184,38 @@ async function processClaim(
       };
 
   if (!result.ok) {
+    if (ACCEPTANCE_UNCERTAIN_PROVIDER_CODES.has(result.errorCode)) {
+      return "completion_uncertain";
+    }
     return persistFailure(
       dependencies.repository,
       workerId,
       item,
       result.errorCode,
       result.retryable,
+      settlementSignal,
     );
   }
 
+  if (settlementSignal.aborted) return "completion_uncertain";
   try {
-    const completion = await dependencies.repository.completeSuccess({
-      outboxId: item.outboxId,
-      expectedVersion: item.expectedVersion,
-      workerId,
-      providerMessageId: result.providerMessageId,
-    });
+    const completed = await settleBeforeAbort(
+      dependencies.repository.completeSuccess({
+        outboxId: item.outboxId,
+        expectedVersion: item.expectedVersion,
+        workerId,
+        providerMessageId: result.providerMessageId,
+      }),
+      settlementSignal,
+    );
+    if (completed.status === "aborted") return "completion_uncertain";
+    const completion = completed.value;
     return completionMatches(completion, item)
       ? "sent"
       : "completion_uncertain";
   } catch {
     return "completion_uncertain";
   }
-}
-
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  concurrency: number,
-  operation: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    async () => {
-      while (cursor < items.length) {
-        const index = cursor;
-        cursor += 1;
-        results[index] = await operation(items[index]!);
-      }
-    },
-  );
-  await Promise.all(workers);
-  return results;
 }
 
 function countOutcomes(summary: WorkerSummary, outcomes: WorkerOutcome[]) {
@@ -214,12 +232,21 @@ function countOutcomes(summary: WorkerSummary, outcomes: WorkerOutcome[]) {
 export function createOutboxWorker(dependencies: WorkerDependencies) {
   requireCompleteRenderer(dependencies.renderers);
   return {
-    async run(input: z.input<typeof WorkerConfigurationSchema>) {
+    async run(
+      input: z.input<typeof WorkerConfigurationSchema>,
+      options: { readonly signal: AbortSignal },
+    ) {
       const configuration = WorkerConfigurationSchema.parse(input);
-      const providerController = new AbortController();
-      const providerTimer = setTimeout(
-        () => providerController.abort(),
-        PROVIDER_CUTOFF_MS,
+      if (!(options?.signal instanceof AbortSignal)) {
+        throw new Error("Outbox worker execution is not configured");
+      }
+      const providerDeadline = createDeadlineSignal(
+        OUTBOX_CLAIM_PROVIDER_CUTOFF_MS,
+        options.signal,
+      );
+      const settlementDeadline = createDeadlineSignal(
+        OUTBOX_WORKER_SETTLEMENT_CUTOFF_MS,
+        options.signal,
       );
       const summary: WorkerSummary = {
         claimCycles: 0,
@@ -232,13 +259,21 @@ export function createOutboxWorker(dependencies: WorkerDependencies) {
       };
 
       try {
-        const claims = requireClaimBatch(
-          await dependencies.repository.claim({
+        if (providerDeadline.signal.aborted) {
+          throw new Error("Outbox worker claim deadline reached");
+        }
+        const claimed = await settleBeforeAbort(
+          dependencies.repository.claim({
             workerId: configuration.workerId,
             batchSize: BATCH_SIZE,
             leaseSeconds: LEASE_SECONDS,
           }),
+          providerDeadline.signal,
         );
+        if (claimed.status === "aborted") {
+          throw new Error("Outbox worker claim deadline reached");
+        }
+        const claims = requireClaimBatch(claimed.value);
         summary.claimCycles = 1;
         summary.claimed = claims.length;
         summary.budgetReached = claims.length === BATCH_SIZE;
@@ -247,12 +282,14 @@ export function createOutboxWorker(dependencies: WorkerDependencies) {
             dependencies,
             configuration.workerId,
             item,
-            providerController.signal,
+            providerDeadline.signal,
+            settlementDeadline.signal,
           ),
         );
         countOutcomes(summary, outcomes);
       } finally {
-        clearTimeout(providerTimer);
+        providerDeadline.cleanup();
+        settlementDeadline.cleanup();
       }
 
       return OutboxWorkerSummarySchema.parse(summary);

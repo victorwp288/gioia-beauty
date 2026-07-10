@@ -11,6 +11,11 @@ import {
 } from "@/lib/server/publicApiResponse.ts";
 
 import { OutboxWorkerSummarySchema } from "./outboxWorkerContracts.ts";
+import {
+  OUTBOX_INVOCATION_DEADLINE_MS,
+  createDeadlineSignal,
+  settleBeforeAbort,
+} from "./outboxWorkerDeadline.ts";
 
 const OUTBOX_CRON_PATH = "/api/cron/outbox";
 const AUTHORIZATION_CONTEXT = "gioia:outbox-cron-authorization:v1\0";
@@ -30,7 +35,10 @@ const OutboxBatchProcessedResponseSchema = z
 
 interface InvocationDependencies {
   readonly worker: {
-    run(input: { readonly workerId: string }): Promise<unknown>;
+    run(
+      input: { readonly workerId: string },
+      options: { readonly signal: AbortSignal },
+    ): Promise<unknown>;
   };
   readonly cronSecret: string;
   readonly requestId: () => string;
@@ -139,10 +147,18 @@ export function createOutboxWorkerInvocationGetHandler({
       return fixedError(503, "SERVICE_UNAVAILABLE");
     }
 
+    const deadline = createDeadlineSignal(OUTBOX_INVOCATION_DEADLINE_MS);
     try {
-      const result = OutboxWorkerSummarySchema.safeParse(
-        await run({ workerId: `cron:${id}` }),
+      const invocation = await settleBeforeAbort(
+        Promise.resolve().then(() =>
+          run({ workerId: `cron:${id}` }, { signal: deadline.signal }),
+        ),
+        deadline.signal,
       );
+      if (invocation.status === "aborted") {
+        return fixedError(503, "SERVICE_UNAVAILABLE", id);
+      }
+      const result = OutboxWorkerSummarySchema.safeParse(invocation.value);
       if (!result.success) {
         return fixedError(503, "SERVICE_UNAVAILABLE", id);
       }
@@ -161,6 +177,8 @@ export function createOutboxWorkerInvocationGetHandler({
       );
     } catch {
       return fixedError(503, "SERVICE_UNAVAILABLE", id);
+    } finally {
+      deadline.cleanup();
     }
   };
 }

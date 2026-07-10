@@ -57,8 +57,21 @@ Resend currently retains an email idempotency key for 24 hours. The outbox must
 reuse its immutable provider key unchanged, but that provider window is not a
 permanent exactly-once guarantee.
 
+The inert worker boundary reserves a code-owned 16-second claim/provider
+cutoff, a 24-second worker-settlement cutoff, and a 25-second invocation
+fail-safe, leaving one second for fixed response serialization. The database's
+8-second statement timeout and provider's 8-second request timeout fit inside
+that composition, and the 120-second lease remains longer than every execution
+budget. Each external await is raced against its applicable signal so a late
+claim or provider result cannot start another effect; a late fenced completion
+may still finish, but is reported as uncertain. These local proofs do not
+activate Cron or establish the missing persisted 24-hour retry cutoff.
+
 - A provider-accepted send whose database completion cannot be proven is an
   alertable recovery state, not an ordinary blind retry.
+- Provider timeout, network failure, invalid success response, 5xx, and
+  concurrent-idempotency outcomes are also acceptance-uncertain; the worker
+  must not persist them as proven delivery failures.
 - Automatic lease recovery must finish inside the provider's 24-hour window.
 - At or beyond that window, stop automatic and manual retry until the operator
   reconciles provider evidence and chooses a documented forward-recovery path;

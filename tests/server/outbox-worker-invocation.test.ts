@@ -24,6 +24,21 @@ const SUMMARY = Object.freeze({
   budgetReached: false,
 });
 
+type WorkerRun = (
+  input: { readonly workerId: string },
+  options: { readonly signal: AbortSignal },
+) => Promise<unknown>;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function request({
   authorization = `Bearer ${SECRET}`,
   method = "GET",
@@ -52,11 +67,13 @@ function rawAuthorizationRequest(authorization: string): Request {
 function setup({
   result = SUMMARY,
   requestId = () => REQUEST_ID,
+  workerRun,
 }: {
   result?: unknown;
   requestId?: () => string;
+  workerRun?: WorkerRun;
 } = {}) {
-  const run = vi.fn(async () => result);
+  const run = vi.fn(workerRun ?? (async () => result));
   return {
     run,
     handler: createOutboxWorkerInvocationGetHandler({
@@ -84,9 +101,10 @@ describe("inert authenticated outbox worker invocation", () => {
       summary: SUMMARY,
     });
     expect(fixture.run).toHaveBeenCalledOnce();
-    expect(fixture.run).toHaveBeenCalledWith({
-      workerId: `cron:${REQUEST_ID}`,
-    });
+    expect(fixture.run).toHaveBeenCalledWith(
+      { workerId: `cron:${REQUEST_ID}` },
+      { signal: expect.any(AbortSignal) },
+    );
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("x-robots-tag")).toBe(
       "noindex, nofollow, noarchive",
@@ -249,6 +267,82 @@ describe("inert authenticated outbox worker invocation", () => {
     }
   });
 
+  it("returns a fixed response deadline for a non-cooperative worker", async () => {
+    vi.useFakeTimers();
+    try {
+      let appliedSignal: AbortSignal | undefined;
+      const fixture = setup({
+        workerRun: async (_input, options) => {
+          appliedSignal = options.signal;
+          return await new Promise<never>(() => {});
+        },
+      });
+      let settled = false;
+      const responsePromise = fixture.handler(request()).finally(() => {
+        settled = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(24_999);
+      expect(settled).toBe(false);
+      expect(appliedSignal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const response = await responsePromise;
+
+      expect(response.status).toBe(503);
+      expect(await json(response)).toEqual({
+        code: "SERVICE_UNAVAILABLE",
+        requestId: REQUEST_ID,
+      });
+      expect(appliedSignal?.aborted).toBe(true);
+      expect(fixture.run).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the response deadline after a last-moment valid result", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = deferred<unknown>();
+      let appliedSignal: AbortSignal | undefined;
+      const fixture = setup({
+        workerRun: async (_input, options) => {
+          appliedSignal = options.signal;
+          return await pending.promise;
+        },
+      });
+      const responsePromise = fixture.handler(request());
+
+      await vi.advanceTimersByTimeAsync(24_999);
+      pending.resolve(SUMMARY);
+      const response = await responsePromise;
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(response.status).toBe(200);
+      expect(appliedSignal?.aborted).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("allocates no worker deadline for rejected requests", async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = setup();
+      const response = await fixture.handler(
+        request({ authorization: null, method: "POST" }),
+      );
+
+      expect(response.status).toBe(401);
+      expect(fixture.run).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uses a fresh server identity for each duplicate scheduler delivery", async () => {
     const ids = [
       "30000000-0000-4000-8000-000000000001",
@@ -260,17 +354,25 @@ describe("inert authenticated outbox worker invocation", () => {
     await fixture.handler(request());
 
     expect(fixture.run.mock.calls).toEqual([
-      [{ workerId: "cron:30000000-0000-4000-8000-000000000001" }],
-      [{ workerId: "cron:30000000-0000-4000-8000-000000000002" }],
+      [
+        { workerId: "cron:30000000-0000-4000-8000-000000000001" },
+        { signal: expect.any(AbortSignal) },
+      ],
+      [
+        { workerId: "cron:30000000-0000-4000-8000-000000000002" },
+        { signal: expect.any(AbortSignal) },
+      ],
     ]);
   });
 
   it("contains no activation, environment, provider, database, or route sink", () => {
     const root = process.cwd();
-    const source = readFileSync(
-      resolve(root, "lib/server/email/outboxWorkerInvocation.ts"),
-      "utf8",
-    );
+    const source = [
+      "lib/server/email/outboxWorkerInvocation.ts",
+      "lib/server/email/outboxWorkerDeadline.ts",
+    ]
+      .map((path) => readFileSync(resolve(root, path), "utf8"))
+      .join("\n");
     for (const forbidden of [
       "process.env",
       "createEmailProvider",
