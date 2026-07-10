@@ -244,7 +244,7 @@ created_at            timestamptz not null
 updated_at            timestamptz not null
 ```
 
-Outbox rows and the booking/status/subscriber change commit together. Provider calls happen after commit. A signed Vercel Cron worker claims bounded batches with a database lease/`FOR UPDATE SKIP LOCKED`; expired leases are recoverable, provider idempotency prevents duplicate sends where supported, and dead letters alert the operator. Signed Resend webhooks are replay-deduplicated by provider event ID before state changes. Reports/errors contain identifiers and codes, not PII payloads. Field-level retention/anonymization and any additional encryption beyond managed database/storage encryption remain explicit privacy launch gates.
+Outbox rows and the booking/status/subscriber change commit together. Provider calls happen after commit. A Vercel Cron worker authenticated by an exact `CRON_SECRET` bearer claims bounded batches with a database lease/`FOR UPDATE SKIP LOCKED`; the bearer is not a per-request signature or replay fence, so duplicate and missed delivery must be safe. Expired leases are recoverable, provider idempotency prevents duplicate sends only inside its proven retention window, and dead letters alert the operator. Signed Resend webhooks are replay-deduplicated by provider event ID before state changes. Reports/errors contain identifiers and codes, not PII payloads. Field-level retention/anonymization and any additional encryption beyond managed database/storage encryption remain explicit privacy launch gates.
 
 ### `email_webhook_events`
 

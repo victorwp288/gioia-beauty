@@ -44,6 +44,23 @@ const BATCH_SIZE = 5;
 const CONCURRENCY = 5;
 const LEASE_SECONDS = 120;
 const PROVIDER_CUTOFF_MS = 16_000;
+const ClaimBatchSchema = z
+  .array(OutboxClaimItemSchema)
+  .max(BATCH_SIZE)
+  .superRefine((items, context) => {
+    if (new Set(items.map((item) => item.outboxId)).size !== items.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Claimed outbox rows must be unique",
+      });
+    }
+  });
+
+function requireClaimBatch(value: unknown): OutboxClaimItem[] {
+  const parsed = ClaimBatchSchema.safeParse(value);
+  if (!parsed.success) throw new Error("Unexpected outbox claim batch");
+  return parsed.data;
+}
 
 function completionMatches(
   completion: {
@@ -215,11 +232,13 @@ export function createOutboxWorker(dependencies: WorkerDependencies) {
       };
 
       try {
-        const claims = await dependencies.repository.claim({
-          workerId: configuration.workerId,
-          batchSize: BATCH_SIZE,
-          leaseSeconds: LEASE_SECONDS,
-        });
+        const claims = requireClaimBatch(
+          await dependencies.repository.claim({
+            workerId: configuration.workerId,
+            batchSize: BATCH_SIZE,
+            leaseSeconds: LEASE_SECONDS,
+          }),
+        );
         summary.claimCycles = 1;
         summary.claimed = claims.length;
         summary.budgetReached = claims.length === BATCH_SIZE;

@@ -282,6 +282,30 @@ describe("bounded outbox worker", () => {
     expect(fixture.claimItems).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["overbound", [claim(1), claim(2), claim(3), claim(4), claim(5), claim(6)]],
+    ["duplicate", [claim(1), claim(1)]],
+  ])(
+    "rejects an %s claim batch before provider effects",
+    async (_label, batch) => {
+      const fixture = setup([batch]);
+      const provider = createFakeEmailProvider();
+      const send = vi.spyOn(provider, "send");
+      const worker = createOutboxWorker({
+        repository: fixture.repository,
+        provider,
+        renderers: completeRenderers,
+      });
+
+      await expect(worker.run({ workerId: WORKER_ID })).rejects.toThrow(
+        "Unexpected outbox claim batch",
+      );
+      expect(send).not.toHaveBeenCalled();
+      expect(fixture.completeSuccess).not.toHaveBeenCalled();
+      expect(fixture.completeFailure).not.toHaveBeenCalled();
+    },
+  );
+
   it("does not call the provider when a slow claim reaches the send cutoff", async () => {
     vi.useFakeTimers();
     try {
