@@ -2,7 +2,7 @@ begin;
 
 set local search_path = extensions, public, pg_catalog;
 
-select plan(8);
+select plan(9);
 
 with expected(
   index_name,
@@ -36,6 +36,12 @@ with expected(
       'migration_quarantine',
       array['resolution_run_id']::text[],
       'resolution_run_id IS NOT NULL'
+    ),
+    (
+      'owner_sessions_user_id_idx',
+      'owner_sessions',
+      array['user_id']::text[],
+      null::text
     ),
     (
       'schedule_entries_created_by_idx',

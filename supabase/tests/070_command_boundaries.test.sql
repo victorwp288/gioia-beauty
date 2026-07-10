@@ -44,6 +44,20 @@ select lives_ok(
   'command tests use a deterministic synthetic owner'
 );
 
+insert into gioia_private.owner_sessions (session_id,user_id,expires_at)
+values ('90500000-0000-4000-8000-000000000001','90000000-0000-4000-8000-000000000001',statement_timestamp()+interval '1 hour');
+
+do $owner_claim$
+begin
+  perform set_config(
+    'request.jwt.claim.sub',
+    '90000000-0000-4000-8000-000000000001',
+    true
+  );
+  perform set_config('request.jwt.claim.session_id','90500000-0000-4000-8000-000000000001',true);
+end
+$owner_claim$;
+
 insert into gioia_private.command_requests (
   operation, principal_scope_hash, idempotency_key,
   request_fingerprint, state, expires_at
@@ -168,8 +182,8 @@ select throws_ok(
       660::smallint, 30::smallint, 0::smallint, 'Denied'
     )
   $sql$,
-  'PT403', 'OWNER_AUTHORIZATION_REQUIRED',
-  'owner commands reject an unknown actor before mutation'
+  'PT403', 'OWNER_IDENTITY_MISMATCH',
+  'owner commands reject an actor that differs from the authenticated identity'
 );
 
 select results_eq(

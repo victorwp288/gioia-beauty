@@ -1,11 +1,9 @@
 begin;
-
 grant gioia_mutator to postgres;
 
 set local search_path = extensions, public, pg_catalog;
 
 select plan(23);
-
 select is(
   (
     select count(*)
@@ -97,6 +95,7 @@ select results_eq(
   $actual$,
   $expected$
     values
+      ('authorize_owner_session'::text),
       ('claim_email_outbox'::text),
       ('complete_email_outbox_failure'::text),
       ('complete_email_outbox_success'::text),
@@ -115,12 +114,13 @@ select results_eq(
       ('owner_update_block_details'::text),
       ('process_verified_email_webhook'::text),
       ('retry_email_outbox_as_owner'::text),
+      ('revoke_owner_session'::text),
+      ('start_owner_session'::text),
       ('subscribe_public_newsletter'::text),
       ('unsubscribe_public_newsletter'::text)
   $expected$,
   'app_runtime can execute only reviewed bounded entry points'
 );
-
 select is(
   (
     select count(*)
@@ -189,7 +189,7 @@ select lives_ok(
   $sql$,
   'synthetic owner authorization fixture is accepted'
 );
-
+insert into gioia_private.owner_sessions (session_id,user_id,expires_at) values ('85000000-0000-4000-8000-000000000001','80000000-0000-4000-8000-000000000001',statement_timestamp()+interval '1 hour');
 select lives_ok(
   $sql$
     insert into gioia_private.schedule_entries (
@@ -218,19 +218,19 @@ select lives_ok(
   $sql$,
   'synthetic vacation fixture is accepted'
 );
-
+do $$begin perform set_config('request.jwt.claim.session_id','85000000-0000-4000-8000-000000000001',true); end$$;
 set local role gioia_mutator;
 
 select lives_ok(
   $$select gioia_private.assert_enabled_owner(
-    '80000000-0000-4000-8000-000000000001'
+    set_config('request.jwt.claim.sub', '80000000-0000-4000-8000-000000000001', true)::uuid
   )$$,
   'enabled owner authorization succeeds'
 );
 
 select throws_ok(
   $$select gioia_private.assert_enabled_owner(
-    '80000000-0000-4000-8000-000000000099'
+    set_config('request.jwt.claim.sub', '80000000-0000-4000-8000-000000000099', true)::uuid
   )$$,
   'PT403', 'OWNER_AUTHORIZATION_REQUIRED',
   'unknown owner authorization fails closed'

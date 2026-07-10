@@ -19,6 +19,15 @@ export interface RuntimeDatabase {
   transaction<T>(
     work: (transaction: RuntimeTransaction) => Promise<T>,
   ): Promise<T>;
+  ownerTransaction<T>(
+    identity: OwnerTransactionIdentity,
+    work: (transaction: RuntimeTransaction) => Promise<T>,
+  ): Promise<T>;
+}
+
+export interface OwnerTransactionIdentity {
+  userId: string;
+  sessionId: string;
 }
 
 export interface RuntimeDatabaseOptions {
@@ -44,6 +53,25 @@ export class DatabaseConfigurationError extends Error {
     super("Database is not configured");
     this.name = "DatabaseConfigurationError";
   }
+}
+
+export class DatabaseAuthorizationContextError extends Error {
+  constructor() {
+    super("Database authorization context is invalid");
+    this.name = "DatabaseAuthorizationContextError";
+  }
+}
+
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireOwnerIdentity(
+  identity: OwnerTransactionIdentity,
+): OwnerTransactionIdentity {
+  if (!UUID.test(identity.userId) || !UUID.test(identity.sessionId)) {
+    throw new DatabaseAuthorizationContextError();
+  }
+  return identity;
 }
 
 function requireDatabaseUrl(
@@ -96,18 +124,41 @@ export function createRuntimeDatabase({
     return lazyClient;
   }
 
+  async function transactionWithAuthContext<T>(
+    actorUserId: string,
+    sessionId: string,
+    work: (transaction: RuntimeTransaction) => Promise<T>,
+  ): Promise<T> {
+    return getClient().begin(async (transaction) => {
+      await transaction.unsafe("set local role app_runtime");
+      await transaction.unsafe(
+        "select set_config('request.jwt.claim.sub', $1, true), " +
+          "set_config('request.jwt.claim.session_id', $2, true), " +
+          "set_config('request.jwt.claims', '{}', true), " +
+          "set_config('statement_timeout', '8000', true), " +
+          "set_config('lock_timeout', '3000', true)",
+        [actorUserId, sessionId],
+      );
+      return work(transaction);
+    });
+  }
+
   return {
     async transaction<T>(
       work: (transaction: RuntimeTransaction) => Promise<T>,
     ): Promise<T> {
-      return getClient().begin(async (transaction) => {
-        await transaction.unsafe("set local role app_runtime");
-        await transaction.unsafe(
-          "select set_config('statement_timeout', '8000', true), " +
-            "set_config('lock_timeout', '3000', true)",
-        );
-        return work(transaction);
-      });
+      return await transactionWithAuthContext("", "", work);
+    },
+    async ownerTransaction<T>(
+      identity: OwnerTransactionIdentity,
+      work: (transaction: RuntimeTransaction) => Promise<T>,
+    ): Promise<T> {
+      const verifiedIdentity = requireOwnerIdentity(identity);
+      return await transactionWithAuthContext(
+        verifiedIdentity.userId,
+        verifiedIdentity.sessionId,
+        work,
+      );
     },
   };
 }

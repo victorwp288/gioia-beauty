@@ -8,6 +8,11 @@ const UUID =
 
 export const REQUEST_COUNT = 20;
 export const OWNER_ID = "d0000000-0000-4000-8000-000000000001";
+export const OWNER_SESSION_ID = "d1000000-0000-4000-8000-000000000001";
+const OWNER_AUTH_CONTEXT =
+  `case when set_config('request.jwt.claim.session_id', ` +
+  `'${OWNER_SESSION_ID}', true) <> '' then ` +
+  `set_config('request.jwt.claim.sub', '${OWNER_ID}', true)::uuid end`;
 
 export const ownerFixtureQueries = [
   `insert into auth.users (
@@ -22,6 +27,12 @@ export const ownerFixtureQueries = [
   ) on conflict (id) do nothing`,
   `insert into gioia_private.owner_accounts (user_id)
   values ('${OWNER_ID}') on conflict (user_id) do nothing`,
+  `insert into gioia_private.owner_sessions (
+    session_id, user_id, created_at, expires_at
+  ) values (
+    '${OWNER_SESSION_ID}', '${OWNER_ID}', statement_timestamp(),
+    statement_timestamp() + interval '12 hours'
+  ) on conflict (session_id) do nothing`,
 ];
 
 export const raceTargetQuery = `
@@ -205,7 +216,7 @@ export function bookingVacationVacationQuery(target) {
     select vacation.http_status, vacation.result ->> 'code' as code,
       vacation.replayed
     from gioia_private.owner_create_vacation(
-      '${OWNER_ID}', 'race-booking-vacation-close',
+      ${OWNER_AUTH_CONTEXT}, 'race-booking-vacation-close',
       decode(repeat('33', 32), 'hex'),
       '${localDate}'::date, '${localDate}'::date,
       'Synthetic booking vacation race'
@@ -226,7 +237,7 @@ export function ownerCreateAppointmentQuery(target, suffix, fingerprintByte) {
     select command.http_status, command.result ->> 'code' as code,
       command.result ->> 'resource_id' as resource_id, command.replayed
     from gioia_private.owner_create_appointment(
-      '${OWNER_ID}', 'race-swap-create-${suffix}',
+      ${OWNER_AUTH_CONTEXT}, 'race-swap-create-${suffix}',
       decode(repeat('${fingerprintByte}', 32), 'hex'),
       '${safeTarget.localDate}'::date, 600::smallint,
       '${safeTarget.serviceId}', '${safeTarget.variantId}',
@@ -259,7 +270,7 @@ export function ownerRescheduleQuery({
     select command.http_status, command.result ->> 'code' as code,
       command.replayed
     from gioia_private.owner_reschedule_appointment(
-      '${OWNER_ID}', 'race-swap-reschedule-${suffix}',
+      ${OWNER_AUTH_CONTEXT}, 'race-swap-reschedule-${suffix}',
       decode(repeat('${fingerprintByte}', 32), 'hex'),
       '${entryId}', 1, '${safeTarget.localDate}'::date, 600::smallint,
       '${safeTarget.serviceId}', '${safeTarget.variantId}'

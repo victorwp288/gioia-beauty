@@ -47,7 +47,7 @@ const CREATE_BOOKING_QUERY = `
 `;
 
 export function createPublicBookingRepository(
-  database: RuntimeDatabase = createRuntimeDatabase(),
+  database: Pick<RuntimeDatabase, "transaction"> = createRuntimeDatabase(),
 ): PublicBookingRepository {
   return {
     getAvailability(input) {

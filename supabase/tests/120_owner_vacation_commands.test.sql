@@ -38,6 +38,17 @@ with test_user as (
   ) returning id
 )
 insert into gioia_private.owner_accounts (user_id) select id from test_user;
+insert into gioia_private.owner_sessions (session_id,user_id,expires_at) values ('92500000-0000-4000-8000-000000000001','92000000-0000-4000-8000-000000000001',statement_timestamp()+interval '1 hour');
+do $owner_claim$
+begin
+  perform set_config(
+    'request.jwt.claim.sub',
+    '92000000-0000-4000-8000-000000000001',
+    true
+  );
+  perform set_config('request.jwt.claim.session_id','92500000-0000-4000-8000-000000000001',true);
+end
+$owner_claim$;
 
 insert into gioia_private.schedule_entries (
   id,kind,status,source,local_date,start_minutes,

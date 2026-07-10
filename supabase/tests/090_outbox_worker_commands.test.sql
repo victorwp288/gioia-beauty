@@ -173,7 +173,7 @@ select ok(
   ),
   'retry backoff is future-bounded and clears the lease'
 );
-
+do $$begin perform set_config('request.jwt.claim.session_id','99999999-0000-4000-8000-000000000098',true); end$$;
 set local role app_runtime;
 select results_eq(
   $$select delivery_status, attempt_count
@@ -187,7 +187,7 @@ select results_eq(
 
 select throws_ok(
   $$select * from gioia_private.retry_email_outbox_as_owner(
-    '99999999-0000-4000-8000-000000000099', 'retry:test:denied',
+    set_config('request.jwt.claim.sub', '99999999-0000-4000-8000-000000000099', true)::uuid, 'retry:test:denied',
     decode(repeat('51', 32), 'hex'),
     '92000000-0000-4000-8000-000000000002', 2
   )$$,
@@ -195,7 +195,6 @@ select throws_ok(
   'outbox retry rejects an unknown owner'
 );
 reset role;
-
 do $owner$
 begin
   with test_user as (
@@ -213,12 +212,13 @@ begin
   insert into gioia_private.owner_accounts (user_id) select id from test_user;
 end
 $owner$;
-
+insert into gioia_private.owner_sessions (session_id,user_id,expires_at) values ('93500000-0000-4000-8000-000000000001','93000000-0000-4000-8000-000000000001',statement_timestamp()+interval '1 hour');
+do $$begin perform set_config('request.jwt.claim.session_id','93500000-0000-4000-8000-000000000001',true); end$$;
 set local role app_runtime;
 select results_eq(
   $$select http_status, result ->> 'code', replayed
     from gioia_private.retry_email_outbox_as_owner(
-      '93000000-0000-4000-8000-000000000001', 'retry:test:0001',
+      set_config('request.jwt.claim.sub', '93000000-0000-4000-8000-000000000001', true)::uuid, 'retry:test:0001',
       decode(repeat('52', 32), 'hex'),
       '92000000-0000-4000-8000-000000000002', 2
     )$$,

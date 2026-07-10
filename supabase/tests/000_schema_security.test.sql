@@ -133,6 +133,7 @@ with expected(table_name, privilege_type) as (
     ('newsletter_subscribers', 'INSERT'), ('newsletter_subscribers', 'SELECT'),
     ('newsletter_subscribers', 'UPDATE'),
     ('owner_accounts', 'INSERT'), ('owner_accounts', 'SELECT'), ('owner_accounts', 'UPDATE'),
+    ('owner_sessions', 'INSERT'), ('owner_sessions', 'SELECT'), ('owner_sessions', 'UPDATE'),
     ('schedule_day_locks', 'INSERT'), ('schedule_day_locks', 'SELECT'),
     ('schedule_entries', 'INSERT'), ('schedule_entries', 'SELECT'), ('schedule_entries', 'UPDATE'),
     ('service_categories', 'INSERT'), ('service_categories', 'SELECT'),

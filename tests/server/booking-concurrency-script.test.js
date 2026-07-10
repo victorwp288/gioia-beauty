@@ -13,6 +13,7 @@ import {
   DATABASE_POOL_SIZE,
   identicalBookingQuery,
   oppositeRescheduleReconciliationQuery,
+  ownerCreateAppointmentQuery,
   ownerRescheduleQuery,
   parseBarrierWaiterCount,
   parseCreatedAppointment,
@@ -116,6 +117,24 @@ describe("booking concurrency target and safety", () => {
     expect(bookingVacationVacationQuery(parsedTarget)).toContain(
       "owner_create_vacation",
     );
+    const ownerQueries = [
+      bookingVacationVacationQuery(parsedTarget),
+      ownerCreateAppointmentQuery(parsedTarget, "a", "41"),
+      ownerRescheduleQuery({
+        entryId: "d1000000-0000-4000-8000-000000000001",
+        target: parsedTarget,
+        suffix: "a",
+        fingerprintByte: "43",
+      }),
+    ];
+    expect(
+      ownerQueries.every((query) => query.includes("request.jwt.claim.sub")),
+    ).toBe(true);
+    expect(
+      ownerQueries.every((query) =>
+        query.includes("request.jwt.claim.session_id"),
+      ),
+    ).toBe(true);
     expect(() =>
       ownerRescheduleQuery({
         entryId: "unsafe'; select",

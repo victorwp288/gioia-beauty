@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import { createPublicBookingRepository } from "@/lib/server/database/publicBookingRepository.ts";
 import {
+  DatabaseAuthorizationContextError,
   DatabaseConfigurationError,
   createRuntimeDatabase,
   type RuntimeDatabase,
@@ -44,9 +45,50 @@ describe("runtime Postgres adapter", () => {
     });
     expect(unsafe.mock.calls.map(([query]) => query)).toEqual([
       "set local role app_runtime",
-      expect.stringContaining("statement_timeout"),
+      expect.stringContaining("request.jwt.claim.sub"),
       "select bounded_call()",
     ]);
+    expect(unsafe.mock.calls[1]?.[1]).toEqual(["", ""]);
+  });
+
+  it("binds one validated owner UUID to the transaction-local Auth context", async () => {
+    const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => []);
+    const client: RuntimeSqlClient = {
+      begin: vi.fn(async (work) => work({ unsafe } as RuntimeTransaction)),
+    };
+    const database = createRuntimeDatabase({ client });
+    const identity = {
+      userId: "10000000-0000-4000-8000-000000000001",
+      sessionId: "20000000-0000-4000-8000-000000000001",
+    };
+
+    await database.ownerTransaction(identity, (transaction) =>
+      transaction.unsafe("select owner_command()"),
+    );
+
+    expect(unsafe.mock.calls[1]?.[0]).toContain("request.jwt.claim.sub");
+    expect(unsafe.mock.calls[1]?.[0]).toContain("request.jwt.claim.session_id");
+    expect(unsafe.mock.calls[1]?.[1]).toEqual([
+      identity.userId,
+      identity.sessionId,
+    ]);
+    expect(unsafe.mock.calls[2]?.[0]).toBe("select owner_command()");
+  });
+
+  it("rejects malformed owner context before opening a transaction", async () => {
+    const client: RuntimeSqlClient = { begin: vi.fn() };
+    const database = createRuntimeDatabase({ client });
+
+    await expect(
+      database.ownerTransaction(
+        {
+          userId: "not-a-user-id",
+          sessionId: "also-not-a-session-id",
+        },
+        async () => undefined,
+      ),
+    ).rejects.toEqual(new DatabaseAuthorizationContextError());
+    expect(client.begin).not.toHaveBeenCalled();
   });
 
   it("fails without reflecting a missing or malformed database URL", async () => {

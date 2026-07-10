@@ -17,7 +17,16 @@ This file records environment identities and safety boundaries only. It must nev
 | Current organization plan | Free                                                                                                       |
 | Current authority         | Non-production integration/staging only; Firestore remains Production authority until the approved cutover |
 
-Read-only inspection on 2026-07-09 found the project `ACTIVE_HEALTHY`, with zero `public` tables, zero migrations, and no security/performance advisor findings. Victor reclassified it on 2026-07-09 as the authorized greenfield integration/staging target for the rebuild.
+Initial read-only inspection on 2026-07-09 found the project empty, and Victor
+reclassified it as the authorized greenfield integration/staging target. The
+2026-07-10 verification snapshot has 35 reviewed migrations, 17 forced-RLS
+private tables, 194 catalog/policy rows, zero operational/Auth rows, no
+security-advisor findings, and no exposed business table/function. The
+rollback-only remote suite passed 266 pgTAP assertions; a 20-request same-slot
+race produced exactly one booking and 19 conflicts, then reconciled and cleaned
+to zero residue. The test-only `pgtap` extension remains installed in
+`extensions`; performance-advisor notices are limited to expected unused-index
+INFO on the empty integration database.
 
 Safety rules:
 

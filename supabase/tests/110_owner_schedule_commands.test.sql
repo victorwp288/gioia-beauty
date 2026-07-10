@@ -40,7 +40,7 @@ with test_user as (
   ) returning id
 )
 insert into gioia_private.owner_accounts (user_id) select id from test_user;
-
+insert into gioia_private.owner_sessions (session_id,user_id,expires_at) values ('91500000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000001',statement_timestamp()+interval '1 hour');
 insert into gioia_private.vacations (
   start_date, end_date, source, reason, created_by
 ) values (
@@ -48,13 +48,15 @@ insert into gioia_private.vacations (
   current_setting('gioia.test_date_d')::date,
   'admin', 'Fixture chiusa', '91000000-0000-4000-8000-000000000001'
 );
-
+do $$begin perform set_config('request.jwt.claim.session_id','91500000-0000-4000-8000-000000000001',true); end$$;
 set local role app_runtime;
 
 select results_eq(
   $$select http_status, result->>'code', replayed
     from gioia_private.owner_create_appointment(
-      '91000000-0000-4000-8000-000000000001', 'owner:appointment:create:1',
+      set_config('request.jwt.claim.sub',
+        '91000000-0000-4000-8000-000000000001', true)::uuid,
+      'owner:appointment:create:1',
       decode(repeat('a1',32),'hex'), current_setting('gioia.test_date_a')::date,
       600::smallint, 'manicure', 'manicure-30-min', ' Cliente Owner ',
       ' OWNER-CLIENT@COMMANDS.TEST ', ' +39000000199 ', ' Segreto-outbox ')$$,
