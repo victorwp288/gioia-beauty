@@ -40,6 +40,12 @@ export type FreshSupabaseIdentityResult =
   | ({ ok: true } & FreshSupabaseIdentity)
   | { ok: false; failure: SupabaseAuthFailure };
 
+export type FreshBoundOwnerIdentityResult =
+  | ({ ok: true } & FreshSupabaseIdentity)
+  | { ok: false; status: 401; code: "OWNER_SESSION_REQUIRED" }
+  | { ok: false; status: 429; code: "RATE_LIMITED" }
+  | { ok: false; status: 503; code: "SERVICE_UNAVAILABLE" };
+
 export type OwnerAuthorizationDecision =
   | { ok: true }
   | {
@@ -59,6 +65,18 @@ export type OwnerSessionResult =
         | "RATE_LIMITED"
         | "SERVICE_UNAVAILABLE";
     };
+
+function boundIdentityFailure(
+  failure: SupabaseAuthFailure,
+): Extract<FreshBoundOwnerIdentityResult, { ok: false }> {
+  if (failure === "rate_limited") {
+    return { ok: false, status: 429, code: "RATE_LIMITED" };
+  }
+  if (failure === "unavailable") {
+    return { ok: false, status: 503, code: "SERVICE_UNAVAILABLE" };
+  }
+  return { ok: false, status: 401, code: "OWNER_SESSION_REQUIRED" };
+}
 
 function accessTokenClaims(
   token: string,
@@ -117,6 +135,39 @@ export async function getFreshSupabaseIdentity(
   };
 }
 
+export async function requireFreshBoundOwnerIdentity({
+  auth,
+  bindingToken,
+  bindingSecret,
+  now = new Date(),
+}: {
+  auth: OwnerAuthVerifier;
+  bindingToken: string | null | undefined;
+  bindingSecret: string;
+  now?: Date;
+}): Promise<FreshBoundOwnerIdentityResult> {
+  let identity: FreshSupabaseIdentityResult;
+  try {
+    identity = await getFreshSupabaseIdentity(auth);
+  } catch {
+    return boundIdentityFailure("unavailable");
+  }
+  if (!identity.ok) return boundIdentityFailure(identity.failure);
+
+  try {
+    const binding = verifyOwnerSessionBinding({
+      token: bindingToken,
+      expectedUserId: identity.userId,
+      expectedSessionId: identity.sessionId,
+      secret: bindingSecret,
+      now,
+    });
+    return binding ? identity : boundIdentityFailure("invalid");
+  } catch {
+    return boundIdentityFailure("unavailable");
+  }
+}
+
 export async function requireFreshOwnerSession({
   auth,
   bindingToken,
@@ -132,31 +183,13 @@ export async function requireFreshOwnerSession({
   ) => Promise<OwnerAuthorizationDecision>;
   now?: Date;
 }): Promise<OwnerSessionResult> {
-  const identity = await getFreshSupabaseIdentity(auth);
-  if (!identity.ok) {
-    if (identity.failure === "rate_limited") {
-      return { ok: false, status: 429, code: "RATE_LIMITED" };
-    }
-    if (identity.failure === "unavailable") {
-      return { ok: false, status: 503, code: "SERVICE_UNAVAILABLE" };
-    }
-    return { ok: false, status: 401, code: "OWNER_SESSION_REQUIRED" };
-  }
-  if (
-    !verifyOwnerSessionBinding({
-      token: bindingToken,
-      expectedUserId: identity.userId,
-      expectedSessionId: identity.sessionId,
-      secret: bindingSecret,
-      now,
-    })
-  ) {
-    return {
-      ok: false,
-      status: 401,
-      code: "OWNER_SESSION_REQUIRED",
-    };
-  }
+  const identity = await requireFreshBoundOwnerIdentity({
+    auth,
+    bindingToken,
+    bindingSecret,
+    now,
+  });
+  if (!identity.ok) return identity;
 
   const authorization = await authorizeSession({
     userId: identity.userId,

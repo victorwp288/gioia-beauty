@@ -17,6 +17,21 @@ const RESPONSE_HEADERS = {
   "X-Frame-Options": "DENY",
 } as const;
 
+function mergedResponseHeaders(headers: HeadersInit): Headers {
+  const merged = new Headers(RESPONSE_HEADERS);
+  const supplied = new Headers(headers);
+  const setCookies =
+    typeof supplied.getSetCookie === "function"
+      ? supplied.getSetCookie()
+      : supplied.get("set-cookie")
+        ? [supplied.get("set-cookie")!]
+        : [];
+  supplied.delete("set-cookie");
+  supplied.forEach((value, name) => merged.set(name, value));
+  for (const cookie of setCookies) merged.append("set-cookie", cookie);
+  return merged;
+}
+
 export function validatedJsonResponse<T extends z.ZodTypeAny>(
   schema: T,
   body: unknown,
@@ -26,10 +41,7 @@ export function validatedJsonResponse<T extends z.ZodTypeAny>(
   const validated = schema.parse(body);
   return new Response(JSON.stringify(validated), {
     status,
-    headers: {
-      ...RESPONSE_HEADERS,
-      ...Object.fromEntries(new Headers(headers)),
-    },
+    headers: mergedResponseHeaders(headers),
   });
 }
 
@@ -39,11 +51,13 @@ export function apiErrorResponse(
   requestId: string = randomUUID(),
   headers: HeadersInit = {},
 ): Response {
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set("X-Request-Id", requestId);
   return validatedJsonResponse(
     ApiErrorResponseSchema,
     { code, requestId },
     status,
-    { "X-Request-Id": requestId, ...Object.fromEntries(new Headers(headers)) },
+    responseHeaders,
   );
 }
 

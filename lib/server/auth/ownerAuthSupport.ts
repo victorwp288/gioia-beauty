@@ -44,10 +44,9 @@ export function authFailureResponse(
   responseHeaders: HeadersInit,
 ) {
   if (failure === "rate_limited") {
-    return apiErrorResponse(429, "RATE_LIMITED", undefined, {
-      ...Object.fromEntries(new Headers(responseHeaders)),
-      "Retry-After": "60",
-    });
+    const headers = new Headers(responseHeaders);
+    headers.set("Retry-After", "60");
+    return apiErrorResponse(429, "RATE_LIMITED", undefined, headers);
   }
   if (failure === "unavailable") {
     return apiErrorResponse(

@@ -80,6 +80,35 @@ describe("owner session and logout handlers", () => {
     expect(fixture.securityCookies.clear).not.toHaveBeenCalled();
   });
 
+  it("preserves repeated refresh cookies on an Auth rate limit", async () => {
+    const fixture = createHandlerFixture({
+      userError: {
+        name: "AuthApiError",
+        status: 429,
+        code: "over_request_rate_limit",
+      },
+    });
+    const responseHeaders = new Headers();
+    responseHeaders.append("set-cookie", "sb-refresh.0=first; Path=/");
+    responseHeaders.append("set-cookie", "sb-refresh.1=second; Path=/");
+    const response = await createOwnerSessionHandler({
+      auth: fixture.auth,
+      bindingToken: binding(),
+      bindingSecret: ownerBindingSecret,
+      csrfToken: issueOwnerCsrfToken(),
+      authorizeSession: fixture.sessionOperation,
+      securityCookies: fixture.securityCookies,
+      responseHeaders,
+    })();
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(response.headers.getSetCookie()).toEqual([
+      "sb-refresh.0=first; Path=/",
+      "sb-refresh.1=second; Path=/",
+    ]);
+    expect(fixture.securityCookies.clear).not.toHaveBeenCalled();
+  });
+
   it("clears signed-in state after binding or owner authorization rejection", async () => {
     const bindingFixture = createHandlerFixture();
     const csrfToken = issueOwnerCsrfToken();
