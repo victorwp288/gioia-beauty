@@ -9,6 +9,11 @@ import {
   AdminCreateAppointmentBodySchema,
   AdminCreateBlockBodySchema,
   AdminCreateVacationBodySchema,
+  AdminRescheduleAppointmentBodySchema,
+  AdminRescheduleBlockBodySchema,
+  AdminSetAppointmentStatusBodySchema,
+  AdminUpdateAppointmentBodySchema,
+  AdminUpdateBlockBodySchema,
 } from "@/lib/domain/schemas/index.ts";
 
 import { createNextOwnerAuthContext } from "./auth/nextOwnerAuthContext.ts";
@@ -28,6 +33,11 @@ export type OwnerScheduleCommandName = keyof OwnerScheduleRepository;
 const COMMAND_BODY_SCHEMAS = Object.freeze({
   createAppointment: AdminCreateAppointmentBodySchema,
   createBlock: AdminCreateBlockBodySchema,
+  updateAppointment: AdminUpdateAppointmentBodySchema,
+  updateBlock: AdminUpdateBlockBodySchema,
+  rescheduleAppointment: AdminRescheduleAppointmentBodySchema,
+  rescheduleBlock: AdminRescheduleBlockBodySchema,
+  setAppointmentStatus: AdminSetAppointmentStatusBodySchema,
   cancelScheduleEntry: AdminCancelScheduleEntryBodySchema,
   createVacation: AdminCreateVacationBodySchema,
   cancelVacation: AdminCancelVacationBodySchema,

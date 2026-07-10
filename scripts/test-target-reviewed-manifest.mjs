@@ -108,6 +108,8 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
     "1c6ca323e3d3407922edc1e30d1f6089ef27f8e7adc25826d3cffb4ce90c489e",
   "110_owner_schedule_commands.test.sql":
     "a727016a657e8d889ae8ca5ef8a3b8c2bfb2644ca9805ee4e3faba45e3b26b98",
+  "115_owner_schedule_edit_commands.test.sql":
+    "6d2995b388513316223cb0a6704dcd701a1d83afbd3c3eb6d905b480d5260cec",
   "120_owner_vacation_commands.test.sql":
     "89a71a932d96532be3962f4b9f979501eb4a0fc2ae4f40ab78e939a3efdbc064",
   "125_owner_auth_context.test.sql":

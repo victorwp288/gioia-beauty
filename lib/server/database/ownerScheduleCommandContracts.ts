@@ -6,7 +6,12 @@ export type OwnerScheduleCommandOperation =
   | "owner_create_block"
   | "owner_cancel_schedule_entry"
   | "owner_create_vacation"
-  | "owner_cancel_vacation";
+  | "owner_cancel_vacation"
+  | "owner_reschedule_appointment"
+  | "owner_reschedule_block"
+  | "owner_set_appointment_status"
+  | "owner_update_appointment_details"
+  | "owner_update_block_details";
 
 export interface OwnerScheduleCommandContract {
   readonly operation: OwnerScheduleCommandOperation;
@@ -14,13 +19,22 @@ export interface OwnerScheduleCommandContract {
   readonly query: string;
   readonly httpStatus: 200 | 201;
   readonly code: string;
-  readonly failures: ReadonlyMap<string, OwnerCommandFailureStatus>;
+  readonly failures: readonly string[];
+}
+
+export function ownerCommandFailureKey(
+  status: OwnerCommandFailureStatus,
+  code: string,
+): string {
+  return `${status}:${code}`;
 }
 
 function failures(
   entries: ReadonlyArray<readonly [string, OwnerCommandFailureStatus]>,
 ) {
-  return new Map<string, OwnerCommandFailureStatus>(entries);
+  return Object.freeze(
+    entries.map(([code, status]) => ownerCommandFailureKey(status, code)),
+  );
 }
 
 export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
@@ -72,6 +86,121 @@ export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
       ["SCHEDULE_INTERVAL_INVALID", 400],
       ["SLOT_OUTSIDE_BUSINESS_HOURS", 409],
       ["DATE_CLOSED_FOR_VACATION", 409],
+      ["SLOT_UNAVAILABLE", 409],
+    ]),
+  }),
+  updateAppointment: Object.freeze({
+    operation: "owner_update_appointment_details",
+    fingerprintVersion: 1,
+    query: `
+      select command.http_status, command.result, command.replayed
+      from gioia_private.owner_update_appointment_details(
+        $1::uuid, $2::text, $3::bytea, $4::uuid, $5::integer, $6::jsonb
+      ) as command
+      limit 2
+    `,
+    httpStatus: 200,
+    code: "APPOINTMENT_DETAILS_UPDATED",
+    failures: failures([
+      ["APPOINTMENT_DETAILS_INVALID", 400],
+      ["APPOINTMENT_DETAILS_NO_CHANGE", 400],
+      ["APPOINTMENT_NOT_FOUND", 404],
+      ["VERSION_CONFLICT", 409],
+    ]),
+  }),
+  updateBlock: Object.freeze({
+    operation: "owner_update_block_details",
+    fingerprintVersion: 1,
+    query: `
+      select command.http_status, command.result, command.replayed
+      from gioia_private.owner_update_block_details(
+        $1::uuid, $2::text, $3::bytea, $4::uuid, $5::integer, $6::text
+      ) as command
+      limit 2
+    `,
+    httpStatus: 200,
+    code: "BLOCK_DETAILS_UPDATED",
+    failures: failures([
+      ["BLOCK_DETAILS_INVALID", 400],
+      ["BLOCK_DETAILS_NO_CHANGE", 400],
+      ["BLOCK_NOT_FOUND", 404],
+      ["VERSION_CONFLICT", 409],
+    ]),
+  }),
+  rescheduleAppointment: Object.freeze({
+    operation: "owner_reschedule_appointment",
+    fingerprintVersion: 1,
+    query: `
+      select command.http_status, command.result, command.replayed
+      from gioia_private.owner_reschedule_appointment(
+        $1::uuid, $2::text, $3::bytea, $4::uuid, $5::integer,
+        $6::date, $7::smallint, $8::text, $9::text
+      ) as command
+      limit 2
+    `,
+    httpStatus: 200,
+    code: "APPOINTMENT_RESCHEDULED",
+    failures: failures([
+      ["RESCHEDULE_NO_CHANGE", 400],
+      ["OWNER_SLOT_INVALID", 400],
+      ["OWNER_DATE_IN_PAST", 400],
+      ["SLOT_ALIGNMENT_INVALID", 400],
+      ["OWNER_START_IN_PAST", 400],
+      ["SCHEDULE_INTERVAL_INVALID", 400],
+      ["APPOINTMENT_NOT_FOUND", 404],
+      ["ACTIVE_VARIANT_NOT_FOUND", 404],
+      ["VERSION_CONFLICT", 409],
+      ["APPOINTMENT_NOT_RESCHEDULABLE", 409],
+      ["SLOT_OUTSIDE_BUSINESS_HOURS", 409],
+      ["DATE_CLOSED_FOR_VACATION", 409],
+      ["SLOT_UNAVAILABLE", 409],
+    ]),
+  }),
+  rescheduleBlock: Object.freeze({
+    operation: "owner_reschedule_block",
+    fingerprintVersion: 1,
+    query: `
+      select command.http_status, command.result, command.replayed
+      from gioia_private.owner_reschedule_block(
+        $1::uuid, $2::text, $3::bytea, $4::uuid, $5::integer,
+        $6::date, $7::smallint, $8::smallint, $9::smallint
+      ) as command
+      limit 2
+    `,
+    httpStatus: 200,
+    code: "BLOCK_RESCHEDULED",
+    failures: failures([
+      ["RESCHEDULE_NO_CHANGE", 400],
+      ["OWNER_SLOT_INVALID", 400],
+      ["OWNER_DATE_IN_PAST", 400],
+      ["SLOT_ALIGNMENT_INVALID", 400],
+      ["OWNER_START_IN_PAST", 400],
+      ["SCHEDULE_INTERVAL_INVALID", 400],
+      ["BLOCK_NOT_FOUND", 404],
+      ["VERSION_CONFLICT", 409],
+      ["BLOCK_NOT_RESCHEDULABLE", 409],
+      ["SLOT_OUTSIDE_BUSINESS_HOURS", 409],
+      ["DATE_CLOSED_FOR_VACATION", 409],
+      ["SLOT_UNAVAILABLE", 409],
+    ]),
+  }),
+  setAppointmentStatus: Object.freeze({
+    operation: "owner_set_appointment_status",
+    fingerprintVersion: 1,
+    query: `
+      select command.http_status, command.result, command.replayed
+      from gioia_private.owner_set_appointment_status(
+        $1::uuid, $2::text, $3::bytea, $4::uuid, $5::integer, $6::text
+      ) as command
+      limit 2
+    `,
+    httpStatus: 200,
+    code: "APPOINTMENT_STATUS_UPDATED",
+    failures: failures([
+      ["STATUS_TRANSITION_INVALID", 400],
+      ["APPOINTMENT_NOT_FOUND", 404],
+      ["VERSION_CONFLICT", 409],
+      ["STATUS_TRANSITION_INVALID", 409],
       ["SLOT_UNAVAILABLE", 409],
     ]),
   }),

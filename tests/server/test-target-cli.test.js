@@ -112,13 +112,13 @@ describe("greenfield TEST Supabase CLI", () => {
     ]);
   });
 
-  it("passes all 20 reviewed remote pgTAP files explicitly", async () => {
+  it("passes all 21 reviewed remote pgTAP files explicitly", async () => {
     const { run } = fakeRunner();
     const result = await client(run).runRemotePgTap();
     const args = run.mock.calls[1][1];
     const suite = remotePgTapFiles();
 
-    expect(result).toMatchObject({ assertions: 318, files: suite.files });
+    expect(result).toMatchObject({ assertions: 342, files: suite.files });
     expect(args.slice(0, 4)).toEqual(["test", "db", "--db-url", DATABASE_URL]);
     expect(args.slice(4)).toEqual(suite.files);
     expect(args).not.toContain("supabase/tests");

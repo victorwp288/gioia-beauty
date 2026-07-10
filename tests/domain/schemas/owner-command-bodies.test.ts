@@ -11,6 +11,16 @@ import {
   AdminCreateBlockCommandSchema,
   AdminCreateVacationBodySchema,
   AdminCreateVacationCommandSchema,
+  AdminRescheduleAppointmentBodySchema,
+  AdminRescheduleAppointmentCommandSchema,
+  AdminRescheduleBlockBodySchema,
+  AdminRescheduleBlockCommandSchema,
+  AdminSetAppointmentStatusBodySchema,
+  AdminSetAppointmentStatusCommandSchema,
+  AdminUpdateAppointmentBodySchema,
+  AdminUpdateAppointmentCommandSchema,
+  AdminUpdateBlockBodySchema,
+  AdminUpdateBlockCommandSchema,
 } from "@/lib/domain/schemas/index.ts";
 
 const IDEMPOTENCY_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -32,6 +42,18 @@ const cases = [
     },
   },
   {
+    name: "appointment update",
+    bodySchema: AdminUpdateAppointmentBodySchema,
+    commandSchema: AdminUpdateAppointmentCommandSchema,
+    body: {
+      entryId: RESOURCE_ID.toUpperCase(),
+      expectedVersion: 2,
+      clientEmail: " MARIA@example.com ",
+      clientPhone: "+39 333 123 4567",
+      clientNote: " Nuova nota ",
+    },
+  },
+  {
     name: "block create",
     bodySchema: AdminCreateBlockBodySchema,
     commandSchema: AdminCreateBlockCommandSchema,
@@ -42,10 +64,55 @@ const cases = [
     },
   },
   {
+    name: "block update",
+    bodySchema: AdminUpdateBlockBodySchema,
+    commandSchema: AdminUpdateBlockCommandSchema,
+    body: {
+      entryId: RESOURCE_ID.toUpperCase(),
+      expectedVersion: 2,
+      internalNote: " Pausa aggiornata ",
+    },
+  },
+  {
+    name: "appointment reschedule",
+    bodySchema: AdminRescheduleAppointmentBodySchema,
+    commandSchema: AdminRescheduleAppointmentCommandSchema,
+    body: {
+      entryId: RESOURCE_ID.toUpperCase(),
+      expectedVersion: 2,
+      date: "2026-08-11",
+      startMinutes: 660,
+      serviceId: "massaggio-relax",
+      variantId: "massaggio-relax-60",
+    },
+  },
+  {
+    name: "block reschedule",
+    bodySchema: AdminRescheduleBlockBodySchema,
+    commandSchema: AdminRescheduleBlockCommandSchema,
+    body: {
+      entryId: RESOURCE_ID.toUpperCase(),
+      expectedVersion: 2,
+      date: "2026-08-11",
+      startMinutes: 660,
+      durationMinutes: 60,
+    },
+  },
+  {
     name: "schedule cancellation",
     bodySchema: AdminCancelScheduleEntryBodySchema,
     commandSchema: AdminCancelScheduleEntryCommandSchema,
     body: { entryId: RESOURCE_ID, expectedVersion: 2 },
+  },
+  {
+    name: "appointment status",
+    bodySchema: AdminSetAppointmentStatusBodySchema,
+    commandSchema: AdminSetAppointmentStatusCommandSchema,
+    body: {
+      entryId: RESOURCE_ID.toUpperCase(),
+      expectedVersion: 2,
+      status: "completed",
+    },
   },
   {
     name: "vacation create",
@@ -71,12 +138,19 @@ describe("owner command body schemas", () => {
           idempotencyKey: IDEMPOTENCY_KEY,
         }),
       ).toEqual({ ...normalizedBody, idempotencyKey: IDEMPOTENCY_KEY });
-      expect(
-        testCase.bodySchema.safeParse({
-          ...testCase.body,
-          idempotencyKey: IDEMPOTENCY_KEY,
-        }).success,
-      ).toBe(false);
+      for (const [field, value] of Object.entries({
+        idempotencyKey: IDEMPOTENCY_KEY,
+        csrfToken: "A".repeat(43),
+        identity: { userId: RESOURCE_ID },
+      })) {
+        expect(
+          testCase.bodySchema.safeParse({
+            ...testCase.body,
+            [field]: value,
+          }).success,
+          `${testCase.name}:${field}`,
+        ).toBe(false);
+      }
     });
   }
 
@@ -89,10 +163,42 @@ describe("owner command body schemas", () => {
       }).success,
     ).toBe(false);
     expect(
+      AdminRescheduleBlockBodySchema.safeParse({
+        entryId: RESOURCE_ID,
+        expectedVersion: 2,
+        date: "2026-08-10",
+        startMinutes: 1_395,
+        durationMinutes: 60,
+      }).success,
+    ).toBe(false);
+    expect(
       AdminCreateVacationBodySchema.safeParse({
         startDate: "2026-08-11",
         endDate: "2026-08-10",
       }).success,
     ).toBe(false);
+  });
+
+  it("requires a real appointment or block details patch", () => {
+    for (const schema of [
+      AdminUpdateAppointmentBodySchema,
+      AdminUpdateBlockBodySchema,
+    ]) {
+      expect(
+        schema.safeParse({ entryId: RESOURCE_ID, expectedVersion: 2 }).success,
+      ).toBe(false);
+    }
+    for (const schema of [
+      AdminUpdateAppointmentCommandSchema,
+      AdminUpdateBlockCommandSchema,
+    ]) {
+      expect(
+        schema.safeParse({
+          idempotencyKey: IDEMPOTENCY_KEY,
+          entryId: RESOURCE_ID,
+          expectedVersion: 2,
+        }).success,
+      ).toBe(false);
+    }
   });
 });

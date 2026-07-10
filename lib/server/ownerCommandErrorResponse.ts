@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  OWNER_SCHEDULE_COMMAND_CONTRACTS,
+  ownerCommandFailureKey,
+  type OwnerCommandFailureStatus,
+} from "./database/ownerScheduleCommandContracts.ts";
 import { apiErrorResponse } from "./publicApiResponse.ts";
 
 type OwnerCommandErrorStatus = 400 | 401 | 403 | 404 | 409 | 503;
@@ -22,32 +27,13 @@ const OWNER_AUTHORIZATION_MESSAGES = new Set([
   "OWNER_SESSION_MISMATCH",
 ]);
 
-const OWNER_COMMAND_ERRORS = new Map<string, 400 | 404 | 409>([
-  ["ACTIVE_VARIANT_NOT_FOUND", 404],
-  ["APPOINTMENT_CONTACT_INVALID", 400],
-  ["BLOCK_NOTE_INVALID", 400],
-  ["CANCELLATION_REASON_INVALID", 400],
-  ["COMMAND_HASH_INVALID", 400],
-  ["COMMAND_IN_PROGRESS", 409],
-  ["DATE_CLOSED_FOR_VACATION", 409],
-  ["IDEMPOTENCY_KEY_REUSED", 409],
-  ["OWNER_DATE_IN_PAST", 400],
-  ["OWNER_SLOT_INVALID", 400],
-  ["OWNER_START_IN_PAST", 400],
-  ["SCHEDULE_ENTRY_NOT_CANCELLABLE", 409],
-  ["SCHEDULE_ENTRY_NOT_FOUND", 404],
-  ["SCHEDULE_INTERVAL_INVALID", 400],
-  ["SLOT_ALIGNMENT_INVALID", 400],
-  ["SLOT_OUTSIDE_BUSINESS_HOURS", 409],
-  ["SLOT_UNAVAILABLE", 409],
-  ["VACATION_CONFLICTS_WITH_SCHEDULE", 409],
-  ["VACATION_DATE_IN_PAST", 400],
-  ["VACATION_DATE_RANGE_INVALID", 400],
-  ["VACATION_NOT_CANCELLABLE", 409],
-  ["VACATION_NOT_FOUND", 404],
-  ["VACATION_OVERLAP", 409],
-  ["VACATION_REASON_INVALID", 400],
-  ["VERSION_CONFLICT", 409],
+const OWNER_COMMAND_ERRORS = new Set([
+  ...Object.values(OWNER_SCHEDULE_COMMAND_CONTRACTS).flatMap((contract) => [
+    ...contract.failures,
+  ]),
+  ownerCommandFailureKey(400, "COMMAND_HASH_INVALID"),
+  ownerCommandFailureKey(409, "COMMAND_IN_PROGRESS"),
+  ownerCommandFailureKey(409, "IDEMPOTENCY_KEY_REUSED"),
 ]);
 
 const SERVICE_UNAVAILABLE = Object.freeze({
@@ -86,8 +72,14 @@ export function classifyOwnerCommandDatabaseError(
     return { status: 403, code: "OWNER_AUTHORIZATION_REQUIRED" };
   }
 
-  const status = OWNER_COMMAND_ERRORS.get(fields.message);
-  if (status !== undefined && fields.code === `PT${status}`) {
+  const statusMatch = /^PT(400|404|409)$/.exec(fields.code);
+  const status = statusMatch?.[1]
+    ? (Number(statusMatch[1]) as OwnerCommandFailureStatus)
+    : null;
+  if (
+    status !== null &&
+    OWNER_COMMAND_ERRORS.has(ownerCommandFailureKey(status, fields.message))
+  ) {
     return { status, code: fields.message };
   }
   return SERVICE_UNAVAILABLE;

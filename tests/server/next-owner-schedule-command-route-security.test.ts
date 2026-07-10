@@ -29,6 +29,11 @@ function repositoryFixture() {
   return {
     createAppointment: vi.fn(async () => success()),
     createBlock: vi.fn(async () => success()),
+    updateAppointment: vi.fn(async () => success()),
+    updateBlock: vi.fn(async () => success()),
+    rescheduleAppointment: vi.fn(async () => success()),
+    rescheduleBlock: vi.fn(async () => success()),
+    setAppointmentStatus: vi.fn(async () => success()),
     cancelScheduleEntry: vi.fn(async () => success()),
     createVacation: vi.fn(async () => success()),
     cancelVacation: vi.fn(async () => success()),

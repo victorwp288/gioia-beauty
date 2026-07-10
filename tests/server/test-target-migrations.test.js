@@ -89,8 +89,8 @@ describe("greenfield TEST remote pgTAP manifest", () => {
   it("excludes the local synthetic seed and pins the reviewed plan total", () => {
     const suite = remotePgTapFiles();
 
-    expect(suite).toMatchObject({ assertions: 318 });
-    expect(suite.files).toHaveLength(20);
+    expect(suite).toMatchObject({ assertions: 342 });
+    expect(suite.files).toHaveLength(21);
     expect(suite.files).not.toContain(
       "supabase/tests/005_synthetic_seed.test.sql",
     );
