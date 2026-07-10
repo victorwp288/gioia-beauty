@@ -10,6 +10,11 @@ import {
   databaseErrorResponse,
   validatedJsonResponse,
 } from "./publicApiResponse.ts";
+import {
+  evaluatePublicAbuseGuard,
+  publicAbuseRejectionResponse,
+  type PublicAbuseGuard,
+} from "./publicAbuseBoundary.ts";
 
 const MAX_QUERY_BYTES = 1_024;
 
@@ -22,11 +27,13 @@ interface AvailabilityDatabase {
 }
 
 export interface AvailabilityHandlerDependencies {
+  abuseGuard: PublicAbuseGuard;
   database: AvailabilityDatabase;
   createRequestId?: () => string;
 }
 
 export function createAvailabilityGetHandler({
+  abuseGuard,
   database,
   createRequestId = randomUUID,
 }: AvailabilityHandlerDependencies) {
@@ -42,6 +49,15 @@ export function createAvailabilityGetHandler({
       query = parseAvailabilitySearchParams(url.searchParams);
     } catch {
       return apiErrorResponse(422, "INVALID_QUERY", requestId);
+    }
+
+    const abuseDecision = await evaluatePublicAbuseGuard(
+      abuseGuard,
+      request,
+      "public_availability",
+    );
+    if (!abuseDecision.ok) {
+      return publicAbuseRejectionResponse(abuseDecision, requestId);
     }
 
     try {

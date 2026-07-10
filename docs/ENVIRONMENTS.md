@@ -77,9 +77,19 @@ a database transaction.
 
 After Phase 1 isolation, serialized DB-aware Preview/E2E work may use the greenfield Supabase target above with synthetic fixtures and fake/non-delivering email. Preview must never resolve Firebase Production, real Resend API/webhook credentials, or a Supabase environment containing customer data.
 
+The committed public abuse guard intentionally code-disables Preview
+availability and booking before database work. A validated Preview database
+target alone cannot activate those routes. Activation requires a reviewed
+distributed rate-limit/challenge adapter plus its explicit environment and
+provider configuration; no `disabled` flag or process-local cache is accepted
+as a substitute.
+
 ## Local and CI
 
 - Local: Docker Supabase, synthetic seed data, fake application email, and capture-only Auth mail.
+- The Local/Test public abuse guard is a deterministic stateless fake used to
+  prove ordering, HMAC principal isolation, and zero-database rejection. It is
+  not rate-limit evidence and makes no provider call.
 - Local server tests may connect as the disposable local `postgres` user only to enter a transaction and immediately `SET LOCAL ROLE app_runtime`; application queries execute with the same function-only grants used remotely.
 - CI: ephemeral local Supabase, deterministic fixtures, fake email adapter.
 - Neither environment may resolve the Production Supabase ref, Production Firebase project, or real Resend API/webhook credentials.

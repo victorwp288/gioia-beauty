@@ -104,4 +104,40 @@ describe("canonical booking security helpers", () => {
       }),
     ).toEqual(hmacPrincipalScope("network:2001:db8::1", Buffer.from(secret)));
   });
+
+  it.each([
+    ["x-vercel-forwarded-for", "preview"],
+    ["x-vercel-forwarded-for", "test"],
+    ["x-forwarded-for", "test"],
+    ["x-real-ip", "local"],
+  ])("bounds oversized %s before principal parsing in %s", (header, appEnv) => {
+    const request = new Request("https://www.gioiabeauty.net/api/bookings", {
+      headers: { [header]: "1".repeat(513) },
+    });
+    const secret = "q".repeat(32);
+
+    expect(
+      requestPrincipalScopeHash(request, {
+        APP_ENV: appEnv,
+        BOOKING_HMAC_SECRET: secret,
+      }),
+    ).toEqual(hmacPrincipalScope("network:unavailable", Buffer.from(secret)));
+  });
+
+  it.each(["not-an-ip", "999.999.999.999", "2001:db8::1::2"])(
+    "rejects malformed principal address %s",
+    (address) => {
+      const request = new Request("https://www.gioiabeauty.net/api/bookings", {
+        headers: { "x-vercel-forwarded-for": address },
+      });
+      const secret = "r".repeat(32);
+
+      expect(
+        requestPrincipalScopeHash(request, {
+          APP_ENV: "preview",
+          BOOKING_HMAC_SECRET: secret,
+        }),
+      ).toEqual(hmacPrincipalScope("network:unavailable", Buffer.from(secret)));
+    },
+  );
 });

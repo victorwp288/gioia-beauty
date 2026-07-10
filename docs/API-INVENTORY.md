@@ -43,16 +43,27 @@ Local/TEST with representative data before assigning a cost budget.
 
 ## Public and provider routes
 
-| Route                       | Input and authorization                                                                                                                                                                                                        | Response / PII                                                                              | Rate and cache                                               | Maximum effect                                                                                                                                                                                                                                           |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health`           | Public process-liveness probe; request body/query are ignored                                                                                                                                                                  | Constant `{ "status": "ok" }`; no environment, build, dependency, request, or customer data | No app limiter; no-store and noindex                         | 0 DB/Auth/provider/network calls; 0 rows or writes                                                                                                                                                                                                       |
-| `GET /api/availability`     | Public; query ≤1 KiB with exactly one `date`, `serviceId`, and `variantId`; duplicates and unknowns rejected                                                                                                                   | Date/catalog IDs plus ≤96 ordered slot integers; no PII                                     | No app limiter; no-store                                     | 1 DB transaction/function, ≤96 result rows, 0 writes/Auth/provider calls                                                                                                                                                                                 |
-| `POST /api/bookings`        | Public; canonical supplied Origin must match; no query; canonical lowercase UUID idempotency header ≤128 B; raw fatal-UTF-8 JSON ≤8 KiB; exact JSON media type ≤64 B; identity encoding; strict date/slot/catalog/contact body | Booking code, resource UUID, replay flag; contact PII is never echoed                       | No durable app limiter; no-store                             | 1 DB transaction/function/1 result row. Fresh success: 6 distinct rows/7 mutations—command row twice, optional day lock, appointment, domain change, 2 pending outbox rows. Replay writes 0; handled failure is 1 row/2 mutations; 0 Auth/provider sends |
-| `POST /api/webhooks/resend` | Resend only; no query; raw fatal-UTF-8 JSON ≤32 KiB; identity encoding; bounded Svix headers; HMAC verification and ±300 s freshness                                                                                           | Request UUID, code, replay flag; no payload, signature, recipient, subject, or provider ID  | Provider retry plus database event-ID/digest fence; no-store | Current runtime is disabled: 0 effects. If separately approved/enabled: 1 DB transaction/function, SQL ≤2 rows and app accepts exactly 1; fresh bounce/complaint ≤4 distinct rows/5 mutations; processed replay writes 0; 0 Auth/provider outbound calls |
+| Route                       | Input and authorization                                                                                                                                                                     | Response / PII                                                                              | Rate and cache                                               | Maximum effect                                                                                                                                                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`           | Public process-liveness probe; request body/query are ignored                                                                                                                               | Constant `{ "status": "ok" }`; no environment, build, dependency, request, or customer data | No app limiter; no-store and noindex                         | 0 DB/Auth/provider/network calls; 0 rows or writes                                                                                                                                                                                                          |
+| `GET /api/availability`     | Public; query ≤1 KiB with exactly one `date`, `serviceId`, and `variantId`; duplicates and unknowns rejected before the abuse guard                                                         | Date/catalog IDs plus ≤96 ordered slot integers or fixed guard error; no PII                | Stateless Local/Test guard; remote disabled; no-store        | Structural reject: 0 guard/DB. Guard reject: 1 local check/0 DB. Allowed: 1 guard + 1 DB transaction/function, ≤96 result rows, 0 writes/Auth/provider calls                                                                                                |
+| `POST /api/bookings`        | Public; canonical supplied Origin must match; no query; canonical lowercase UUID idempotency header ≤128 B; JSON media/framing headers before the guard; raw fatal-UTF-8 strict body ≤8 KiB | Booking code, resource UUID, replay flag or fixed guard error; contact PII is never echoed  | Stateless Local/Test guard; remote disabled; no-store        | Pre-guard reject: 0 guard/body/DB. Guard reject: 1 local check/0 body/DB. Post-guard body reject: 1 guard/0 DB. Allowed: 1 guard + 1 DB transaction/function/1 result row; success 6 rows/7 mutations; replay 0; handled failure 1 row/2 mutations; 0 sends |
+| `POST /api/webhooks/resend` | Resend only; no query; raw fatal-UTF-8 JSON ≤32 KiB; identity encoding; bounded Svix headers; HMAC verification and ±300 s freshness                                                        | Request UUID, code, replay flag; no payload, signature, recipient, subject, or provider ID  | Provider retry plus database event-ID/digest fence; no-store | Current runtime is disabled: 0 effects. If separately approved/enabled: 1 DB transaction/function, SQL ≤2 rows and app accepts exactly 1; fresh bounce/complaint ≤4 distinct rows/5 mutations; processed replay writes 0; 0 Auth/provider outbound calls    |
 
 `GET /api/health` proves only that the Next.js process answers; it is not
 database, Auth, provider, migration, queue, restore, or cutover readiness
 evidence.
+
+Availability and booking now require one strict abuse-guard decision after
+cheap structural validation and before database work. The committed guard is
+an O(1), stateless Local/Test fake that returns only a 32-byte HMAC principal
+scope; it receives a cloned headers-only metadata object and cannot access the
+booking body. It is not a rate limiter. Valid Preview, Production, operator,
+invalid, thrown, and malformed-guard paths return fixed `503
+SERVICE_UNAVAILABLE` before database work. The normalized seam can represent
+fixed `403` challenge and bounded `429 Retry-After` denials, but a real
+distributed limiter/challenge adapter remains a separately reviewed
+migration/provider gate.
 
 The webhook remains unreachable because no Production Supabase target is
 registered. Provider endpoint registration is separate `[PROD-CONFIG]` work.
@@ -155,9 +166,12 @@ forbidden.
 
 ## Known hardening gaps
 
-- Modern public booking, availability, owner commands, and Auth have no durable
-  application-level abuse limiter. Idempotency and upstream Auth 429 are not
-  rate limits.
+- The modern public guard is an activation stop and Local/Test seam, not a
+  durable distributed limiter or verified human challenge. Remote public API
+  activation remains blocked pending the post-checkpoint database adapter or a
+  separately approved edge/provider control.
+- Owner commands and Auth have no durable application-level abuse limiter.
+  Idempotency and upstream Auth 429 are not rate limits.
 - Legacy mail still relies on a trusted-proxy/process-local limiter and will be
   deleted once the atomic outbox path replaces its callers.
 - Physical rows/pages scanned and SDK-internal Auth HTTP calls require observed

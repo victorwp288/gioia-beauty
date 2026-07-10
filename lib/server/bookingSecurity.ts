@@ -1,9 +1,11 @@
 import "server-only";
 
 import { createHash, createHmac } from "node:crypto";
+import { isIP } from "node:net";
 
 const LOCAL_TEST_SECRET =
   "gioia-local-test-only-hmac-secret-never-use-remotely-v1";
+const MAX_PRINCIPAL_HEADER_BYTES = 512;
 const MAX_PRINCIPAL_SOURCE_BYTES = 256;
 
 export class BookingSecurityConfigurationError extends Error {
@@ -92,15 +94,25 @@ export function hmacPrincipalScope(principal: string, secret: Buffer): Buffer {
     .digest();
 }
 
-function requestPrincipalSource(request: Request, appEnv: string): string {
+function requestPrincipalSource(
+  request: Pick<Request, "headers">,
+  appEnv: string,
+): string {
   const headers = ["x-vercel-forwarded-for"];
   if (appEnv === "local" || appEnv === "test") {
     headers.push("x-forwarded-for", "x-real-ip");
   }
 
   for (const header of headers) {
-    const candidate = request.headers.get(header)?.split(",", 1)[0]?.trim();
-    if (candidate && /^[0-9a-fA-F:.]{2,64}$/.test(candidate)) {
+    const value = request.headers.get(header);
+    if (
+      !value ||
+      Buffer.byteLength(value, "utf8") > MAX_PRINCIPAL_HEADER_BYTES
+    ) {
+      continue;
+    }
+    const candidate = value.split(",", 1)[0]?.trim();
+    if (candidate && candidate.length <= 64 && isIP(candidate) !== 0) {
       return `network:${candidate}`;
     }
   }
@@ -108,7 +120,7 @@ function requestPrincipalSource(request: Request, appEnv: string): string {
 }
 
 export function requestPrincipalScopeHash(
-  request: Request,
+  request: Pick<Request, "headers">,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Buffer {
   return hmacPrincipalScope(

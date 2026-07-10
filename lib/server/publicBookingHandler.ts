@@ -10,10 +10,12 @@ import {
   UuidSchema,
 } from "@/lib/domain/schemas/index.ts";
 
+import { requestFingerprint } from "./bookingSecurity.ts";
 import {
-  requestFingerprint,
-  requestPrincipalScopeHash,
-} from "./bookingSecurity.ts";
+  evaluatePublicAbuseGuard,
+  publicAbuseRejectionResponse,
+  type PublicAbuseGuard,
+} from "./publicAbuseBoundary.ts";
 import {
   apiErrorResponse,
   databaseErrorResponse,
@@ -21,6 +23,8 @@ import {
 } from "./publicApiResponse.ts";
 
 const MAX_BOOKING_BODY_BYTES = 8 * 1_024;
+const MAX_CONTENT_ENCODING_BYTES = 64;
+const MAX_CONTENT_LENGTH_BYTES = 32;
 const MAX_CONTENT_TYPE_BYTES = 64;
 const MAX_IDEMPOTENCY_HEADER_BYTES = 128;
 const MAX_ORIGIN_BYTES = 512;
@@ -72,12 +76,8 @@ interface BookingDatabase {
 
 export interface PublicBookingHandlerDependencies {
   database: BookingDatabase;
-  env?: Readonly<Record<string, string | undefined>>;
+  abuseGuard: PublicAbuseGuard;
   createRequestId?: () => string;
-  principalScopeHash?: (
-    request: Request,
-    env: Readonly<Record<string, string | undefined>>,
-  ) => Buffer;
 }
 
 function sameOrigin(request: Request): boolean {
@@ -102,18 +102,25 @@ function sameOrigin(request: Request): boolean {
 function declaredBodyLength(request: Request): number | null {
   const value = request.headers.get("content-length");
   if (value === null) return null;
-  if (!/^(0|[1-9]\d*)$/.test(value)) return Number.NaN;
+  if (
+    Buffer.byteLength(value, "utf8") > MAX_CONTENT_LENGTH_BYTES ||
+    !/^(0|[1-9]\d*)$/.test(value)
+  ) {
+    return Number.NaN;
+  }
   return Number(value);
 }
 
-async function readBookingBody(request: Request) {
+function validateBookingFraming(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
   const contentEncoding = request.headers.get("content-encoding");
   if (
     Buffer.byteLength(contentType, "utf8") > MAX_CONTENT_TYPE_BYTES ||
     !/^application\/json(?:;\s*charset=utf-8)?$/i.test(contentType) ||
     (contentEncoding !== null &&
-      (contentEncoding.trim() !== contentEncoding ||
+      (Buffer.byteLength(contentEncoding, "utf8") >
+        MAX_CONTENT_ENCODING_BYTES ||
+        contentEncoding.trim() !== contentEncoding ||
         contentEncoding.toLowerCase() !== "identity"))
   ) {
     return { ok: false as const, status: 415, code: "UNSUPPORTED_MEDIA_TYPE" };
@@ -127,6 +134,10 @@ async function readBookingBody(request: Request) {
     return { ok: false as const, status: 413, code: "PAYLOAD_TOO_LARGE" };
   }
 
+  return { ok: true as const };
+}
+
+async function readBookingBody(request: Request) {
   const reader = request.body?.getReader();
   if (!reader) {
     return { ok: false as const, status: 400, code: "INVALID_JSON" };
@@ -176,9 +187,8 @@ async function readBookingBody(request: Request) {
 
 export function createPublicBookingPostHandler({
   database,
-  env = process.env,
+  abuseGuard,
   createRequestId = randomUUID,
-  principalScopeHash = requestPrincipalScopeHash,
 }: PublicBookingHandlerDependencies) {
   return async function POST(request: Request): Promise<Response> {
     const requestId = createRequestId();
@@ -207,6 +217,29 @@ export function createPublicBookingPostHandler({
       return apiErrorResponse(400, "INVALID_IDEMPOTENCY_KEY", requestId);
     }
 
+    const framingResult = validateBookingFraming(request);
+    if (!framingResult.ok) {
+      return apiErrorResponse(
+        framingResult.status,
+        framingResult.code,
+        requestId,
+      );
+    }
+
+    let abuseDecision;
+    try {
+      abuseDecision = await evaluatePublicAbuseGuard(
+        abuseGuard,
+        request,
+        "public_booking",
+      );
+    } catch {
+      return apiErrorResponse(503, "SERVICE_UNAVAILABLE", requestId);
+    }
+    if (!abuseDecision.ok) {
+      return publicAbuseRejectionResponse(abuseDecision, requestId);
+    }
+
     const bodyResult = await readBookingBody(request);
     if (!bodyResult.ok) {
       return apiErrorResponse(bodyResult.status, bodyResult.code, requestId);
@@ -220,7 +253,7 @@ export function createPublicBookingPostHandler({
     try {
       const row = await database.createBooking({
         ...command,
-        principalScopeHash: principalScopeHash(request, env),
+        principalScopeHash: Buffer.from(abuseDecision.principalScopeHash),
         requestFingerprint: requestFingerprint({
           operation: "public_booking",
           version: 1,

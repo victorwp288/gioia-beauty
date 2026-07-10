@@ -3,10 +3,12 @@ import { describe, expect, it, vi, type Mock } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createPublicBookingPostHandler } from "@/lib/server/publicBookingHandler.ts";
+import type { PublicAbuseGuard } from "@/lib/server/publicAbuseBoundary.ts";
 
 const REQUEST_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const IDEMPOTENCY_KEY = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const RESOURCE_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const PRINCIPAL_SCOPE_HASH = Buffer.alloc(32, 0x5a);
 const bookingBody = {
   date: "2026-08-10",
   startMinutes: 600,
@@ -50,6 +52,16 @@ type CreateBookingFunction = (
   >[0],
 ) => Promise<Record<string, unknown>>;
 
+function createAbuseGuard(
+  result: unknown = {
+    ok: true,
+    principalScopeHash: Buffer.from(PRINCIPAL_SCOPE_HASH),
+  },
+) {
+  const check = vi.fn<PublicAbuseGuard["check"]>(async () => result);
+  return { guard: { check } satisfies PublicAbuseGuard, check };
+}
+
 function createHandler(
   createBooking: Mock<CreateBookingFunction> = vi.fn<CreateBookingFunction>(
     async () => ({
@@ -58,12 +70,14 @@ function createHandler(
       replayed: false,
     }),
   ),
+  abuse = createAbuseGuard(),
 ) {
   return {
     createBooking,
+    abuseCheck: abuse.check,
     handler: createPublicBookingPostHandler({
       database: { createBooking },
-      env: { APP_ENV: "test" },
+      abuseGuard: abuse.guard,
       createRequestId: () => REQUEST_ID,
     }),
   };
@@ -95,8 +109,13 @@ describe("POST /api/bookings", () => {
     },
   );
 
-  it("normalizes inputs and sends only irreversible hashes plus bounded fields", async () => {
-    const { handler, createBooking } = createHandler();
+  it("normalizes inputs and copies the guard-approved hash with bounded fields", async () => {
+    const approvedHash = Buffer.alloc(32, 0x3c);
+    const abuse = createAbuseGuard({
+      ok: true,
+      principalScopeHash: approvedHash,
+    });
+    const { handler, createBooking } = createHandler(undefined, abuse);
     await handler(bookingRequest());
 
     const input = createBooking.mock.calls[0]![0];
@@ -108,11 +127,46 @@ describe("POST /api/bookings", () => {
       clientNote: "Nota sintetica",
     });
     expect(input.principalScopeHash).toBeInstanceOf(Buffer);
-    expect(input.principalScopeHash).toHaveLength(32);
+    expect(input.principalScopeHash).toEqual(approvedHash);
+    expect(input.principalScopeHash).not.toBe(approvedHash);
     expect(input.requestFingerprint).toBeInstanceOf(Buffer);
     expect(input.requestFingerprint).toHaveLength(32);
     expect(JSON.stringify(input.principalScopeHash)).not.toContain(
       "192.0.2.10",
+    );
+    expect(abuse.check).toHaveBeenCalledWith(
+      { headers: expect.any(Headers) },
+      "public_booking",
+    );
+    expect(abuse.check.mock.calls[0]?.[0]).not.toHaveProperty("body");
+  });
+
+  it("excludes changing guard evidence from the booking fingerprint", async () => {
+    const first = createHandler(
+      undefined,
+      createAbuseGuard({
+        ok: true,
+        principalScopeHash: Buffer.alloc(32, 0x11),
+      }),
+    );
+    const second = createHandler(
+      undefined,
+      createAbuseGuard({
+        ok: true,
+        principalScopeHash: Buffer.alloc(32, 0x22),
+      }),
+    );
+
+    await first.handler(bookingRequest());
+    await second.handler(bookingRequest());
+
+    const firstInput = first.createBooking.mock.calls[0]![0];
+    const secondInput = second.createBooking.mock.calls[0]![0];
+    expect(firstInput.principalScopeHash).not.toEqual(
+      secondInput.principalScopeHash,
+    );
+    expect(firstInput.requestFingerprint).toEqual(
+      secondInput.requestFingerprint,
     );
   });
 
@@ -128,6 +182,178 @@ describe("POST /api/bookings", () => {
     expect(response.status).toBe(201);
     expect(createBooking).toHaveBeenCalledOnce();
   });
+
+  it("runs the guard after cheap framing and before reading the body", async () => {
+    const events: string[] = [];
+    const abuse = createAbuseGuard();
+    abuse.check.mockImplementation(async () => {
+      events.push("guard");
+      return {
+        ok: true,
+        principalScopeHash: Buffer.from(PRINCIPAL_SCOPE_HASH),
+      };
+    });
+    const createBooking = vi
+      .fn<CreateBookingFunction>()
+      .mockImplementation(async () => {
+        events.push("database");
+        return {
+          http_status: 201,
+          result: { code: "BOOKING_CREATED", resource_id: RESOURCE_ID },
+          replayed: false,
+        };
+      });
+    const { handler } = createHandler(createBooking, abuse);
+    const request = bookingRequest();
+    const originalGetReader = request.body!.getReader.bind(request.body);
+    vi.spyOn(request.body!, "getReader").mockImplementation(() => {
+      events.push("body");
+      return originalGetReader();
+    });
+
+    expect((await handler(request)).status).toBe(201);
+    expect(events).toEqual(["guard", "body", "database"]);
+  });
+
+  it("runs one guard check before rejecting an invalid JSON body", async () => {
+    const { handler, abuseCheck, createBooking } = createHandler();
+
+    const response = await handler(bookingRequest("{not-json"));
+
+    expect(response.status).toBe(400);
+    expect(abuseCheck).toHaveBeenCalledOnce();
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "human verification",
+      {
+        ok: false,
+        status: 403,
+        code: "HUMAN_VERIFICATION_REQUIRED",
+      },
+      403,
+      "HUMAN_VERIFICATION_REQUIRED",
+      null,
+    ],
+    [
+      "rate limit",
+      {
+        ok: false,
+        status: 429,
+        code: "RATE_LIMITED",
+        retryAfterSeconds: 60,
+      },
+      429,
+      "RATE_LIMITED",
+      "60",
+    ],
+    [
+      "unavailable guard",
+      { ok: false, status: 503, code: "SERVICE_UNAVAILABLE" },
+      503,
+      "SERVICE_UNAVAILABLE",
+      null,
+    ],
+    [
+      "malformed guard result",
+      {
+        ok: false,
+        status: 429,
+        code: "RATE_LIMITED",
+        retryAfterSeconds: 0,
+        clientEmail: "cliente@example.test",
+      },
+      503,
+      "SERVICE_UNAVAILABLE",
+      null,
+    ],
+  ] as const)(
+    "rejects a %s before body or database work",
+    async (_label, decision, status, code, retryAfter) => {
+      const abuse = createAbuseGuard(decision);
+      const { handler, createBooking } = createHandler(undefined, abuse);
+      const request = bookingRequest();
+      const getReader = vi.spyOn(request.body!, "getReader");
+
+      const response = await handler(request);
+      const text = await response.text();
+
+      expect(response.status).toBe(status);
+      expect(JSON.parse(text)).toEqual({ code, requestId: REQUEST_ID });
+      expect(response.headers.get("retry-after")).toBe(retryAfter);
+      expect(text).not.toContain("cliente@example.test");
+      expect(abuse.check).toHaveBeenCalledOnce();
+      expect(getReader).not.toHaveBeenCalled();
+      expect(createBooking).not.toHaveBeenCalled();
+    },
+  );
+
+  it("redacts a thrown guard failure before body or database work", async () => {
+    const abuse = createAbuseGuard();
+    abuse.check.mockRejectedValue(
+      new Error("cliente@example.test 192.0.2.10 challenge-token"),
+    );
+    const { handler, createBooking } = createHandler(undefined, abuse);
+    const request = bookingRequest();
+    const getReader = vi.spyOn(request.body!, "getReader");
+
+    const response = await handler(request);
+    const text = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(JSON.parse(text)).toEqual({
+      code: "SERVICE_UNAVAILABLE",
+      requestId: REQUEST_ID,
+    });
+    expect(text).not.toMatch(/cliente|192\.0\.2\.10|challenge-token/);
+    expect(getReader).not.toHaveBeenCalled();
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "Origin",
+      bookingRequest(bookingBody, { origin: "https://attacker.test" }),
+      403,
+    ],
+    [
+      "query",
+      bookingRequest(
+        bookingBody,
+        {},
+        "https://www.gioiabeauty.net/api/bookings?unexpected=1",
+      ),
+      400,
+    ],
+    [
+      "idempotency",
+      bookingRequest(bookingBody, { "idempotency-key": "not-a-uuid" }),
+      400,
+    ],
+    [
+      "media",
+      bookingRequest(bookingBody, { "content-type": "text/plain" }),
+      415,
+    ],
+    [
+      "declared size",
+      bookingRequest(bookingBody, { "content-length": "8193" }),
+      413,
+    ],
+  ] as const)(
+    "rejects invalid %s before guard, body, or database work",
+    async (_label, request, status) => {
+      const { handler, abuseCheck, createBooking } = createHandler();
+      const getReader = vi.spyOn(request.body!, "getReader");
+
+      expect((await handler(request)).status).toBe(status);
+      expect(abuseCheck).not.toHaveBeenCalled();
+      expect(getReader).not.toHaveBeenCalled();
+      expect(createBooking).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects missing, malformed, and oversized idempotency headers", async () => {
     for (const header of [
