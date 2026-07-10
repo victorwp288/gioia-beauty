@@ -97,12 +97,15 @@ select is(gioia_private.authorize_owner_session(
   'a1000000-0000-4000-8000-000000000001',
   'b1000000-0000-4000-8000-000000000001'),true,
   'active matching session authorizes one PII-free boolean');
-select results_eq(
-  $$select http_status,result->>'code' from gioia_private.owner_create_block(
-    'a1000000-0000-4000-8000-000000000001','session:active',
-    decode(repeat('d2',32),'hex'),current_setting('gioia.test_session_date')::date,
-    600::smallint,30::smallint,0::smallint,'Session ledger test')$$,
-  $$values(201::smallint,'BLOCK_CREATED'::text)$$,
+select is(
+  (select pg_catalog.jsonb_build_object(
+      'status',http_status,'code',result->>'code'
+    ) from gioia_private.owner_create_block(
+      'a1000000-0000-4000-8000-000000000001','session:active',
+      decode(repeat('d2',32),'hex'),
+      current_setting('gioia.test_session_date')::date,
+      600::smallint,30::smallint,0::smallint,'Session ledger test')),
+  '{"status": 201, "code": "BLOCK_CREATED"}'::jsonb,
   'active ledger session permits an existing owner mutation');
 reset role;
 

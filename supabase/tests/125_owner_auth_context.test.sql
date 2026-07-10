@@ -25,14 +25,20 @@ select ok(
 );
 select ok(
   pg_get_functiondef(
-    'gioia_private.assert_enabled_owner(uuid)'::regprocedure
+    'gioia_private.authenticated_owner_session_id(uuid)'::regprocedure
   ) ~ 'request.jwt.claim.sub'
+    and pg_get_functiondef(
+      'gioia_private.authenticated_owner_session_id(uuid)'::regprocedure
+    ) ~ 'request.jwt.claim.session_id'
+    and pg_get_functiondef(
+      'gioia_private.authenticated_owner_session_id(uuid)'::regprocedure
+    ) !~ 'auth.uid\(\)|auth.jwt\(\)'
+    and pg_get_functiondef(
+      'gioia_private.assert_enabled_owner(uuid)'::regprocedure
+    ) ~ 'gioia_private.authenticated_owner_session_id\(p_user_id\)'
     and pg_get_functiondef(
       'gioia_private.assert_enabled_owner(uuid)'::regprocedure
     ) ~ 'gioia_private.owner_accounts'
-    and pg_get_functiondef(
-      'gioia_private.assert_enabled_owner(uuid)'::regprocedure
-    ) !~ 'auth.uid\(\)|auth.jwt\(\)'
     and pg_get_functiondef(
       'gioia_private.authorize_owner_session(uuid,uuid)'::regprocedure
     ) ~ 'gioia_private.assert_enabled_owner\(p_actor_user_id\)'
@@ -226,34 +232,28 @@ do $$begin
   perform set_config('request.jwt.claim.sub', '95000000-0000-4000-8000-000000000001', true);
   perform set_config('request.jwt.claim.session_id', '96000000-0000-4000-8000-000000000001', true);
 end$$;
-
 set local role app_runtime;
-
 select is(
-  (
-    with started as materialized (
-      select gioia_private.start_owner_session(
-        '95000000-0000-4000-8000-000000000001',
-        '96000000-0000-4000-8000-000000000001') as authorized
-    )
-    select gioia_private.authorize_owner_session(
-      '95000000-0000-4000-8000-000000000001',
-      '96000000-0000-4000-8000-000000000001')
-    from started where authorized
+  gioia_private.start_owner_session(
+    '95000000-0000-4000-8000-000000000001',
+    '96000000-0000-4000-8000-000000000001'
   ),
   true,
-  'a matching enabled owner receives one PII-free authorization boolean'
+  'a matching enabled owner starts one PII-free session'
 );
-
-select results_eq(
-  $$select http_status, result->>'code', replayed
+select is(
+  (
+    select pg_catalog.jsonb_build_object(
+      'status', http_status, 'code', result->>'code', 'replayed', replayed
+    )
     from gioia_private.owner_create_block(
       '95000000-0000-4000-8000-000000000001', 'auth-context:allowed',
       decode(repeat('94', 32), 'hex'),
       current_setting('gioia.test_owner_auth_date')::date,
       600::smallint, 30::smallint, 0::smallint, 'Auth context test'
-    )$$,
-  $$values (201::smallint, 'BLOCK_CREATED'::text, false)$$,
+    )
+  ),
+  '{"status": 201, "code": "BLOCK_CREATED", "replayed": false}'::jsonb,
   'a matching enabled owner identity can execute the mutation'
 );
 
