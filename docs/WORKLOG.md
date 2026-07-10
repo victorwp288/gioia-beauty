@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Bound newsletter token wire and purpose policy
+**Phase:** Phase 3 newsletter/double-opt-in server foundation; persistence, rendering, routes, and end-to-end confirmation remain open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; domain/server schemas and pure tests only, with no database, Auth, route, UI, email, provider, fixture, migration, environment-secret, or remote call
+**Target:** local `refactor`; no HTTP/outbox consumer or operational singleton was added
+**Expected reads/writes/rows:** verification and runtime contracts perform 0 DB/Auth/provider/network operations and 0 rows. Wire parsing is bounded to 512 ASCII bytes; token issue/verify retain their prior at-most-3-key and one-local-HMAC bounds.
+**Done:** Commit `3ebb079` makes confirmation lifetime exactly 24 hours and unsubscribe lifetime positive/at most 30 days using absolute instants; adds one branded but explicitly unauthenticated, untrimmed, canonical three-segment/512-byte wire contract; makes codec issue/verify reuse it; centralizes key-ID syntax; and narrows only newsletter unsubscribe input while preserving the prior export as a deprecated structural alias.
+**Verified/reconciled:** 5 focused files/136 tests; full format/static SQL/lint/TS7/TS6, 92 files/1,169 tests, and production build pass. Three independent crypto/contract/phase reviews are clear on lifetime, canonical base64url, 512/513 bounds, grammar reuse, generic-token compatibility, and zero activation. Exact prior codec head passed all six CI jobs, including both clean database cycles, in run `29089525056`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `3ebb079`; no external state changed
+**Next:** Push and green replacement CI, then classify and run the exact guarded 37-migration checkpoint against authorized TEST project `lxvsspniipcotimbsfqm`: zero-to-head rebuild with synthetic fixtures, advisors/RLS/ACL checks, owner Auth HTTP flow, concurrency, and a second clean cycle. Use the Supabase plugin/official tooling; do not author migration 38 unless the exact operator DSN and modern publishable-key checkpoint succeeds.
+**Gotchas:** Wire parsing is only syntax and HMAC verification is still not authorization, consumption, revocation, or single-use. Current SQL remains subscriber-ID/version-blind and the outbox lacks token/key/timing snapshots; no route or renderer is safe yet. Future action GETs must never mutate (scanner-safe landing plus explicit guarded POST), and purpose must be hard-coded by the route rather than inferred as authorization from the token.
+
 ## 2026-07-10 — Added inert newsletter action-token authentication
 **Phase:** Phase 3 newsletter/double-opt-in server foundation; consent-cycle persistence, rendering, routes, and end-to-end confirmation remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
