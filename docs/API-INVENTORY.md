@@ -107,15 +107,16 @@ validation forces fake transport, the operator environment cannot start the
 application, and legacy Production Firebase authorization remains disabled on
 `refactor`.
 
-| Route              | Input and authorization                                                                                                                                                                                        | Response / PII                                                                                                                                                | Rate and cache                                                                      | Maximum code-path effect                                                 |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `POST /api/send`   | Temporary owner dashboard; supplied Origin must match but absence is accepted; no app-level bearer-header bound; Firebase emulator owner verification; accepted strict JSON ≤8 KiB with bounded booking fields | Per-recipient sent/skipped/redacted-failed state; values/provider IDs are not echoed, but validation paths/messages can reflect attacker-supplied field names | Process-local 5/15 min/address, ≤1,000 buckets; charged before Auth/body; no-store  | 1 Firebase token verification, 0 DB; ≤2 delivery invocations in parallel |
-| `POST /api/cancel` | Same containment; required normalized customer email and bounded booking fields                                                                                                                                | Customer delivery state/safe code; address/provider details not echoed                                                                                        | Process-local 20/15 min/address, ≤1,000 buckets; charged before Auth/body; no-store | 1 Firebase token verification, 0 DB; ≤1 delivery invocation              |
+| Route              | Input and authorization                                                                                                                                                                                                                                                                                                                       | Response / PII                                                                                                                               | Rate and cache                                                                                                                  | Maximum code-path effect                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `POST /api/send`   | Temporary owner dashboard; no query; missing Origin accepted, supplied Origin canonical/same-origin/≤512 B; case-insensitive HTTP `Bearer` scheme plus canonical three-segment JWT ≤16 KiB; Firebase emulator owner verification; raw fatal-UTF-8 strict JSON ≤8 KiB, exact JSON/UTF-8 media ≤64 B, identity encoding, bounded booking fields | Per-recipient sent/skipped/redacted-failed state; validation is one fixed code; values, field names, and provider details/IDs are not echoed | Process-local 5/15 min/address, ≤1,000 buckets; proxy headers capped at 512 B; charged after target checks and before Auth/body | 1 Firebase token verification, 0 DB; ≤2 delivery invocations in parallel |
+| `POST /api/cancel` | Same containment; required normalized customer email and bounded booking fields                                                                                                                                                                                                                                                               | Customer delivery state/safe code; address/provider details not echoed                                                                       | Process-local 20/15 min/address, ≤1,000 buckets; same ordering/header cap; no-store                                             | 1 Firebase token verification, 0 DB; ≤1 delivery invocation              |
 
-Both handlers still use `request.text()` before their 8 KiB accepted-payload
-check, so streamed memory consumption is not yet bounded. Their media check is
-only `startsWith("application/json")`; they do not reject content encoding.
-They have no persisted idempotency key, so automatic client retry is forbidden.
+Both handlers enforce Origin → query → limiter → owner Auth → framed/streamed
+body → provider order. The body reader cancels as soon as cumulative received
+bytes first exceed 8 KiB, uses fatal UTF-8, and never returns Zod issue paths.
+They have no persisted idempotency key, so automatic client retry remains
+forbidden.
 
 ## Known hardening gaps
 
@@ -125,10 +126,8 @@ They have no persisted idempotency key, so automatic client retry is forbidden.
 - Modern public booking, availability, owner commands, and Auth have no durable
   application-level abuse limiter. Idempotency and upstream Auth 429 are not
   rate limits.
-- Legacy mail has the framing/header gaps documented above and will be deleted
-  once the atomic outbox path replaces its callers.
-- Legacy validation issue paths/messages can reflect supplied unknown field
-  names and therefore may contain attacker-supplied text.
+- Legacy mail still relies on a trusted-proxy/process-local limiter and will be
+  deleted once the atomic outbox path replaces its callers.
 - Physical rows/pages scanned and SDK-internal Auth HTTP calls require observed
   Local/TEST evidence; they are intentionally not presented as exact here.
 

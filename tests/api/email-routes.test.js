@@ -12,16 +12,22 @@ const bookingBody = {
   date: "10/07/2026",
   appointmentType: "Manicure",
 };
-
 const allowedLimiter = {
   check: () => ({ allowed: true, remaining: 4, resetAt: Date.now() + 60_000 }),
 };
 
 function postRequest(path, body, headers = {}) {
+  const requestBody =
+    typeof body === "string" ||
+    body instanceof Uint8Array ||
+    body instanceof ReadableStream
+      ? body
+      : JSON.stringify(body);
   return new Request(`https://www.gioiabeauty.net${path}`, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
-    body: typeof body === "string" ? body : JSON.stringify(body),
+    body: requestBody,
+    ...(body instanceof ReadableStream ? { duplex: "half" } : {}),
   });
 }
 
@@ -127,8 +133,9 @@ describe("POST /api/send", () => {
 
   it("returns 429 without parsing or delivering when rate-limited", async () => {
     const deliver = vi.fn();
+    const authorize = vi.fn();
     const handler = createBookingEmailPostHandler({
-      authorize: async () => ({ ok: true, userId: "owner" }),
+      authorize,
       deliver,
       limiter: {
         check: () => ({
@@ -139,17 +146,22 @@ describe("POST /api/send", () => {
       },
     });
 
-    const response = await handler(postRequest("/api/send", bookingBody));
+    const request = postRequest("/api/send", bookingBody);
+    const getReader = vi.spyOn(request.body, "getReader");
+    const response = await handler(request);
 
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBeTruthy();
+    expect(authorize).not.toHaveBeenCalled();
+    expect(getReader).not.toHaveBeenCalled();
     expect(deliver).not.toHaveBeenCalled();
   });
 
   it("rejects malformed JSON and oversized bodies before delivery", async () => {
     const deliver = vi.fn();
+    const authorize = vi.fn(async () => ({ ok: true, userId: "owner" }));
     const handler = createBookingEmailPostHandler({
-      authorize: async () => ({ ok: true, userId: "owner" }),
+      authorize,
       deliver,
       limiter: allowedLimiter,
     });
@@ -161,6 +173,7 @@ describe("POST /api/send", () => {
 
     expect(malformed.status).toBe(400);
     expect(oversized.status).toBe(413);
+    expect(authorize).toHaveBeenCalledTimes(2);
     expect(deliver).not.toHaveBeenCalled();
   });
 
