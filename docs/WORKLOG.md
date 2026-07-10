@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added a Production-disabled owner outbox retry boundary
+**Phase:** Phase 3 reliable-side-effect and authenticated server boundary; broad outbox checklist remains open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; synthetic requests and injected Auth/repositories only, with no remote, database, provider, schema, fixture, or migration call
+**Target:** local `refactor`; no TEST or Production target
+**Expected reads/writes/rows:** verification performed 0 DB/Auth/provider operations and 0 rows. Disabled/rejected requests perform 0 downstream work. A safe Local/Test/Preview accepted request uses 2 Auth verification methods and 1 owner transaction/private function capped at 2 rows; success is 2 distinct rows/3 mutations, handled conflict 1 row/2 mutations, replay 0 writes, and all paths send 0 email synchronously. Identity cleanup may add 1 local sign-out.
+**Done:** Commit `b374024` adds strict retry schema/fingerprinting, a dedicated owner-transaction repository, shared behavior-preserving owner command adapters, guarded dynamic route, exact response/cardinality contracts, and API inventory coverage. Production/operator stay code-disabled until the provider-attempt/uncertainty and 24-hour stop migration is proven.
+**Verified/reconciled:** 9 focused files/162 tests; full format/static SQL/lint/TS7/TS6, 86 files/946 tests, and production build pass. Two independent security/repository re-reviews found no blocker after the injected-environment split-target regression was fixed. Exact prior Auth-boundary head passed all six CI jobs, secrets/dependencies, and both clean 342-assertion database cycles in run `29083746923`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `b374024`; no external state changed
+**Next:** Push and green replacement CI, then implement a fail-closed PII-free public abuse-defense boundary for availability/bookings with bounded Local/Test fakes and exhaustive zero-DB rejection tests; keep any Production CAPTCHA/rate-limit provider/config action separately approved and keep migration 38 blocked until the exact 37-migration TEST checkpoint runs.
+**Gotchas:** Any injected retry `env` now requires explicit repository, Auth-context, and HMAC-secret sinks as one trusted bundle; incomplete bundles fail before environment validation/cookies/body/Auth/DB. An environment toggle cannot activate Production retry.
+
 ## 2026-07-10 — Rejected ambiguous owner Auth route targets
 **Phase:** Phase 3 owner Auth boundary hardening; broad Auth checklist remains open pending TEST/E2E proof
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
