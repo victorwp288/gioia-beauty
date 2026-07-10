@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Rejected ambiguous owner Auth route targets
+**Phase:** Phase 3 owner Auth boundary hardening; broad Auth checklist remains open pending TEST/E2E proof
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; injected Auth/repositories and synthetic requests only, with no remote, database, or provider call
+**Target:** local `refactor`; no TEST or Production target
+**Expected reads/writes/rows:** verification performed 0 DB/Auth/provider operations and 0 rows. Query rejection may construct a local Supabase client and read bounded request cookies, but performs 0 Auth SDK/network methods, 0 DB calls/rows/writes, 0 body reads, and 0 security-cookie mutations; accepted paths retain their documented bounds.
+**Done:** Commit `1396b43` makes login enforce Origin → query → body/Auth/DB, logout enforce Origin+CSRF → query → Auth/DB, and session enforce query → Auth/DB. All return fixed 400 `INVALID_REQUEST` for a query, preserve 403 security precedence, forward the request through the session route, and reconcile the API inventory.
+**Verified/reconciled:** 47 focused tests plus full format/static SQL/lint/TS7/TS6, 83 files/903 tests, and production build pass; two independent boundary/security reviews found no blocker after fresh-fixture conflict tests proved zero downstream effects. Exact prior owner-target head passed all six CI jobs, secrets/dependencies, and both clean 342-assertion database cycles in run `29083128679`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `1396b43`; no external state changed
+**Next:** Push and green replacement CI, then implement the migration-free owner outbox-retry request/repository/route against the existing reviewed SQL command with fresh bound Auth, CSRF, idempotency, strict versioning, and exact effect tests. Keep Production activation disabled until a post-checkpoint migration enforces the 24-hour provider-idempotency stop.
+**Gotchas:** Session still validates the canonical CSRF cookie after its bounded Auth/DB authorization work; changing that pre-existing order could alter cleanup semantics and is outside this query-only slice.
+
 ## 2026-07-10 — Rejected ambiguous owner command targets at the edge
 **Phase:** Phase 3 authenticated server boundaries; broad owner-operation checklist remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
