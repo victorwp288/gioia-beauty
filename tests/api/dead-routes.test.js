@@ -3,16 +3,20 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const removedRoutes = [
-  "app/api/appointments/by-date/route.js",
-  "app/api/appointments/counts/route.js",
-  "app/api/test/route.js",
+const removedRouteDirectories = [
+  "app/api/appointments/by-date",
+  "app/api/appointments/counts",
+  "app/api/test",
 ];
+const routeExtensions = ["js", "jsx", "ts", "tsx"];
 
 describe("removed unauthenticated routes", () => {
-  for (const route of removedRoutes) {
-    it(`${route} has no route module`, () => {
-      expect(existsSync(resolve(process.cwd(), route))).toBe(false);
-    });
+  for (const directory of removedRouteDirectories) {
+    for (const extension of routeExtensions) {
+      const route = `${directory}/route.${extension}`;
+      it(`${route} has no route module`, () => {
+        expect(existsSync(resolve(process.cwd(), route))).toBe(false);
+      });
+    }
   }
 });
