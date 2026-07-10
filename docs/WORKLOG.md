@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added a fail-closed public abuse boundary seam
+**Phase:** Phase 3 public abuse-defense foundation; durable limiter/challenge checklist remains open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; stateless fake decisions and injected repositories only, with no remote, database, provider, schema, fixture, or migration call
+**Target:** local `refactor`; Preview/Production/operator public availability and booking remain code-disabled before DB work
+**Expected reads/writes/rows:** verification performed 0 DB/Auth/provider operations and 0 rows. Runtime pre-guard reject is 0 guard/body/DB; guard reject is 1 stateless local check/0 body/DB; post-guard body reject is 1 guard/0 DB. Allowed Local/Test availability is 1 guard + 1 transaction/function/≤96 rows/0 writes; booking is 1 guard + its existing 1 transaction/1 row, fresh 6 rows/7 mutations, handled failure 1 row/2 mutations, replay 0, and 0 synchronous sends.
+**Done:** Commit `3c30b40` adds a strict headers-only abuse decision seam for availability/booking, O(1) Local/Test HMAC fake, fixed 403/429/503 normalization, bounded trusted-address parsing, exact guard/body/DB ordering, singleton route wiring, and truthful environment/API contracts. It adds no cache, provider, network, database operation, or remote activation path.
+**Verified/reconciled:** 5 focused files/94 tests; full format/static SQL/lint/TS7/TS6, 88 files/1,000 tests, and production build pass. Three independent cross-reviews found no blocker after body capability, pre/post-guard cost, and proxy-header bounds were hardened; final independent evidence includes 6 files/99 tests and API-inventory coverage. Exact prior outbox head passed all six CI jobs, secrets/dependencies, and both clean 342-assertion database cycles in run `29085162733`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel/WAF, CAPTCHA, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `3c30b40`; no external state changed
+**Next:** Push and green replacement CI, then implement the migration-free server repository and strict non-enumerating boundary for the three already-migrated public newsletter subscribe/confirm/unsubscribe commands; reuse the public guard and keep all remote routes disabled until durable abuse protection is reviewed.
+**Gotchas:** This seam is an activation stop, not rate-limit evidence, so the broad masterplan item stays unchecked. A future external adapter must receive a curated header allowlist, add a fully valid Production-disable regression after target registration, and pair shared global/per-principal limits with bounded expired-command cleanup.
+
 ## 2026-07-10 — Added a Production-disabled owner outbox retry boundary
 **Phase:** Phase 3 reliable-side-effect and authenticated server boundary; broad outbox checklist remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
