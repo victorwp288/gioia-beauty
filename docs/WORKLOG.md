@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Authenticated the inert outbox worker boundary
+**Phase:** Phase 3 reliable-side-effect/Cron foundation; the broad outbox checklist item remains open
+**Labels/environment:** [LOCAL] injected server implementation, tests, static analysis, and build only
+**Data impact:** none; no route, database/provider singleton, environment key, Cron configuration, schema, migration, fixture, remote, or customer-data action
+**Target:** local `refactor`; the handler is unreachable from HTTP and Production Supabase remains unregistered/null
+**Expected reads/writes/rows:** rejected requests make 0 worker/DB/provider calls. A future accepted invocation makes exactly 1 injected worker call; its current ceiling is 1 claim transaction returning at most 5 unique rows, at most 5 provider attempts, and at most 5 completion transactions—6 DB function calls, 5 provider calls, 5 distinct outbox rows, and at most 10 row transitions. This session executed 0 runtime calls/rows/writes.
+**Done:** Commit `363dc34` adds an exact auth-first GET/path/query/body boundary with a canonical 32-byte base64url bearer compared in constant time, server-derived worker UUID, fixed PII-free responses, and 503 uncertainty. It also rejects duplicate/over-five claim arrays before provider effects and corrects Cron bearer/replay wording. No masterplan item was ticked.
+**Verified/reconciled:** focused 2 files/33 tests; full format/static SQL/lint/TS7/TS6, 114 files/1,528 tests, both 56-test timezone runs, and production build pass. Three independent contract/security/acceptance reviews found no P1/P2. Exact prior preflight head passed all six CI jobs, including Gitleaks/history/dependencies and two clean database cycles, in run `29105364331`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `363dc34`; no external recovery is required
+**Next:** Push and green replacement CI. Then run the guarded 37-migration TEST checkpoint if the exact protected session-pooler DSN is available; otherwise harden and prove the outbox invocation deadline/budget without adding a route or provider activation.
+**Gotchas:** Vercel Cron uses a static bearer and can miss or duplicate delivery; user-agent/schedule headers are not authentication. Route activation remains blocked by the unproven TEST checkpoint, absent newsletter renderer/dead-letter alerting, claim-time dead-letter undercount, missing persisted 24-hour provider-idempotency cutoff, and an unproven end-to-end deadline.
+
 ## 2026-07-10 — Bound inert migration plans to complete operator intent
 **Phase:** Phase 1 production-operator workflow foundation; the broad checklist item remains open
 **Labels/environment:** [LOCAL] pure plan/compiler implementation, tests, static analysis, and build only
