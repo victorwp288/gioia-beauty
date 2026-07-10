@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Authenticated bounded pagination context without activating reads
+**Phase:** Phase 3 owner-read/server-boundary foundation; database adapter and authenticated read operations remain open
+**Labels/environment:** [LOCAL] implementation/tests plus one bounded read-only [TEST] Supabase metadata refresh
+**Data impact:** none; no route, repository, schema, migration, Auth, fixture, email, provider configuration, application query, or customer-data operation
+**Target:** local `refactor`; read-only metadata for authorized TEST project `lxvsspniipcotimbsfqm` (`ACTIVE_HEALTHY`, 35 applied migrations)
+**Expected reads/writes/rows:** cursor issue/verify performs 0 DB/Auth/provider/network operations and one local HMAC; remote refresh read 1 project, 35 migration, and 2 API-key metadata records with 0 writes/business rows
+**Done:** Commit `498a44f` adds canonical `c1-<kid>.<payload>.<tag>` cursors for five scopes, fixed 15-minute lifetime/60-second skew, exact filter/page/position binding, 1–3-key rotation, PostgreSQL-microsecond preservation, hostile-input rejection, and a transitive client ban on both Supabase SDK packages. No route/singleton was activated and no masterplan item was ticked.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6, 109 files/1,446 tests, production build, 128 focused boundary tests, five cursor and five fingerprint golden vectors, and two independent final reviews with no P1/P2. CI run `29099281712` greened all six jobs for the preceding privacy head; replacement CI is pending. Local Gitleaks remains unavailable, so CI must supply secret/history evidence.
+**Production actions performed:** none; no Firebase, Production Supabase, Resend, Vercel, Sentry, DNS, `main`, customer data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed and the TEST metadata read does not prove restore
+**Rollback/forward recovery:** revert `498a44f`; no external recovery is required
+**Next:** Push and green replacement CI. Obtain the protected exact `GIOIA_TEST_OPERATOR_DATABASE_URL` session-pooler DSN, then run the guarded 37-migration two-cycle TEST checkpoint before reserved migration 38; owner read SQL must be migration 39 or later.
+**Gotchas:** `app_runtime` has no table `SELECT` and no owner list/count/vacation function exists, so adding a read route/repository now would be false safety. Cursors authenticate but neither authorize nor conceal claims; future SQL must use the exact pinned keyset order and preserve six-digit `timestamptz` text rather than JavaScript `Date`/floating-point conversion.
+
 ## 2026-07-10 — Defined the privacy and processor launch gates
 **Phase:** Phase 3 pre-cutover privacy foundation; the broad privacy checklist item remains open
 **Labels/environment:** [LOCAL] documentation, static inventory, and test verification only
