@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Guarded owner command request and response boundaries
+**Phase:** Phase 3 server vertical-slice foundation; no broad checklist item completed yet
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; no database, Auth, fixture, schema, or provider call
+**Target:** local `refactor`; no remote or Production target
+**Expected reads/writes/rows:** verification performed 0 DB/Auth reads/writes; rejected runtime requests stop before Auth/DB, while accepted requests will make 1 fresh Auth user check plus the repository's 1 owner transaction/1 private function query bounded to 2 result rows
+**Done:** Commit `28b27df` adds exact origin/CSRF, UUID idempotency, JSON/UTF-8/8 KiB, normalized fingerprint, fresh Auth/session-binding, fail-closed SQL-error mapping, request-ID, and repeated refresh-cookie boundaries for the five owner schedule commands.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6/build and 557 tests pass; integrated security review passed 109 focused tests with no blockers. Exact repository-slice head `eca1ed1` passed all six CI jobs in run `29072163596`; replacement CI for this boundary head is pending.
+**Production actions performed:** none; no Firebase, Supabase, Vercel, DNS, Resend, `main`, or Production data/config access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `28b27df`; schema and remote TEST remain unchanged
+**Next:** Wire five thin `/api/admin/**` mutation handlers to this guard and `ownerScheduleRepository`, prove CSRF-before-Auth/DB plus exact success/error/replay behavior, then remove duplicate middleware Auth work only after every matched route is self-guarding. Keep migration 38 blocked until the exact 37-migration TEST checkpoint runs.
+**Gotchas:** Unknown SQLSTATE/message combinations deliberately redact to 503. Only repeated `Set-Cookie` and exact `Expires: 0` may pass from Auth refresh headers into owner command errors.
+
 ## 2026-07-10 — Added session-bound owner schedule command repository
 **Phase:** Phase 3 server vertical-slice foundation; Phase 2 remote TEST checkpoint remains pending
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
