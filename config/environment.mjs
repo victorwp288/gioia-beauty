@@ -203,6 +203,20 @@ function validateOwnerSessionSecurity(appEnv, env, errors) {
   }
 }
 
+function validateProductionEmail(env, errors) {
+  if (env.EMAIL_TRANSPORT !== "resend") {
+    errors.push("Production requires EMAIL_TRANSPORT=resend");
+  }
+  if (!hasValue(env.RESEND_API_KEY)) {
+    errors.push("Production requires RESEND_API_KEY");
+  } else if (
+    env.RESEND_API_KEY.trim() !== env.RESEND_API_KEY ||
+    !/^re_[A-Za-z0-9_-]{16,508}$/.test(env.RESEND_API_KEY)
+  ) {
+    errors.push("RESEND_API_KEY has an invalid format");
+  }
+}
+
 function validateVercelScope(appEnv, env, errors) {
   const expected = {
     local: new Set([undefined, "development"]),
@@ -357,9 +371,7 @@ export function validateEnvironment(env, { command = "application" } = {}) {
     }
     validateSupabaseTarget(appEnv, env, errors, PRODUCTION_SUPABASE_REF);
 
-    if (env.EMAIL_TRANSPORT !== "resend") {
-      errors.push("Production requires EMAIL_TRANSPORT=resend");
-    }
+    validateProductionEmail(env, errors);
 
     for (const [key, value] of Object.entries(env)) {
       if (

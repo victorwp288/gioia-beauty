@@ -45,6 +45,22 @@ Backup locations, credentials, encryption keys, restore project IDs, and custome
 6. Verify owner login, availability, exactly-one overlap behavior, booking/cancel/reschedule, outbox recovery, and bounded counts before reopening.
 7. Record the incident timeline, customer impact, data reconciliation, corrective tests, and recovery evidence in the protected incident record; add only a redacted summary to the repository.
 
+## Email completion uncertainty
+
+Resend currently retains an email idempotency key for 24 hours. The outbox must
+reuse its immutable provider key unchanged, but that provider window is not a
+permanent exactly-once guarantee.
+
+- A provider-accepted send whose database completion cannot be proven is an
+  alertable recovery state, not an ordinary blind retry.
+- Automatic lease recovery must finish inside the provider's 24-hour window.
+- At or beyond that window, stop automatic and manual retry until the operator
+  reconciles provider evidence and chooses a documented forward-recovery path;
+  another send can duplicate customer mail.
+- Cron activation remains a launch gate until the claim contract exposes enough
+  immutable timing/disposition evidence to enforce this stop policy without
+  reading private tables directly.
+
 ## Migration stop conditions
 
 Stop before or during import/cutover when any of these occurs:

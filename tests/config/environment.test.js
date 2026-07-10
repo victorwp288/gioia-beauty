@@ -199,6 +199,25 @@ describe("environment isolation", () => {
     );
   });
 
+  it("requires a server-only Resend credential in Production", () => {
+    const missing = validate({
+      APP_ENV: "production",
+      VERCEL_ENV: "production",
+      EMAIL_TRANSPORT: "resend",
+      GIOIA_PRODUCTION_APPROVAL_ID: "synthetic-approval",
+    });
+    const malformed = validate({
+      APP_ENV: "production",
+      VERCEL_ENV: "production",
+      EMAIL_TRANSPORT: "resend",
+      RESEND_API_KEY: "synthetic-invalid",
+      GIOIA_PRODUCTION_APPROVAL_ID: "synthetic-approval",
+    });
+
+    expect(missing.errors).toContain("Production requires RESEND_API_KEY");
+    expect(malformed.errors).toContain("RESEND_API_KEY has an invalid format");
+  });
+
   it("rejects arbitrary Production targets and every Firebase emulator variable", () => {
     const wrongTarget = validate({
       APP_ENV: "production",
