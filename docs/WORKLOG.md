@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Alerted on completion-observed outbox dead letters
+**Phase:** Phase 3 reliable-side-effect/Cron foundation; broad atomic-outbox checklist remains open
+**Labels/environment:** [LOCAL] inert response classification, synthetic tests, documentation, static analysis, and build only
+**Data impact:** none; no route, database/provider singleton or call, migration, environment key, fixture, remote, or customer-data action
+**Target:** local `refactor`; Production Supabase remains unregistered/null and the protected TEST operator DSN is absent
+**Expected reads/writes/rows:** verification made 0 DB/Auth/provider calls and 0 writes. Future invocation bounds are unchanged: 1 claim transaction selecting at most 5 candidates, at most 5 provider attempts and 5 one-row completions for returned sending rows, at most 10 transitions; claim-time terminal rows can be omitted from the summary.
+**Done:** Commit `7eba5e2` makes a completion-observed `dead_letter` return fixed PII-free 503 `OUTBOX_DELIVERY_DEAD_LETTERED`, with precedence completion uncertainty > dead letter > renderer fault > success. Tests prove terminal renderer exhaustion, exact headers/body, inconsistent-summary rejection, and ordinary retry 200. Operations now records claim-time/historical undercount. No masterplan item was ticked.
+**Verified/reconciled:** focused 2 files/55 tests; full format/static SQL/lint/TS7/TS6, 117 files/1,573 tests, both 56-test timezone runs, production build, and dependency audit (0 high/critical; 6 documented Firebase-Admin-chain moderate records) pass. Three independent final reviews found no P1/P2. Prior renderer-fault head passed all six CI jobs, including two clean database cycles, in run `29123709932`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `7eba5e2`; no external recovery is required
+**Next:** Commit this handoff, push, and green replacement CI. Then run the guarded 37-migration TEST checkpoint if the exact protected session-pooler DSN is available; otherwise add a pure fail-closed outbox activation-readiness contract that cannot pass until claim-time disposition counts, bounded historical dead-letter monitoring, the persisted 24-hour retry cutoff, newsletter snapshot/version prerequisites, and TEST checkpoint evidence are explicit—without adding a route, singleton, migration, or renderer registration.
+**Gotchas:** This 503 observes only dead letters returned by fenced completion. Claim SQL can dead-letter up to its candidate limit for `AGGREGATE_STATE_STALE`/`LEASE_EXPIRED` and omit them, while historical dead letters are not queried; 200, zero counters, and `budgetReached: false` are not queue-health proof. Cron activation remains blocked.
+
 ## 2026-07-10 — Made renderer operational faults recoverable and alerting
 **Phase:** Phase 3 reliable-side-effect/newsletter foundation; broad outbox and newsletter checklist items remain open
 **Labels/environment:** [LOCAL] server-only contracts, synthetic tests, static analysis, and build only
