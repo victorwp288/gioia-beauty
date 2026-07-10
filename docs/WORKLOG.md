@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added inactive verified Resend webhook boundary
+**Phase:** Phase 3 reliable-side-effect foundation; broad outbox checklist item remains open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; no database, Auth, fixture, provider, schema, or remote call
+**Target:** local `refactor`; webhook side effects remain disabled because no Production Supabase target is registered
+**Expected reads/writes/rows:** verification performed 0 database/provider operations. A rejected request performs 0 database work. A future enabled verified request makes 1 transaction and 1 private-function call returning exactly 1 row; it touches at most 1 webhook event, 1 outbox, 1 subscriber, and 1 audit row, with at most 5 row mutations. An already-processed exact replay writes 0 rows.
+**Done:** Commit `aa5ef5c` adds a 32 KiB raw-body boundary, exact pinned-Svix verification, five-minute freshness enforcement, PII-reducing event mapping, payload hashing, replay-deduplicated persistence, redacted responses, and fail-closed Production activation gates.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6/build and 778 tests pass; independent security/code/acceptance reviews report no blockers. Prior head `b3770c8` passed all six CI jobs, including two clean 342-assertion database cycles, in run `29077228922`; replacement CI and its dependency-audit lane are pending.
+**Production actions performed:** none; no Firebase, Supabase, Vercel, DNS, Resend, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `aa5ef5c`; provider registration and Production environment remain unchanged
+**Next:** Push and green replacement CI, then implement the migration-free owner outbox retry boundary against the existing reviewed SQL command. Keep Cron activation, newsletter rendering, retry-age enforcement, dead-letter alerting, migration 38, and TEST credit blocked until the exact 37-migration TEST checkpoint and required contract evidence.
+**Gotchas:** Only delivered/bounced/complained are stateful; failed/suppressed/delayed require a later schema/state policy. Provider registration and Production secrets/flags/deployment remain separately approved Production actions, and permanent signed 400/409 retry handling is a launch policy/alerting gate.
+
 ## 2026-07-10 — Added inactive bounded email-outbox worker foundation
 **Phase:** Phase 3 reliable-side-effect foundation; broad outbox checklist item remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
