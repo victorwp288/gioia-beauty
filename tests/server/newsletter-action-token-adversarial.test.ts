@@ -270,5 +270,13 @@ describe("newsletter action-token adversarial boundary", () => {
       expect(source).not.toMatch(/export const .*TokenCodec\s*=/);
       expect(source).not.toMatch(/VerifiedNewsletter|parseVerifiedNewsletter/);
     }
+    const codecSource = readFileSync(
+      resolve("lib/server/newsletterActionToken.ts"),
+      "utf8",
+    );
+    expect(codecSource).toContain("safeParseNewsletterActionTokenWire");
+    expect(codecSource).not.toMatch(
+      /HEADER_PATTERN|MAX_TOKEN_BYTES|input\.token\.trim|input\.token\.split/,
+    );
   });
 });

@@ -1,11 +1,11 @@
 import "server-only";
 
+import { isNewsletterActionTokenKeyId } from "@/lib/domain/schemas/subscriber-tokens.ts";
+
 const MAX_CONFIGURED_KEYS = 3;
 const SECRET_BYTES = 32;
 const BASE64URL_256_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const MISSING_DATA_PROPERTY = Symbol("missing-data-property");
-
-export const NEWSLETTER_ACTION_KEY_ID_PATTERN = /^[A-Za-z0-9_]{1,16}$/;
 
 export interface NewsletterActionTokenKeyConfiguration {
   id: string;
@@ -115,8 +115,7 @@ function decodeKeyring(
     const id = ownDataProperty(candidate, "id");
     const secret = ownDataProperty(candidate, "secret");
     if (
-      typeof id !== "string" ||
-      !NEWSLETTER_ACTION_KEY_ID_PATTERN.test(id) ||
+      !isNewsletterActionTokenKeyId(id) ||
       identifiers.has(id) ||
       secret === MISSING_DATA_PROPERTY
     ) {

@@ -61,8 +61,8 @@ describe("subscriber boundaries", () => {
     ).toBe(false);
   });
 
-  it("requires a signed unsubscribe token rather than an email", () => {
-    const token = `${"a".repeat(20)}.${"b".repeat(20)}.${"c".repeat(20)}`;
+  it("requires an exact unsubscribe token wire rather than an email", () => {
+    const token = `n1-test.AAAA.${"A".repeat(43)}`;
     expect(PublicUnsubscribeCommandSchema.safeParse({ token }).success).toBe(
       true,
     );

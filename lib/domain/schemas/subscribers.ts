@@ -11,9 +11,9 @@ import {
   IsoInstantSchema,
   NormalizedEmailSchema,
   PositiveVersionSchema,
-  SignedActionTokenSchema,
   UuidSchema,
 } from "./primitives.ts";
+import { NewsletterActionTokenWireSchema } from "./subscriber-tokens.ts";
 
 export const SubscriberStatusSchema = z.enum([
   "legacy_unverified",
@@ -168,9 +168,13 @@ export const PublicSubscribeCommandSchema = z
   })
   .strict();
 
-export const SignedUnsubscribeTokenSchema = SignedActionTokenSchema;
+export const NewsletterUnsubscribeTokenWireSchema =
+  NewsletterActionTokenWireSchema;
+/** @deprecated Structural wire only; use NewsletterUnsubscribeTokenWireSchema. */
+export const SignedUnsubscribeTokenSchema =
+  NewsletterUnsubscribeTokenWireSchema;
 export const PublicUnsubscribeCommandSchema = z
-  .object({ token: SignedUnsubscribeTokenSchema })
+  .object({ token: NewsletterUnsubscribeTokenWireSchema })
   .strict();
 
 export const AdminSetSubscriberStatusCommandSchema = z

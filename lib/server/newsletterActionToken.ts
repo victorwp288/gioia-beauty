@@ -8,11 +8,12 @@ import type { z } from "zod";
 import {
   NewsletterActionClaimsSchema,
   NewsletterActionPurposeSchema,
+  isNewsletterActionTokenKeyId,
   parseTimeBoundNewsletterActionClaims,
+  safeParseNewsletterActionTokenWire,
   type NewsletterActionClaims,
 } from "@/lib/domain/schemas/subscriber-tokens.ts";
 import {
-  NEWSLETTER_ACTION_KEY_ID_PATTERN,
   decodeNewsletterActionTokenKeyring,
   newsletterActionTokenKeyWithId,
   type NewsletterActionTokenCodecConfiguration,
@@ -26,11 +27,8 @@ export {
 
 const FORMAT_PREFIX = "n1-";
 const MAC_CONTEXT = "gioia:newsletter-action:v1\0";
-const MAX_TOKEN_BYTES = 512;
 const SIGNATURE_BYTES = 32;
 const BASE64URL_256_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-const BASE64URL_PAYLOAD_PATTERN = /^[A-Za-z0-9_-]+$/;
-const HEADER_PATTERN = /^n1-([A-Za-z0-9_]{1,16})$/;
 const FATAL_UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 declare const authenticatedNewsletterActionClaimsBrand: unique symbol;
 
@@ -154,8 +152,6 @@ function parsedVerifiedClaims(
   expectedPurpose: NewsletterActionPurpose,
   now: Date,
 ): NewsletterActionClaims | null {
-  if (!BASE64URL_PAYLOAD_PATTERN.test(encodedPayload)) return null;
-
   let rawPayload: string;
   let payload: unknown;
   try {
@@ -204,7 +200,7 @@ export function createNewsletterActionTokenCodec(
         !input ||
         !(input.now instanceof Date) ||
         typeof input.signingKeyId !== "string" ||
-        !NEWSLETTER_ACTION_KEY_ID_PATTERN.test(input.signingKeyId)
+        !isNewsletterActionTokenKeyId(input.signingKeyId)
       ) {
         throw new NewsletterActionTokenInputError();
       }
@@ -222,44 +218,33 @@ export function createNewsletterActionTokenCodec(
         signingKey.secret,
       ).toString("base64url");
       const token = `${header}.${payload}.${signature}`;
-      if (Buffer.byteLength(token, "utf8") > MAX_TOKEN_BYTES) {
-        throw new NewsletterActionTokenInputError();
-      }
-      return token;
+      const wire = safeParseNewsletterActionTokenWire(token);
+      if (!wire) throw new NewsletterActionTokenInputError();
+      return wire.token;
     },
 
     verify(input: VerifyNewsletterActionTokenInput) {
       if (
         !input ||
         !(input.now instanceof Date) ||
-        !NewsletterActionPurposeSchema.safeParse(input.expectedPurpose)
-          .success ||
-        typeof input.token !== "string" ||
-        Buffer.byteLength(input.token, "utf8") > MAX_TOKEN_BYTES ||
-        input.token.trim() !== input.token
+        !NewsletterActionPurposeSchema.safeParse(input.expectedPurpose).success
       ) {
         return INVALID_TOKEN;
       }
 
-      const segments = input.token.split(".");
-      if (segments.length !== 3) return INVALID_TOKEN;
-      const [header, payload, encodedActualSignature] = segments;
-      if (!header || !payload || !encodedActualSignature) {
-        return INVALID_TOKEN;
-      }
-      const headerMatch = header.match(HEADER_PATTERN);
-      if (!headerMatch) return INVALID_TOKEN;
+      const wire = safeParseNewsletterActionTokenWire(input.token);
+      if (!wire) return INVALID_TOKEN;
 
-      const actualSignature = decodedSignature(encodedActualSignature);
+      const actualSignature = decodedSignature(wire.encodedSignature);
       if (!actualSignature) return INVALID_TOKEN;
       const verificationKey = newsletterActionTokenKeyWithId(
         keyring,
-        headerMatch[1] ?? "",
+        wire.keyId,
       );
       if (!verificationKey) return INVALID_TOKEN;
       const expectedSignature = tokenSignature(
-        header,
-        payload,
+        wire.header,
+        wire.encodedPayload,
         verificationKey.secret,
       );
       if (
@@ -270,7 +255,7 @@ export function createNewsletterActionTokenCodec(
       }
 
       const claims = parsedVerifiedClaims(
-        payload,
+        wire.encodedPayload,
         input.expectedPurpose,
         input.now,
       );

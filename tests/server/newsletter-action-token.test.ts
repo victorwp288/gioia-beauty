@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import {
   PublicUnsubscribeCommandSchema,
   SignedActionTokenSchema,
+  safeParseNewsletterActionTokenWire,
 } from "@/lib/domain/schemas/index.ts";
 import { NewsletterActionTokenInputError } from "@/lib/server/newsletterActionToken.ts";
 
@@ -139,32 +140,62 @@ describe("newsletter action-token codec", () => {
 
   it("accepts exact clock/lifetime/version bounds", () => {
     const issuedAt = new Date(NOW.getTime() + 5 * 60_000);
-    const expiresAt = new Date(issuedAt.getTime() + 30 * 24 * 60 * 60_000);
-    for (const subscriberVersion of [1, 2_147_483_647]) {
-      const token = codec().issue({
-        claims: {
-          ...CLAIMS,
-          subscriberVersion,
-          issuedAt: issuedAt.toISOString(),
-          expiresAt: expiresAt.toISOString(),
-        },
-        signingKeyId: PRIMARY_KEY.id,
-        now: NOW,
-      });
-      expect(verify(token, "newsletter_confirm", NOW).ok).toBe(true);
+    const cases = [
+      ["newsletter_confirm", 24 * 60 * 60_000],
+      ["newsletter_unsubscribe", 1],
+      ["newsletter_unsubscribe", 30 * 24 * 60 * 60_000],
+    ] as const;
+    for (const [purpose, lifetime] of cases) {
+      for (const subscriberVersion of [1, 2_147_483_647]) {
+        const token = codec().issue({
+          claims: {
+            ...CLAIMS,
+            purpose,
+            subscriberVersion,
+            issuedAt: issuedAt.toISOString(),
+            expiresAt: new Date(issuedAt.getTime() + lifetime).toISOString(),
+          },
+          signingKeyId: PRIMARY_KEY.id,
+          now: NOW,
+        });
+        expect(verify(token, purpose, NOW).ok).toBe(true);
+      }
     }
   });
 
   it.each([
-    ["future skew", { issuedAt: "2026-07-09T12:05:00.001Z" }],
-    ["overlong lifetime", { expiresAt: "2026-08-08T10:00:00.001Z" }],
+    [
+      "future skew",
+      {
+        issuedAt: "2026-07-09T12:05:00.001Z",
+        expiresAt: "2026-07-10T12:05:00.001Z",
+      },
+    ],
+    ["short confirmation", { expiresAt: "2026-07-10T09:59:59.999Z" }],
+    ["long confirmation", { expiresAt: "2026-07-10T10:00:00.001Z" }],
+    [
+      "zero unsubscribe lifetime",
+      { purpose: "newsletter_unsubscribe", expiresAt: CLAIMS.issuedAt },
+    ],
+    [
+      "negative unsubscribe lifetime",
+      {
+        purpose: "newsletter_unsubscribe",
+        expiresAt: "2026-07-09T09:59:59.999Z",
+      },
+    ],
+    [
+      "overlong unsubscribe lifetime",
+      {
+        purpose: "newsletter_unsubscribe",
+        expiresAt: "2026-08-08T10:00:00.001Z",
+      },
+    ],
     ["zero version", { subscriberVersion: 0 }],
     ["fractional version", { subscriberVersion: 1.5 }],
     ["overflow version", { subscriberVersion: 2_147_483_648 }],
     ["NaN version", { subscriberVersion: Number.NaN }],
     ["infinite version", { subscriberVersion: Number.POSITIVE_INFINITY }],
-    ["zero lifetime", { expiresAt: CLAIMS.issuedAt }],
-    ["negative lifetime", { expiresAt: "2026-07-09T09:59:59.999Z" }],
   ] as const)("rejects invalid issue input: %s", (_label, change) => {
     expect(() =>
       codec().issue({
@@ -179,13 +210,49 @@ describe("newsletter action-token codec", () => {
     const future = rawClaims({
       ...CLAIMS,
       issuedAt: "2026-07-09T12:05:00.001Z",
+      expiresAt: "2026-07-10T12:05:00.001Z",
     });
-    const overlong = rawClaims({
+    const longConfirmation = rawClaims({
       ...CLAIMS,
+      expiresAt: "2026-07-10T10:00:00.001Z",
+    });
+    const longUnsubscribe = rawClaims({
+      ...CLAIMS,
+      purpose: "newsletter_unsubscribe",
       expiresAt: "2026-08-08T10:00:00.001Z",
     });
     expect(verify(signedRaw(future))).toEqual(INVALID);
-    expect(verify(signedRaw(overlong))).toEqual(INVALID);
+    expect(verify(signedRaw(longConfirmation))).toEqual(INVALID);
+    expect(
+      verify(signedRaw(longUnsubscribe), "newsletter_unsubscribe"),
+    ).toEqual(INVALID);
+  });
+
+  it("measures confirmation lifetime as absolute instants across DST", () => {
+    const claims = {
+      ...CLAIMS,
+      issuedAt: "2026-03-28T12:00:00.000+01:00",
+      expiresAt: "2026-03-29T13:00:00.000+02:00",
+    };
+    const now = new Date("2026-03-28T11:30:00.000Z");
+    const token = issue(claims, now);
+
+    expect(verify(token, "newsletter_confirm", now)).toEqual({
+      ok: true,
+      claims: {
+        ...claims,
+        issuedAt: "2026-03-28T11:00:00.000Z",
+        expiresAt: "2026-03-29T11:00:00.000Z",
+      },
+    });
+  });
+
+  it("keeps structural wire parsing separate from authentication", () => {
+    const fabricated = `n1-primary_1.AA.${"A".repeat(43)}`;
+    expect(safeParseNewsletterActionTokenWire(fabricated)?.token).toBe(
+      fabricated,
+    );
+    expect(verify(fabricated)).toEqual(INVALID);
   });
 
   it("rejects expiry equality, invalid clocks, and post-skew verification", () => {
