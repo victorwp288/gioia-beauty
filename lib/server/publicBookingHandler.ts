@@ -21,7 +21,9 @@ import {
 } from "./publicApiResponse.ts";
 
 const MAX_BOOKING_BODY_BYTES = 8 * 1_024;
+const MAX_CONTENT_TYPE_BYTES = 64;
 const MAX_IDEMPOTENCY_HEADER_BYTES = 128;
+const MAX_ORIGIN_BYTES = 512;
 const PublicBookingBodySchema = PublicBookingCommandSchema.omit({
   idempotencyKey: true,
 });
@@ -80,9 +82,18 @@ export interface PublicBookingHandlerDependencies {
 
 function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
-  if (!origin) return true;
+  if (origin === null) return true;
+  if (
+    origin.trim() !== origin ||
+    Buffer.byteLength(origin, "utf8") > MAX_ORIGIN_BYTES
+  ) {
+    return false;
+  }
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const parsed = new URL(origin);
+    return (
+      origin === parsed.origin && parsed.origin === new URL(request.url).origin
+    );
   } catch {
     return false;
   }
@@ -96,11 +107,14 @@ function declaredBodyLength(request: Request): number | null {
 }
 
 async function readBookingBody(request: Request) {
-  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
-  const mediaType = contentType.split(";", 1)[0]?.trim();
+  const contentType = request.headers.get("content-type") ?? "";
+  const contentEncoding = request.headers.get("content-encoding");
   if (
-    Buffer.byteLength(contentType, "utf8") > 256 ||
-    mediaType !== "application/json"
+    Buffer.byteLength(contentType, "utf8") > MAX_CONTENT_TYPE_BYTES ||
+    !/^application\/json(?:;\s*charset=utf-8)?$/i.test(contentType) ||
+    (contentEncoding !== null &&
+      (contentEncoding.trim() !== contentEncoding ||
+        contentEncoding.toLowerCase() !== "identity"))
   ) {
     return { ok: false as const, status: 415, code: "UNSUPPORTED_MEDIA_TYPE" };
   }
@@ -113,19 +127,43 @@ async function readBookingBody(request: Request) {
     return { ok: false as const, status: 413, code: "PAYLOAD_TOO_LARGE" };
   }
 
-  let rawBody: string;
-  try {
-    rawBody = await request.text();
-  } catch {
+  const reader = request.body?.getReader();
+  if (!reader) {
     return { ok: false as const, status: 400, code: "INVALID_JSON" };
   }
-  if (Buffer.byteLength(rawBody, "utf8") > MAX_BOOKING_BODY_BYTES) {
-    return { ok: false as const, status: 413, code: "PAYLOAD_TOO_LARGE" };
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_BOOKING_BODY_BYTES) {
+        try {
+          await reader.cancel();
+        } catch {
+          // The size failure is authoritative even if cleanup fails.
+        }
+        return { ok: false as const, status: 413, code: "PAYLOAD_TOO_LARGE" };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false as const, status: 400, code: "INVALID_JSON" };
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
   }
 
   let body: unknown;
   try {
-    body = JSON.parse(rawBody);
+    body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
   } catch {
     return { ok: false as const, status: 400, code: "INVALID_JSON" };
   }
@@ -147,6 +185,9 @@ export function createPublicBookingPostHandler({
     if (!sameOrigin(request)) {
       return apiErrorResponse(403, "FORBIDDEN_ORIGIN", requestId);
     }
+    if (new URL(request.url).search !== "") {
+      return apiErrorResponse(400, "INVALID_REQUEST", requestId);
+    }
 
     const rawIdempotencyKey = request.headers.get("idempotency-key");
     if (!rawIdempotencyKey) {
@@ -159,7 +200,10 @@ export function createPublicBookingPostHandler({
       return apiErrorResponse(400, "INVALID_IDEMPOTENCY_KEY", requestId);
     }
     const idempotencyResult = IdempotencyKeySchema.safeParse(rawIdempotencyKey);
-    if (!idempotencyResult.success) {
+    if (
+      !idempotencyResult.success ||
+      idempotencyResult.data !== rawIdempotencyKey
+    ) {
       return apiErrorResponse(400, "INVALID_IDEMPOTENCY_KEY", requestId);
     }
 
