@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Enforced the client/server source boundary
+**Phase:** Phase 3 server-adapter/browser-secret isolation foundation; actual adapter completion and TEST/bundle proof remain open
+**Labels/environment:** [LOCAL] source cleanup, static architecture analysis, unit/static/build verification only
+**Data impact:** none; deleted two verified-unimported client modules and browser-inapplicable process hooks, with no route, schema, migration, Auth, fixture, email, provider, environment, or remote call
+**Target:** local `refactor`; no TEST or Production target
+**Expected reads/writes/rows:** analyzer makes bounded read-only repository source/config reads; runtime and verification perform 0 DB/Auth/provider/network operations, 0 writes, and 0 rows
+**Done:** Commits `7d97b87` and `71a0b04` remove a dead broken direct-Firestore subscribe form, an unimported broken loading module, and Node signal handlers from client-reachable caches; add a transitive TypeScript-AST client graph guard for directives/`lib/client`/`client-only`, runtime imports/re-exports/dynamic loaders, exact local resolution, server/API paths, privileged packages, reviewed env keys, database `server-only` sentinels, parse errors, symlinks, and deterministic chains.
+**Verified/reconciled:** 3 focused files/102 tests; full format/static SQL/lint/TS7/TS6, 95 files/1,271 tests, and production build pass. Three independent re-reviews found no P1/P2 after terminal assets, all `node:`/Next server spellings, computed/aliased globals, Windows paths, root discovery, `.mts`/`.cts`, false positives, and sub-300-line modularity were covered. `npm audit --audit-level=high` remains 0 high/critical with the 6 documented Firebase-Admin moderate records; local Gitleaks binary is unavailable, so replacement CI must supply secret-scan evidence.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Sentry, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `71a0b04` then `7d97b87`; no external recovery is required
+**Next:** Push and green all six CI jobs. If the exact TEST session-pooler DSN becomes available, run the guarded 37-migration two-cycle checkpoint before migration 38; otherwise implement the inert PII-safe structured observability core with no DSN/provider activation and keep the broad checklist item open.
+**Gotchas:** Source-graph evidence is not built-bundle proof, so Phase 3's server-adapter and observability items remain unchecked. The new guard intentionally fails if its prerequisite cleanup commit is omitted. Reliable visual baselines still require local Firebase emulators, Java, deterministic fixtures, and a remote-request firewall.
+
 ## 2026-07-10 — Bound newsletter token wire and purpose policy
 **Phase:** Phase 3 newsletter/double-opt-in server foundation; persistence, rendering, routes, and end-to-end confirmation remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
