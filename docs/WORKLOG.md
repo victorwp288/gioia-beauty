@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added PII-safe API observability boundaries
+**Phase:** Phase 3 minimal observability foundation; the broad Sentry/alerts checklist item remains open
+**Labels/environment:** [LOCAL] server implementation, environment validation, static/unit/build verification only
+**Data impact:** none; no schema, migration, Auth, fixture, email, provider, remote, or customer-data action
+**Target:** local `refactor`; provider capture is deliberately `null` and no TEST or Production target was used
+**Expected reads/writes/rows:** observation performs 0 DB/Auth/provider/network operations and 0 rows; each valid request creates 1 local UUID, reads a monotonic clock twice, and can emit 1 fixed JSONL completion line only when transport is exactly `console`; an uncaught throw can emit 1 additional fixed surrogate-error line
+**Done:** Commits `0383fda` and `05d26ca` add strict fixed-shape route/error contracts, fail-open sync/async observation, trusted console composition, unconditional rejection of unregistered Sentry variables, and one exact static label around every current API method (20/20) without inspecting requests/responses or forwarding original errors.
+**Verified/reconciled:** 8 focused files/113 tests; full format/static SQL/lint/TS7/TS6, 103 files/1,392 tests, both 56-test timezone runs, and production build pass. Three independent final reviews found no P1/P2; a built-client grep contains no observability/server identifiers. Current runtime audit is 0 high/critical with the 6 documented Firebase-Admin moderate records; local Gitleaks remains unavailable, so CI must supply secret/history evidence.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Sentry, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `05d26ca` then `0383fda`; no external recovery is required
+**Next:** Push and green all six CI jobs. If the exact TEST session-pooler DSN becomes available, run the guarded 37-migration two-cycle checkpoint before migration 38; otherwise begin the Phase 3 pre-cutover privacy package with a field/table/log/backup retention matrix and executable synthetic access/deletion contracts.
+**Gotchas:** Provider capture stays inert until a reviewed Sentry TEST target exists; returned/caught 503s produce only a completion metric, while only uncaught throws produce the fixed surrogate-error event. Sink adapters are trusted synchronous code, and the broad masterplan item remains unchecked.
+
 ## 2026-07-10 — Enforced the client/server source boundary
 **Phase:** Phase 3 server-adapter/browser-secret isolation foundation; actual adapter completion and TEST/bundle proof remain open
 **Labels/environment:** [LOCAL] source cleanup, static architecture analysis, unit/static/build verification only
