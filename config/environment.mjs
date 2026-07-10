@@ -185,6 +185,24 @@ function validateBookingSecurity(appEnv, env, errors) {
   }
 }
 
+function validateOwnerSessionSecurity(appEnv, env, errors) {
+  const secret = env.OWNER_SESSION_HMAC_SECRET;
+  if (secret === undefined) {
+    if (appEnv !== "local" && appEnv !== "test") {
+      errors.push(`${appEnv} requires OWNER_SESSION_HMAC_SECRET`);
+    }
+    return;
+  }
+
+  if (
+    secret.trim() !== secret ||
+    secret.includes("\0") ||
+    Buffer.byteLength(secret, "utf8") < 32
+  ) {
+    errors.push("OWNER_SESSION_HMAC_SECRET must contain at least 32 bytes");
+  }
+}
+
 function validateVercelScope(appEnv, env, errors) {
   const expected = {
     local: new Set([undefined, "development"]),
@@ -320,6 +338,7 @@ export function validateEnvironment(env, { command = "application" } = {}) {
 
   validatePublicVariables(env, errors);
   validateBookingSecurity(appEnv, env, errors);
+  validateOwnerSessionSecurity(appEnv, env, errors);
   validateVercelScope(appEnv, env, errors);
 
   if (command === "test" && appEnv !== "test") {

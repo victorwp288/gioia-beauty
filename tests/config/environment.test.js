@@ -24,6 +24,8 @@ function previewEnvironment(overrides = {}) {
       `postgresql://app_runtime.${GREENFIELD_SUPABASE_REF}:` +
       "synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres",
     BOOKING_HMAC_SECRET: "synthetic-preview-booking-hmac-secret-000000000000",
+    OWNER_SESSION_HMAC_SECRET:
+      "synthetic-preview-owner-session-secret-000000000000",
     ...overrides,
   };
 }
@@ -116,6 +118,22 @@ describe("environment isolation", () => {
   it("rejects an explicitly empty local booking HMAC secret", () => {
     expect(validate({ BOOKING_HMAC_SECRET: "" }).errors).toContain(
       "BOOKING_HMAC_SECRET must contain at least 32 bytes",
+    );
+  });
+
+  it("requires strong server-only owner session binding material remotely", () => {
+    const missing = previewEnvironment({
+      OWNER_SESSION_HMAC_SECRET: undefined,
+    });
+    const short = previewEnvironment({
+      OWNER_SESSION_HMAC_SECRET: "too-short",
+    });
+
+    expect(validate(missing).errors).toContain(
+      "preview requires OWNER_SESSION_HMAC_SECRET",
+    );
+    expect(validate(short).errors).toContain(
+      "OWNER_SESSION_HMAC_SECRET must contain at least 32 bytes",
     );
   });
 
