@@ -307,6 +307,23 @@ changed_at          timestamptz not null
 
 This append-only, PII-minimized sequence provides an auditable high-water mark for rollback/reverse-sync. It does not replace database backups. Mutation functions write the domain row and change-log entry atomically.
 
+### Owner schedule read semantics
+
+Owner list and count requests cover at most 32 inclusive salon-local dates and
+apply the same optional kind/status filters. Lists use ascending keyset order
+`(local_date, start_minutes, id)`, fetch at most `page_size + 1` rows (maximum
+101), and authenticate the continuation against the exact filters and page
+size. A page is not complete month coverage while `nextCursor` is present; the
+dashboard must not derive later-day badges from a partial page or auto-drain an
+unbounded number of pages.
+
+Counts derive one filtered range total from at most six nonzero kind/status
+groups, with a seventh-row overrun sentinel. They are not an all-time metric or
+a per-day facet. List and count calls observe live state rather than a shared
+snapshot, so concurrent reschedules can move rows across a continuation; a UI
+refresh resets pagination. The future read migration must add an index matching
+the keyset order and prove the physical scan plan in TEST before activation.
+
 ### Migration evidence
 
 `migration_runs`, `migration_records`, and `migration_quarantine` are isolated to the `gioia_migrator` role. They record source-manifest hashes, one disposition per source ID, target/checksum evidence, aggregate reconciliation, and explicit quarantine reason codes without storing customer payloads. Imported target rows retain `legacy_firestore_id` and timestamp provenance.

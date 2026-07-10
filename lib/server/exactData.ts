@@ -46,6 +46,52 @@ export function exactDataObject(
   }
 }
 
+export function exactDataObjectWithOptionalKeys(
+  value: unknown,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[],
+): Readonly<Record<string, unknown>> | null {
+  try {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value) ||
+      types.isProxy(value)
+    ) {
+      return null;
+    }
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return null;
+    const required = new Set(requiredKeys);
+    const allowed = new Set([...requiredKeys, ...optionalKeys]);
+    const keys = Reflect.ownKeys(value);
+    if (
+      allowed.size !== requiredKeys.length + optionalKeys.length ||
+      keys.some((key) => typeof key !== "string" || !allowed.has(key)) ||
+      [...required].some((key) => !keys.includes(key))
+    ) {
+      return null;
+    }
+
+    const copy = Object.create(null) as Record<string, unknown>;
+    for (const key of keys as string[]) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+        return null;
+      }
+      Object.defineProperty(copy, key, {
+        value: descriptor.value,
+        enumerable: true,
+        writable: false,
+        configurable: false,
+      });
+    }
+    return Object.freeze(copy);
+  } catch {
+    return null;
+  }
+}
+
 export function exactDenseArray(
   value: unknown,
   minimumLength: number,

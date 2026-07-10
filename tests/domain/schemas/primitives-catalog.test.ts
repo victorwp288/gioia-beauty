@@ -44,7 +44,12 @@ describe("boundary primitives", () => {
 
   it("accepts only real salon dates and valid start minutes", () => {
     expect(SalonDateSchema.parse("2024-02-29")).toBe("2024-02-29");
-    for (const date of ["2025-02-29", "2026-7-09", "2026-07-09T00:00:00Z"]) {
+    for (const date of [
+      "0000-01-01",
+      "2025-02-29",
+      "2026-7-09",
+      "2026-07-09T00:00:00Z",
+    ]) {
       expect(SalonDateSchema.safeParse(date).success).toBe(false);
     }
     for (const minute of [-1, 1.5, 1440, Number.NaN]) {

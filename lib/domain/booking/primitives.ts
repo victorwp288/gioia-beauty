@@ -48,7 +48,7 @@ export function asSalonDate(value: unknown): SalonDate {
     throw new TypeError("salon date must be a string");
   }
   const match = ISO_DATE_PATTERN.exec(value);
-  if (!match) {
+  if (!match || match[1] === "0000") {
     throw new RangeError("salon date must use YYYY-MM-DD");
   }
 
