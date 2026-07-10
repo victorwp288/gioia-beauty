@@ -26,7 +26,7 @@
     "db:start:ci": "bash scripts/start-ci-database.sh",
     "db:health": "SUPABASE_TELEMETRY_DISABLED=1 supabase db query --local --output json 'select 1 as healthy'",
     "db:reset": "SUPABASE_TELEMETRY_DISABLED=1 supabase db reset --local",
-    "db:seed:replay": "SUPABASE_TELEMETRY_DISABLED=1 supabase db query --local --file supabase/seeds/00_synthetic.sql",
+    "db:seed:replay": "node scripts/replay-local-seed.mjs",
     "db:migrations": "SUPABASE_TELEMETRY_DISABLED=1 supabase migration list --local",
     "db:lint": "SUPABASE_TELEMETRY_DISABLED=1 supabase db lint --local --schema gioia_private --level warning --fail-on warning",
     "db:advisors": "SUPABASE_TELEMETRY_DISABLED=1 supabase db advisors --local --type all --level warn --fail-on warn",
