@@ -38,7 +38,8 @@ stop_monitors() {
 
 trap stop_monitors EXIT
 
-SUPABASE_TELEMETRY_DISABLED=1 supabase db start
+SUPABASE_TELEMETRY_DISABLED=1 supabase start \
+  --exclude edge-runtime,imgproxy,logflare,realtime,storage-api,vector
 start_status=$?
 
 if (( start_status == 0 )); then

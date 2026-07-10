@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   validateDatabaseTestSql,
   validateMigrationSql,
+  validateSeedSql,
 } from "../../scripts/check-supabase-sql.mjs";
 
 describe("Supabase SQL static validation", () => {
@@ -190,5 +191,34 @@ describe("Supabase SQL static validation", () => {
         (error) => error.includes("roll back"),
       ),
     ).toBe(true);
+  });
+
+  it("requires deterministic synthetic-only seed files", () => {
+    const safe = [
+      "-- Deterministic synthetic fixture.",
+      "begin;",
+      "insert into auth.users (id, email)",
+      "values ('51000000-0000-4000-8000-000000000001', 'owner@gioia.test')",
+      "on conflict (id) do update set email = excluded.email;",
+      "commit;",
+    ].join("\n");
+    const unsafe = [
+      "begin;",
+      "insert into auth.users (email, encrypted_password)",
+      "values ('owner@example.com', crypt('plaintext', gen_salt('bf')));",
+      "commit;",
+    ].join("\n");
+
+    expect(validateSeedSql("00_synthetic.sql", safe)).toEqual([]);
+    expect(validateSeedSql("seed.sql", unsafe)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("filename"),
+        expect.stringContaining("synthetic"),
+        expect.stringContaining("idempotent"),
+        expect.stringContaining("fixed test hash"),
+        expect.stringContaining("fixed bcrypt test hash"),
+        expect.stringContaining("reserved .test"),
+      ]),
+    );
   });
 });
