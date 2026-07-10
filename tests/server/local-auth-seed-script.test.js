@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  LOCAL_DISABLED_SIGNUP_PROBE,
   LOCAL_SYNTHETIC_OWNER,
   parseLocalAuthStatus,
 } from "../../scripts/test-local-auth-seed.mjs";
@@ -14,6 +15,13 @@ describe("local synthetic Auth seed smoke test", () => {
     );
     expect(LOCAL_SYNTHETIC_OWNER.email.endsWith(".test")).toBe(true);
     expect(LOCAL_SYNTHETIC_OWNER.password.length).toBeGreaterThanOrEqual(12);
+    expect(LOCAL_DISABLED_SIGNUP_PROBE.email.endsWith(".test")).toBe(true);
+    expect(LOCAL_DISABLED_SIGNUP_PROBE.email).not.toBe(
+      LOCAL_SYNTHETIC_OWNER.email,
+    );
+    expect(LOCAL_DISABLED_SIGNUP_PROBE.password.length).toBeGreaterThanOrEqual(
+      12,
+    );
   });
 
   it("uses the current capture-only local SMTP configuration", () => {

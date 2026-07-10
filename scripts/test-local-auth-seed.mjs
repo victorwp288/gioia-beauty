@@ -11,6 +11,10 @@ export const LOCAL_SYNTHETIC_OWNER = Object.freeze({
   email: "owner.local@gioia.test",
   password: "GioiaLocal1!NotSecret", // gitleaks:allow
 });
+export const LOCAL_DISABLED_SIGNUP_PROBE = Object.freeze({
+  email: "signup-disabled.local@gioia.test",
+  password: "GioiaSignup1!NotSecret", // gitleaks:allow
+});
 const supabaseBinary = path.join(
   process.cwd(),
   "node_modules",
@@ -54,9 +58,23 @@ export function parseLocalAuthStatus(status) {
   return { apiUrl, publishableKey };
 }
 
-async function responseJson(response, operation) {
+async function responseObject(response, operation) {
   const payload = await response.json().catch(() => null);
-  if (!response.ok || payload === null || typeof payload !== "object") {
+  if (
+    payload === null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
+    throw new Error(
+      `Local Auth ${operation} returned a non-object response with status ${response.status}`,
+    );
+  }
+  return payload;
+}
+
+async function responseJson(response, operation) {
+  const payload = await responseObject(response, operation);
+  if (!response.ok) {
     const candidate = payload?.error_code ?? payload?.code;
     const safeCode =
       typeof candidate === "string" && /^[a-z0-9_]{1,64}$/u.test(candidate)
@@ -67,6 +85,36 @@ async function responseJson(response, operation) {
     );
   }
   return payload;
+}
+
+async function verifyPublicSignupDisabled(apiUrl, publishableKey) {
+  const headers = { apikey: publishableKey };
+  const settingsResponse = await fetch(new URL("/auth/v1/settings", apiUrl), {
+    headers,
+    signal: AbortSignal.timeout(10_000),
+  });
+  const settings = await responseJson(settingsResponse, "settings lookup");
+  if (settings.disable_signup !== true || settings.external?.email !== true) {
+    throw new Error("Local Auth signup/provider settings are unsafe");
+  }
+
+  const signupResponse = await fetch(new URL("/auth/v1/signup", apiUrl), {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(LOCAL_DISABLED_SIGNUP_PROBE),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const signup = await responseObject(signupResponse, "disabled signup");
+  const code = signup.error_code ?? signup.code;
+  if (signupResponse.status !== 422 || code !== "signup_disabled") {
+    const safeCode =
+      typeof code === "string" && /^[a-z0-9_]{1,64}$/u.test(code)
+        ? ` (${code})`
+        : "";
+    throw new Error(
+      `Local Auth accepted or misclassified disabled signup with status ${signupResponse.status}${safeCode}`,
+    );
+  }
 }
 
 async function getLocalAuthStatus() {
@@ -84,6 +132,7 @@ async function getLocalAuthStatus() {
 
 async function verifySeededOwnerLogin() {
   const { apiUrl, publishableKey } = await getLocalAuthStatus();
+  await verifyPublicSignupDisabled(apiUrl, publishableKey);
   const tokenUrl = new URL("/auth/v1/token?grant_type=password", apiUrl);
   const signInResponse = await fetch(tokenUrl, {
     method: "POST",
@@ -142,7 +191,9 @@ async function verifySeededOwnerLogin() {
     );
   }
 
-  process.stdout.write("Synthetic local owner password login passed.\n");
+  process.stdout.write(
+    "Synthetic local signup denial and owner password login passed.\n",
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
