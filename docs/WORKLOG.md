@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Added constant read-free liveness endpoint
+**Phase:** Phase 3 observability foundation; combined Sentry/logging/metrics/health checklist item remains open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; no database, Auth, provider, schema, fixture, or remote call
+**Target:** local `refactor`; no remote or Production target
+**Expected reads/writes/rows:** each `GET /api/health` performs 0 database/Auth/provider/network reads, 0 writes, and 0 rows; it returns one constant response
+**Done:** Commit `324efae` adds a dynamic Node liveness route with strict `{status:"ok"}` output, no request/environment/build metadata, shared hardened no-store headers, noindex, direct-schema validation, focused tests, and explicit liveness-not-readiness operations guidance.
+**Verified/reconciled:** format/static SQL/lint/TS7/TS6, 79 files/781 tests, and an isolated production build pass; build lists `/api/health` as dynamic. Independent security/acceptance reviews report no blockers. Exact prior webhook head `1c03b6e` passed all six CI jobs, dependency/secret checks, and both clean 342-assertion database cycles in run `29078531360`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Vercel, DNS, Resend, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `324efae`; no external state exists
+**Next:** Push and green replacement CI, then reconcile `docs/API-INVENTORY.md` with all 19 current route modules and add a coverage test. After that, replace the public booking handler's unbounded `request.text()` buffering with the reviewed streamed 8 KiB/fatal-UTF-8/identity-encoding/query-free boundary.
+**Gotchas:** A 200 proves only Next.js process liveness, never database/Auth/provider/migration/queue/restore readiness. Sentry, PII-safe structured logging, and route metrics remain separate work. Manual outbox retry must remain Production-disabled until a post-checkpoint migration enforces the 24-hour provider-idempotency stop.
+
 ## 2026-07-10 — Added inactive verified Resend webhook boundary
 **Phase:** Phase 3 reliable-side-effect foundation; broad outbox checklist item remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
