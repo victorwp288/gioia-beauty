@@ -215,6 +215,17 @@ function validateProductionEmail(env, errors) {
   ) {
     errors.push("RESEND_API_KEY has an invalid format");
   }
+  if (env.EMAIL_WEBHOOK_ENABLED !== "true") {
+    errors.push("Production requires EMAIL_WEBHOOK_ENABLED=true");
+  }
+  if (!hasValue(env.RESEND_WEBHOOK_SECRET)) {
+    errors.push("Production requires RESEND_WEBHOOK_SECRET");
+  } else if (
+    env.RESEND_WEBHOOK_SECRET.trim() !== env.RESEND_WEBHOOK_SECRET ||
+    !/^whsec_[A-Za-z0-9+/_=-]{32,256}$/.test(env.RESEND_WEBHOOK_SECRET)
+  ) {
+    errors.push("RESEND_WEBHOOK_SECRET has an invalid format");
+  }
 }
 
 function validateVercelScope(appEnv, env, errors) {
@@ -311,6 +322,7 @@ function validateIsolatedEnvironment(appEnv, env, errors) {
     "FIREBASE_SERVICE_ACCOUNT",
     "FIREBASE_SERVICE_ACCOUNT_PATH",
     "RESEND_API_KEY",
+    "RESEND_WEBHOOK_SECRET",
     "SUPABASE_ACCESS_TOKEN",
     "SUPABASE_DB_PASSWORD",
     "VERCEL_TOKEN",
@@ -320,6 +332,14 @@ function validateIsolatedEnvironment(appEnv, env, errors) {
 
   if (env.EMAIL_TRANSPORT !== "fake") {
     errors.push(`EMAIL_TRANSPORT must be fake in ${appEnv}`);
+  }
+  if (env.EMAIL_WEBHOOK_ENABLED === "true") {
+    errors.push(`EMAIL_WEBHOOK_ENABLED must not enable webhooks in ${appEnv}`);
+  } else if (
+    env.EMAIL_WEBHOOK_ENABLED !== undefined &&
+    env.EMAIL_WEBHOOK_ENABLED !== "false"
+  ) {
+    errors.push("EMAIL_WEBHOOK_ENABLED must be true or false");
   }
 
   if (appEnv === "local" || appEnv === "test") {

@@ -66,13 +66,20 @@ The `refactor` branch rejects this project in Local/Test/Preview and sink-disabl
 
 No Supabase project is Production-authoritative yet, and `APP_ENV=production` startup is intentionally rejected until one is registered in reviewed environment code. The greenfield project above may be promoted only through the approved rebuild/reset, backup/restore, migration-reconciliation, Vercel cutover, and immediate reclassification gates; otherwise a separately approved clean Production project must be used.
 
+Provider webhook signing material is Production-only. The replacement
+application requires `EMAIL_WEBHOOK_ENABLED=true` plus a server-only
+`RESEND_WEBHOOK_SECRET` only after a Production Supabase target is registered
+and the exact Resend endpoint/configuration action is approved. Until then the
+committed webhook route fails closed before reading its request body or opening
+a database transaction.
+
 ## Preview
 
-After Phase 1 isolation, serialized DB-aware Preview/E2E work may use the greenfield Supabase target above with synthetic fixtures and fake/non-delivering email. Preview must never resolve Firebase Production, real Resend credentials, or a Supabase environment containing customer data.
+After Phase 1 isolation, serialized DB-aware Preview/E2E work may use the greenfield Supabase target above with synthetic fixtures and fake/non-delivering email. Preview must never resolve Firebase Production, real Resend API/webhook credentials, or a Supabase environment containing customer data.
 
 ## Local and CI
 
 - Local: Docker Supabase, synthetic seed data, fake application email, and capture-only Auth mail.
 - Local server tests may connect as the disposable local `postgres` user only to enter a transaction and immediately `SET LOCAL ROLE app_runtime`; application queries execute with the same function-only grants used remotely.
 - CI: ephemeral local Supabase, deterministic fixtures, fake email adapter.
-- Neither environment may resolve the Production Supabase ref, Production Firebase project, or real Resend credentials.
+- Neither environment may resolve the Production Supabase ref, Production Firebase project, or real Resend API/webhook credentials.

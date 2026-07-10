@@ -84,13 +84,26 @@ describe("environment isolation", () => {
   it("rejects provider and service-account credentials outside Production", () => {
     const result = validate({
       RESEND_API_KEY: "synthetic-not-a-real-key",
+      RESEND_WEBHOOK_SECRET: `whsec_${"a".repeat(44)}`,
       GOOGLE_APPLICATION_CREDENTIALS: "/tmp/service-account.json",
     });
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("RESEND_API_KEY is forbidden in local");
     expect(result.errors).toContain(
+      "RESEND_WEBHOOK_SECRET is forbidden in local",
+    );
+    expect(result.errors).toContain(
       "GOOGLE_APPLICATION_CREDENTIALS is forbidden in local",
+    );
+  });
+
+  it("keeps provider webhooks disabled outside Production", () => {
+    expect(validate({ EMAIL_WEBHOOK_ENABLED: "true" }).errors).toContain(
+      "EMAIL_WEBHOOK_ENABLED must not enable webhooks in local",
+    );
+    expect(validate({ EMAIL_WEBHOOK_ENABLED: "sometimes" }).errors).toContain(
+      "EMAIL_WEBHOOK_ENABLED must be true or false",
     );
   });
 
@@ -210,12 +223,23 @@ describe("environment isolation", () => {
       APP_ENV: "production",
       VERCEL_ENV: "production",
       EMAIL_TRANSPORT: "resend",
+      EMAIL_WEBHOOK_ENABLED: "true",
       RESEND_API_KEY: "synthetic-invalid",
+      RESEND_WEBHOOK_SECRET: "whsec_invalid",
       GIOIA_PRODUCTION_APPROVAL_ID: "synthetic-approval",
     });
 
     expect(missing.errors).toContain("Production requires RESEND_API_KEY");
+    expect(missing.errors).toContain(
+      "Production requires EMAIL_WEBHOOK_ENABLED=true",
+    );
+    expect(missing.errors).toContain(
+      "Production requires RESEND_WEBHOOK_SECRET",
+    );
     expect(malformed.errors).toContain("RESEND_API_KEY has an invalid format");
+    expect(malformed.errors).toContain(
+      "RESEND_WEBHOOK_SECRET has an invalid format",
+    );
   });
 
   it("rejects arbitrary Production targets and every Firebase emulator variable", () => {
