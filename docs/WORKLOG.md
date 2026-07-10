@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-10 — Hardened temporary legacy mail boundaries
+**Phase:** Phase 3 server-boundary containment; target atomic-outbox replacement remains open
+**Labels/environment:** [LOCAL] implementation and static/unit/build verification only
+**Data impact:** none; fake delivery and injected Auth only, with no remote, database, schema, fixture, or provider call
+**Target:** local `refactor`; no TEST or Production target
+**Expected reads/writes/rows:** verification performed 0 DB/Auth/provider operations and 0 rows. At runtime, Origin/query rejection performs none; rate rejection performs 1 bounded process-local check; an accepted send performs 1 local limiter check, at most 1 Firebase token verification, 0 DB rows, and at most 2 provider sends (`/api/cancel`: at most 1).
+**Done:** Commit `52c1781` gives `/api/send` and `/api/cancel` canonical query/origin/bearer/media/encoding/length gates, streamed 8 KiB cancellation, fatal UTF-8, fixed validation errors, immutable hardened response headers, bounded proxy keys, and environment isolation that cannot be bypassed by an injected Auth loader. Both routes have table-driven order/framing/zero-delivery coverage and the API inventory is reconciled.
+**Verified/reconciled:** focused 79 tests plus full format/static SQL/lint/TS7/TS6, 83 files/864 tests, and production build pass; independent final review found no blocker and passed 74 focused tests. Local Gitleaks remains unavailable; exact prior inventory head passed all six CI jobs, including secrets/dependencies and both clean database cycles, in run `29080493181`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, DNS, `main`, Production data, or configuration access
+**Backup/restore evidence:** n/a; no remote mutation
+**Rollback/forward recovery:** revert `52c1781`; no external state changed
+**Next:** Push and green replacement CI, then make every owner command reject query strings before Auth/DB and reject versions above PostgreSQL int32 before repository work; update the enforced API inventory and prove both properties across all ten mutation routes.
+**Gotchas:** Legacy mail still has process-local trusted-proxy rate limiting and no durable idempotency; automatic retry remains forbidden, and these routes must be deleted when the atomic outbox replaces all callers.
+
 ## 2026-07-10 — Reconciled and enforced all active API contracts
 **Phase:** Phase 3 server-boundary verification; no broad checklist item completed
 **Labels/environment:** [LOCAL] documentation, static analysis, and tests only
