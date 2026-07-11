@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-11 — Advanced the TEST checkpoint to the external Auth signup gate
+**Phase:** Phase 2 staging acceptance; the two-cycle checkpoint remains open and no masterplan item was ticked
+**Labels/environment:** [LOCAL] operator fixes plus destructive/rollback-clean [TEST] checkpoint attempts; pending exact [REMOTE-CONFIG] approval
+**Data impact:** synthetic TEST only; repeated guarded cycle-A rebuild/acceptance attempts cleaned back to 37 migrations with 0 operational/Auth/storage/test-extension residue. No customer data.
+**Target:** authorized greenfield TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase remains Production authority and was not accessed
+**Expected reads/writes/rows:** completed attempts used atomic 37-migration TEST rebuilds, 342 rollback-only assertions per reached cycle, bounded synthetic owner/Auth/concurrency fixtures, and verified cleanup. Pending config action changes 1 Auth signup setting, 0 database rows/writes, and makes future public signups reject while existing users remain unchanged.
+**Done:** Commits `9543d44` and `a1b85b9` split pgTAP extension setup from its rollback transaction and explicitly type every remote fixture/residue parameter. Real TEST proved 21 files/342 assertions/residue 0, owner provisioning under forced rollback, the 12-parameter residue aggregate, and exact clean fingerprint. No masterplan item was ticked.
+**Verified/reconciled:** CI run `29147415563` greened all six jobs on exact head `a1b85b9`. The checkpoint now passes TLS, preflight, rebuild, lint/advisors, pgTAP, fingerprints, parameter typing, and cleanup, then fails closed because public Auth settings report `disable_signup=false`; a synthetic invalid-domain probe returned 400 `email_address_invalid`. Final database reconciliation is clean.
+**Production actions performed:** none; no Firebase, Production Supabase, Resend, Vercel, DNS, `main`, deployment, Production configuration, or customer-data access
+**Backup/restore evidence:** n/a; TEST is synthetic and reconciled clean after the blocked attempt
+**Rollback/forward recovery:** no external state currently needs rollback. Proposed TEST Auth config rollback is re-enable new-user signup; verify the settings endpoint and synthetic signup behavior both directions.
+**Next:** Obtain Victor’s exact approval for `[REMOTE-CONFIG]` on TEST project `lxvsspniipcotimbsfqm` to disable new-user signups (0 DB rows/writes; existing users unchanged), apply it in Supabase Auth settings, verify `disable_signup=true` plus 422 `signup_disabled`, then green CI for this worklog head and rerun the two-cycle checkpoint.
+**Gotchas:** The Auth verifier is intentionally fail-closed; do not weaken it to accept enabled signup. The owner fixture is provisioned directly for the isolated acceptance cycle, so disabling public signup does not block the test owner.
+
 ## 2026-07-11 — Removed the remote pgTAP Docker dependency and proved zero residue
 **Phase:** Phase 2 staging migration/reset acceptance foundation; the final two-cycle TEST checkpoint remains open
 **Labels/environment:** [LOCAL] runner/reconciliation/tests/build; guarded destructive [TEST] cycle-A attempts and rollback-only pgTAP verification
