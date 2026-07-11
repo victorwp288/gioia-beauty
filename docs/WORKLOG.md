@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-11 — Removed the remote pgTAP Docker dependency and proved zero residue
+**Phase:** Phase 2 staging migration/reset acceptance foundation; the final two-cycle TEST checkpoint remains open
+**Labels/environment:** [LOCAL] runner/reconciliation/tests/build; guarded destructive [TEST] cycle-A attempts and rollback-only pgTAP verification
+**Data impact:** TEST synthetic state only; two cycle-A atomic rebuild attempts and three 21-file pgTAP suites, with committed test transactions rolled back and the test-only pgTAP extension removed. No customer data.
+**Target:** authorized greenfield TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase remains Production authority and was not accessed
+**Expected reads/writes/rows:** each complete checkpoint will still perform exactly 2 atomic synthetic rebuilds of 37 migrations, bounded fixture/Auth/concurrency writes, and cleanup to the zero-row baseline. This diagnostic work performed 2 attempted cycle-A rebuilds, 3 x 342 rolled-back assertions, and 0 persistent operational/Auth/storage rows.
+**Done:** Commit `017e9f6` replaces Docker-dependent `supabase test db` with a one-connection postgres.js simple-protocol runner over the exact reviewed in-memory SQL digest. It pins target/CA, validates exact TAP plan/order/count/failure markers, normalizes errors, always attempts rollback/drop-extension/pool-close, and makes clean reconciliation require `pgtap` absence. No masterplan item was ticked.
+**Verified/reconciled:** actual TEST runner passed 21 files/342 assertions and an immediate aggregate proved pgTAP residue 0. Format/static SQL/lint/TS7/TS6, 128 files/1,731 tests, both 56-test timezone runs, and production build pass before the final digest/failure-injection test; focused final 5 files/98 tests and lint pass. Independent iterative audit found and resolved persistent extension, TOCTOU, synchronous secret-reflection, and cleanup-evidence gaps; final review found no P1/P2.
+**Production actions performed:** none; no Firebase, Production Supabase, Resend, Vercel, DNS, `main`, deployment, configuration, or customer-data access
+**Backup/restore evidence:** n/a; TEST rebuilds are synthetic and the final TEST metadata/fingerprint state is 37 migrations with no pgTAP extension residue
+**Rollback/forward recovery:** revert `017e9f6`; no Production recovery. If the next checkpoint fails, its lock/recovery/cleanup guards remain authoritative and the exact stage must be diagnosed before retry.
+**Next:** Commit this handoff, push `refactor`, green all six CI jobs on the new exact head, then rerun the guarded two-cycle TEST checkpoint; only after both acceptance cycles pass may Phase 2’s TEST item be ticked and reserved migration 38 begin.
+**Gotchas:** Supabase CLI 2.109.1 requires Docker for `test db` even with a remote DSN; this Mac intentionally has no container runtime. Never use `sql.file` here because it rereads after digest validation; execute only the same verified in-memory source.
+
 ## 2026-07-11 — Pinned TEST database TLS trust before the greenfield checkpoint
 **Phase:** Phase 2 staging migration/reset acceptance foundation; the TEST checkpoint remains open
 **Labels/environment:** [LOCAL] trust/runtime/CLI tooling and tests; bounded read-only [TEST] TLS, lint, and advisor diagnostics
