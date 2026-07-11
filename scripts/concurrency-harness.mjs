@@ -129,13 +129,24 @@ export async function runRuntimeQuery(sql, query, barrierState) {
   });
 }
 
-export async function runConcurrentRuntimeQueries(sql, queries) {
+export async function runConcurrentRuntimeQueries(
+  sql,
+  queries,
+  { barrierWaiters = queries?.length } = {},
+) {
   if (
     !Array.isArray(queries) ||
     queries.length < 2 ||
     queries.length > REQUEST_COUNT
   ) {
     throw new Error("Concurrency barrier requires two to twenty workers");
+  }
+  if (
+    !Number.isSafeInteger(barrierWaiters) ||
+    barrierWaiters < 2 ||
+    barrierWaiters > queries.length
+  ) {
+    throw new Error("Concurrency barrier waiter target is invalid");
   }
 
   const barrierState = { aborted: false };
@@ -153,7 +164,7 @@ export async function runConcurrentRuntimeQueries(sql, queries) {
       );
       settledPromise = Promise.allSettled(workers);
       try {
-        await waitForWorkersAtBarrier(coordinator, queries.length);
+        await waitForWorkersAtBarrier(coordinator, barrierWaiters);
       } catch (error) {
         barrierState.aborted = true;
         throw error;

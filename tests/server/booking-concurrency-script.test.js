@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   assertBookingVacationRace,
@@ -22,6 +22,7 @@ import {
   parseRaceTargets,
   raceTargetQuery,
   RUNTIME_ROLE_SQL,
+  runBookingConcurrencySuite,
   WORKER_BARRIER_SQL,
 } from "../../scripts/test-booking-concurrency.mjs";
 
@@ -91,6 +92,28 @@ describe("booking concurrency target and safety", () => {
       scenario_index: index + 1,
     }));
     expect(() => parseRaceTargets(duplicateRows)).toThrow("must be distinct");
+  });
+
+  it("can leave privileged owner provisioning to the TEST operator", async () => {
+    const ownerUnsafe = vi.fn(async () => {
+      throw new Error("owner fixture must not run");
+    });
+    const raceFailure = new Error("synthetic race boundary");
+    const sql = {
+      begin: vi.fn(async () => {
+        throw raceFailure;
+      }),
+      unsafe: ownerUnsafe,
+    };
+    const targets = Array.from({ length: 5 }, (_, index) => ({
+      ...parsedTarget,
+      localDate: `2035-08-${String(13 + index).padStart(2, "0")}`,
+    }));
+
+    await expect(
+      runBookingConcurrencySuite(sql, { targets, provisionOwner: false }),
+    ).rejects.toBe(raceFailure);
+    expect(ownerUnsafe).not.toHaveBeenCalled();
   });
 
   it("accepts only the loopback local postgres URL", () => {

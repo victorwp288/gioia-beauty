@@ -29,12 +29,13 @@ import {
   oppositeRescheduleReconciliationQuery,
 } from "./concurrency-reconciliation.mjs";
 
-async function runDistinctKeyRace(sql, target) {
+async function runDistinctKeyRace(sql, target, concurrencyOptions) {
   const results = await runConcurrentRuntimeQueries(
     sql,
     Array.from({ length: REQUEST_COUNT }, (_, index) =>
       bookingQuery(index + 1, target),
     ),
+    concurrencyOptions,
   );
   const reconciliation = await queryOne(
     sql,
@@ -47,11 +48,12 @@ async function runDistinctKeyRace(sql, target) {
   );
 }
 
-async function runIdenticalKeyRace(sql, target) {
+async function runIdenticalKeyRace(sql, target, concurrencyOptions) {
   const query = identicalBookingQuery(target);
   const results = await runConcurrentRuntimeQueries(
     sql,
     Array.from({ length: REQUEST_COUNT }, () => query),
+    concurrencyOptions,
   );
   const reconciliation = await queryOne(
     sql,
@@ -64,11 +66,12 @@ async function runIdenticalKeyRace(sql, target) {
   );
 }
 
-async function runBookingVacationRace(sql, target) {
-  const results = await runConcurrentRuntimeQueries(sql, [
-    bookingVacationBookingQuery(target),
-    bookingVacationVacationQuery(target),
-  ]);
+async function runBookingVacationRace(sql, target, concurrencyOptions) {
+  const results = await runConcurrentRuntimeQueries(
+    sql,
+    [bookingVacationBookingQuery(target), bookingVacationVacationQuery(target)],
+    concurrencyOptions,
+  );
   const reconciliation = await queryOne(
     sql,
     bookingVacationReconciliationQuery,
@@ -91,23 +94,32 @@ async function createSwapFixture(sql, target, suffix, fingerprintByte) {
   return parseCreatedAppointment(rows[0]);
 }
 
-async function runOppositeRescheduleRace(sql, targetA, targetB) {
+async function runOppositeRescheduleRace(
+  sql,
+  targetA,
+  targetB,
+  concurrencyOptions,
+) {
   const entryA = await createSwapFixture(sql, targetA, "a", "41");
   const entryB = await createSwapFixture(sql, targetB, "b", "42");
-  const results = await runConcurrentRuntimeQueries(sql, [
-    ownerRescheduleQuery({
-      entryId: entryA,
-      target: targetB,
-      suffix: "a",
-      fingerprintByte: "43",
-    }),
-    ownerRescheduleQuery({
-      entryId: entryB,
-      target: targetA,
-      suffix: "b",
-      fingerprintByte: "44",
-    }),
-  ]);
+  const results = await runConcurrentRuntimeQueries(
+    sql,
+    [
+      ownerRescheduleQuery({
+        entryId: entryA,
+        target: targetB,
+        suffix: "a",
+        fingerprintByte: "43",
+      }),
+      ownerRescheduleQuery({
+        entryId: entryB,
+        target: targetA,
+        suffix: "b",
+        fingerprintByte: "44",
+      }),
+    ],
+    concurrencyOptions,
+  );
   const reconciliation = await queryOne(
     sql,
     oppositeRescheduleReconciliationQuery({
@@ -128,6 +140,10 @@ export async function getBookingConcurrencyTargets(sql) {
   return parseRaceTargets(await sql.unsafe(raceTargetQuery));
 }
 
+export async function provisionBookingConcurrencyOwner(sql) {
+  for (const query of ownerFixtureQueries) await sql.unsafe(query);
+}
+
 function validatedTargets(targets) {
   return parseRaceTargets(
     targets.map((target, index) => ({
@@ -139,15 +155,44 @@ function validatedTargets(targets) {
   );
 }
 
-export async function runBookingConcurrencySuite(sql, { targets } = {}) {
+function raceConcurrencyOptions(barrierWaiters, workerCount) {
+  return barrierWaiters === undefined
+    ? undefined
+    : { barrierWaiters: Math.min(barrierWaiters, workerCount) };
+}
+
+export async function runBookingConcurrencySuite(
+  sql,
+  { targets, provisionOwner = true, barrierWaiters } = {},
+) {
+  if (typeof provisionOwner !== "boolean") {
+    throw new Error("Concurrency owner provisioning mode is invalid");
+  }
   const selectedTargets = targets
     ? validatedTargets(targets)
     : await getBookingConcurrencyTargets(sql);
-  for (const query of ownerFixtureQueries) await sql.unsafe(query);
-  await runDistinctKeyRace(sql, selectedTargets[0]);
-  await runIdenticalKeyRace(sql, selectedTargets[1]);
-  await runBookingVacationRace(sql, selectedTargets[2]);
-  await runOppositeRescheduleRace(sql, selectedTargets[3], selectedTargets[4]);
+  if (provisionOwner) await provisionBookingConcurrencyOwner(sql);
+  await runDistinctKeyRace(
+    sql,
+    selectedTargets[0],
+    raceConcurrencyOptions(barrierWaiters, REQUEST_COUNT),
+  );
+  await runIdenticalKeyRace(
+    sql,
+    selectedTargets[1],
+    raceConcurrencyOptions(barrierWaiters, REQUEST_COUNT),
+  );
+  await runBookingVacationRace(
+    sql,
+    selectedTargets[2],
+    raceConcurrencyOptions(barrierWaiters, 2),
+  );
+  await runOppositeRescheduleRace(
+    sql,
+    selectedTargets[3],
+    selectedTargets[4],
+    raceConcurrencyOptions(barrierWaiters, 2),
+  );
   return {
     targetDates: selectedTargets.map((target) => target.localDate),
     targets: selectedTargets.map((target) => ({ ...target })),

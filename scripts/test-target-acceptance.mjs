@@ -1,5 +1,8 @@
-import { runBookingConcurrencySuite } from "./booking-concurrency-suite.mjs";
-import { getBookingConcurrencyTargets } from "./booking-concurrency-suite.mjs";
+import {
+  getBookingConcurrencyTargets,
+  provisionBookingConcurrencyOwner,
+  runBookingConcurrencySuite,
+} from "./booking-concurrency-suite.mjs";
 import { runOwnerAuthRouteScenario } from "./owner-auth-route-scenario.mjs";
 import { withGreenfieldOwnerAuthServer } from "./test-target-auth-server.mjs";
 import { verifyTestTargetAuthConfiguration } from "./test-target-auth-config.mjs";
@@ -27,6 +30,7 @@ const DEFAULT_OPERATIONS = Object.freeze({
   createOwnerPassword: createGreenfieldOwnerPassword,
   getTargets: getBookingConcurrencyTargets,
   probeDataApi: runTestTargetDataApiProbes,
+  provisionConcurrencyOwner: provisionBookingConcurrencyOwner,
   provisionOwner: provisionGreenfieldOwner,
   reconcileLedger: reconcileGreenfieldOwnerLedger,
   runBooking: runBookingConcurrencySuite,
@@ -36,6 +40,8 @@ const DEFAULT_OPERATIONS = Object.freeze({
   withRuntimeRole: withTemporaryRuntimeRole,
   verifyAuthConfiguration: verifyTestTargetAuthConfiguration,
 });
+
+export const GREENFIELD_REMOTE_BARRIER_WAITERS = 5;
 
 function sameFingerprint(left, right) {
   return (
@@ -62,6 +68,7 @@ async function runFixtureAcceptance({
   try {
     const password = operations.createOwnerPassword();
     await operations.provisionOwner(worker, password);
+    await operations.provisionConcurrencyOwner(worker);
     await operations.verifyAuthConfiguration(config);
     await operations.withRuntimeRole({
       config,
@@ -70,7 +77,12 @@ async function runFixtureAcceptance({
       callback: async ({ runtimeDatabaseUrl }) => {
         await operations.withRuntimeDatabase(
           runtimeDatabaseUrl,
-          (runtime) => operations.runBooking(runtime, { targets }),
+          (runtime) =>
+            operations.runBooking(runtime, {
+              barrierWaiters: GREENFIELD_REMOTE_BARRIER_WAITERS,
+              targets,
+              provisionOwner: false,
+            }),
           { caCertificate: config.getDatabaseCaCertificate() },
         );
         await operations.withAuthServer(config, runtimeDatabaseUrl, (baseUrl) =>

@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-11 — Separated privileged concurrency fixtures and bounded the remote barrier
+**Phase:** Phase 2 final staging checkpoint; the TEST checklist item remains open
+**Labels/environment:** [LOCAL] harness/tests/build; approved [REMOTE-CONFIG] Auth signup gate; bounded read/write [TEST] diagnostics and interrupted synthetic race
+**Data impact:** TEST only. Disabled public signup in one isolated Auth project; concurrency attempts used only named synthetic fixtures. Final SQL evidence is 0 schedule entries, 0 commands, 0 owners, 0 runtime sessions, and `app_runtime` login disabled.
+**Target:** greenfield TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase remains Production authority and was not accessed
+**Expected reads/writes/rows:** signup config changed 1 setting and 0 DB rows; future race still issues exactly 20 bounded requests, now releases after at least 5 physical waiters on the shared pool. Interrupted attempts were reconciled to 0 known residue.
+**Done:** Disabled new-user signup after Victor's exact approval and verified `disableSignup=true` plus rejected synthetic signup. Moved concurrency-owner Auth fixture creation to the privileged operator, kept `app_runtime` least-privileged, added a direct skip-provisioning test, and made remote barrier occupancy bounded while preserving all 20 issued requests. No masterplan item was ticked.
+**Verified/reconciled:** Auth verifier passed. Format, SQL static checks, lint, TS7, TS6, 128 files/1,734 tests, both 56-test timezone suites, and production build pass. Supabase management SQL confirms the interrupted proof left exact zero operational residue and restored the runtime role.
+**Production actions performed:** none; no Firebase, Production Supabase, Resend, Vercel, DNS, `main`, deployment, Production config, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST only
+**Rollback/forward recovery:** re-enable TEST new-user signup to roll back the approved config change; revert this commit for code. No database recovery is pending because final residue/runtime checks are clean.
+**Next:** Commit and push this batch, green all six CI jobs on the exact head, then rerun the guarded two-cycle checkpoint after Supavisor releases the exhausted shared-pool client capacity. Tick Phase 2 only after both cycles and exact final fingerprint pass.
+**Gotchas:** The 20-client remote burst exhausted both shared-pool endpoints and they returned Supavisor `econnrefused` while the project remained `ACTIVE_HEALTHY`; do not loop retries. Local tests retain the exact all-worker barrier; remote TEST requires 5 simultaneous DB waiters and still submits/reconciles all 20 requests.
+
 ## 2026-07-11 — Advanced the TEST checkpoint to the external Auth signup gate
 **Phase:** Phase 2 staging acceptance; the two-cycle checkpoint remains open and no masterplan item was ticked
 **Labels/environment:** [LOCAL] operator fixes plus destructive/rollback-clean [TEST] checkpoint attempts; pending exact [REMOTE-CONFIG] approval

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GREENFIELD_TEST_OWNER } from "../../scripts/test-target-fixture-sql.mjs";
 import { GREENFIELD_TARGET_VERSIONS } from "../../scripts/test-target-migrations.mjs";
 import {
+  GREENFIELD_REMOTE_BARRIER_WAITERS,
   greenfieldFingerprintsMatch,
   runGreenfieldAcceptanceCycle,
 } from "../../scripts/test-target-acceptance.mjs";
@@ -37,6 +38,9 @@ function harness(overrides = {}) {
       return targets;
     }),
     probeDataApi: vi.fn(async () => calls.push("api")),
+    provisionConcurrencyOwner: vi.fn(async () =>
+      calls.push("provision-concurrency"),
+    ),
     provisionOwner: vi.fn(async () => calls.push("provision")),
     reconcileLedger: vi.fn(async () => calls.push("ledger")),
     runBooking: vi.fn(async () => calls.push("booking")),
@@ -94,6 +98,7 @@ describe("greenfield TEST acceptance cycle", () => {
       "api",
       "targets",
       "provision",
+      "provision-concurrency",
       "auth-config",
       "runtime-role",
       "runtime-db",
@@ -110,6 +115,14 @@ describe("greenfield TEST acceptance cycle", () => {
       targets,
       GREENFIELD_TARGET_VERSIONS,
       fingerprint,
+    );
+    expect(operations.runBooking).toHaveBeenCalledWith(
+      { synthetic: "runtime" },
+      {
+        barrierWaiters: GREENFIELD_REMOTE_BARRIER_WAITERS,
+        provisionOwner: false,
+        targets,
+      },
     );
   });
 
