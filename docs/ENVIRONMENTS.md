@@ -53,6 +53,13 @@ Safety rules:
 - The schema, migrations, test Auth users, functions, and synthetic data may be created, changed, reset, or deleted as required for the rebuild. Remote changes must remain reproducible from the repository.
 - Vercel Preview may use this target only after fail-closed environment isolation is implemented and verified. Serialized Preview/E2E runs must lock and reset or namespace synthetic data.
 - Preview application traffic uses a separately provisioned `app_runtime` login over the transaction pooler (`:6543`) with prepared statements disabled. Environment validation rejects direct connections and the privileged `postgres` role.
+- Connection mode is fixed by workload. Trusted migration/operator work prefers the
+  direct `db.<ref>.supabase.co:5432` endpoint when its runner has IPv6 (or the
+  separately purchased IPv4 add-on); an explicitly pinned shared session pooler
+  on `:5432` is the approved fallback for IPv4-only operator runners. Vercel
+  Functions always use the least-privilege `app_runtime.<ref>` login through the
+  shared transaction pooler on `:6543`, `prepare: false`, and the code-owned pool
+  cap. Direct or privileged database URLs remain invalid in Preview.
 - The Free plan is acceptable for greenfield testing but is not the approved launch posture.
 
 Before this project can become Production, it must be reclassified in this file and in the operator preflight. Remove synthetic data and test users, rebuild from committed migrations, run advisors and direct-access security tests, approve/upgrade the backup tier, prove restore into an isolated target, and complete Firestore import reconciliation. Once real customer data is imported or live traffic points here, it is immediately Production and every production control applies.
@@ -89,6 +96,15 @@ target alone cannot activate those routes. Activation requires a reviewed
 distributed rate-limit/challenge adapter plus its explicit environment and
 provider configuration; no `disabled` flag or process-local cache is accepted
 as a substitute.
+
+As of 2026-07-11, Vercel Preview is bound to the greenfield project using the
+transaction-pooler `app_runtime` principal, the pinned Supabase CA, unique
+server-only booking/session HMAC material, and fake email with webhooks off.
+Legacy Resend and Twilio variables are Production-only. Deployment
+`dpl_Cc9ar52EEeT5kG5xTQSvNf5xeqN5` built commit `45b70f9a57280e3d80daca554eef7669b7ca66dc`
+successfully and returned the expected private `200` health response. Public
+booking remains code-disabled before database work, and no customer data is in
+this target.
 
 ## Local and CI
 

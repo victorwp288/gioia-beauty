@@ -184,7 +184,7 @@ No production data is mutated in this phase except explicitly approved backup/co
 - [x] **`[TEST]`** Register the authorized serialized integration/staging Supabase project `lxvsspniipcotimbsfqm` in `eu-central-2` and record its reset ownership in `docs/ENVIRONMENTS.md`. DB-aware Preview/E2E runs take a lock and reset/namespace synthetic data. Never seed it with customer PII.
 - [ ] **`[PROD-CONFIG]`** Before any real customer write or live traffic, approve/upgrade the full billing and backup tier, record DPA/processor status and ownership/recovery contacts, remove synthetic data/test users, rebuild from committed migrations, prove restore, and reclassify the exact Supabase target as Production.
 - [x] **`[LOCAL]`** Make development/test/CI fail closed if any production Firebase/Supabase project ID or production credential is detected.
-- [ ] **`[PROD-CONFIG]`** Audit Vercel Development/Preview/Production env scopes. Preview must use staging data and non-delivering/test-only email.
+- [x] **`[PROD-CONFIG]`** Audit Vercel Development/Preview/Production env scopes. Preview must use staging data and non-delivering/test-only email.
 - [ ] **`[TEST]`** After isolation, capture desktop/mobile screenshots of `/`, gallery, contacts, booking states/modals/errors, login, and dashboard without touching production data.
 - [x] **`[LOCAL]`** Add strict TypeScript for new files (`allowJs: true`) after a TypeScript 7 compatibility spike; keep the supported fallback documented.
 - [x] **`[LOCAL]`** Add Vitest, Testing Library, Playwright, local Supabase, and GitHub Actions for lint, typecheck, unit/integration tests, and build on PRs and `refactor` pushes.

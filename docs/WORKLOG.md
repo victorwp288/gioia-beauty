@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-11 — Activated an isolated Vercel Preview and fixed provider scopes
+**Phase:** Phase 1 environment isolation plus Phase 2 staging activation; Vercel scope audit ticked
+**Labels/environment:** approved [TEST] Supabase role configuration, [REMOTE-CONFIG]/[PROD-CONFIG] Vercel scope isolation, and Preview deployment
+**Data impact:** none; 0 business/Auth/storage rows read or written. One synthetic TEST role login was activated; no customer data exists in the target.
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm`; Vercel project `prj_MfVovj7JrjQqufswo8wofHh1EErN`; Preview deployment `dpl_Cc9ar52EEeT5kG5xTQSvNf5xeqN5`
+**Expected reads/writes/rows:** 1 `app_runtime` credential/LOGIN update, 12 Preview-only Vercel variables, 6 legacy provider scope updates to Production-only, 1 Preview redeploy, and 1 health request; 0 database rows
+**Done:** Locked direct-vs-pooler policy: direct operator access when IPv6/add-on exists, pinned session-pooler fallback for IPv4-only operators, transaction pooler only for Vercel runtime. Provisioned a generated least-privilege runtime password without plaintext output, unique Preview HMAC secrets, pinned CA, fake email, and TEST public config. Removed Resend/Twilio from Preview/Development without changing their Production values.
+**Verified/reconciled:** `app_runtime` is LOGIN, NOINHERIT, non-superuser/non-create/non-replication/non-bypass-RLS with only the expected constrained administrative grant. Vercel CLI scope audit shows 12 Preview-only variables and all 6 legacy provider variables Production-only. Exact commit `45b70f9a57280e3d80daca554eef7669b7ca66dc` built READY; `/api/health` returned private/no-store 200 `{"status":"ok"}`.
+**Production actions performed:** provider credential values, live deployment, aliases/domains, database, email delivery, and customer data were unchanged. Existing Resend/Twilio variables were restricted to Production scope only; no Production deploy occurred.
+**Backup/restore evidence:** n/a; configuration-only plus empty synthetic TEST target
+**Rollback/forward recovery:** remove the 12 Preview variables and set `app_runtime` NOLOGIN/password null to disable Preview DB access. Do not broaden legacy provider scopes. The preview can be redeployed from exact commit after correction.
+**Next:** Rotate the Resend API key under a separately approved Production provider action because Vercel displayed its current value while editing scope. Then make the greenfield operator explicitly suspend and restore the durable Preview credential around destructive checkpoints before retrying Phase 2.
+**Gotchas:** Local direct Postgres remains unreachable over IPv6 and both shared pool endpoints still time out from this Mac. The Preview build/health path is green, but DB-backed routes remain code-disabled and the durable login must be preserved explicitly across future reset rehearsals.
+
 ## 2026-07-11 — Separated privileged concurrency fixtures and bounded the remote barrier
 **Phase:** Phase 2 final staging checkpoint; the TEST checklist item remains open
 **Labels/environment:** [LOCAL] harness/tests/build; approved [REMOTE-CONFIG] Auth signup gate; bounded read/write [TEST] diagnostics and interrupted synthetic race
