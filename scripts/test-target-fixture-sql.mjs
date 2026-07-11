@@ -174,7 +174,8 @@ export const GREENFIELD_OWNER_PROVISION_SQL = Object.freeze([
     raw_app_meta_data,raw_user_meta_data,is_anonymous,created_at,updated_at
   ) values (
     '00000000-0000-0000-0000-000000000000',$1::uuid,'authenticated',
-    'authenticated',$2,extensions.crypt($3,extensions.gen_salt('bf',10)),
+    'authenticated',$2::text,
+    extensions.crypt($3::text,extensions.gen_salt('bf',10)),
     statement_timestamp(),'','','','',
     '{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,
     false,statement_timestamp(),statement_timestamp()
@@ -183,7 +184,7 @@ export const GREENFIELD_OWNER_PROVISION_SQL = Object.freeze([
     id,provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at
   ) values (
     $1::uuid,$2::uuid::text,$2::uuid,
-    pg_catalog.jsonb_build_object('sub',$2::uuid::text,'email',$3,
+    pg_catalog.jsonb_build_object('sub',$2::uuid::text,'email',$3::text,
       'email_verified',true,'phone_verified',false),
     'email',statement_timestamp(),statement_timestamp(),statement_timestamp()
   )`,

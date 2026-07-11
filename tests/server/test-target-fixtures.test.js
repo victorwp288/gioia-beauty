@@ -124,6 +124,15 @@ function fingerprintRow(overrides = {}) {
 }
 
 describe("greenfield TEST fixture reconciliation", () => {
+  it("binds every operator fixture parameter to an explicit PostgreSQL type", () => {
+    expect(GREENFIELD_OWNER_PROVISION_SQL[0]).toContain(
+      "extensions.crypt($3::text",
+    );
+    expect(GREENFIELD_OWNER_PROVISION_SQL[1]).toContain("'email',$3::text");
+    expect(GREENFIELD_RESIDUE_SQL).toContain("($1::text[])[1]");
+    expect(GREENFIELD_RESIDUE_SQL).toContain("($1::text[])[5]");
+  });
+
   it("accepts only the exact clean schema and migration history", () => {
     expect(assertCleanGreenfieldRow(cleanRow(), versions)).toBe(true);
     expect(() =>

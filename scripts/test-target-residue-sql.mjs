@@ -4,15 +4,15 @@ export const GREENFIELD_RESIDUE_SQL = `
   with expected_entries(
     note, local_date, source, client_name, client_email, client_phone, created_by
   ) as (values
-    ('synthetic-distinct-key-race', ($2::date[])[1], 'public',
+    (($1::text[])[1], ($2::date[])[1], 'public',
       'Synthetic Concurrency', 'distinct-key-race@example.test', '+390000000000', null::uuid),
-    ('synthetic-identical-key-race', ($2::date[])[2], 'public',
+    (($1::text[])[2], ($2::date[])[2], 'public',
       'Synthetic Concurrency', 'identical-key-race@example.test', '+390000000000', null::uuid),
-    ('synthetic-booking-vacation-race', ($2::date[])[3], 'public',
+    (($1::text[])[3], ($2::date[])[3], 'public',
       'Synthetic Concurrency', 'booking-vacation-race@example.test', '+390000000000', null::uuid),
-    ('synthetic-reschedule-swap-a', ($2::date[])[4], 'admin', 'Synthetic Swap A',
+    (($1::text[])[4], ($2::date[])[4], 'admin', 'Synthetic Swap A',
       'swap-a@example.test', null, $6::uuid),
-    ('synthetic-reschedule-swap-b', ($2::date[])[5], 'admin', 'Synthetic Swap B',
+    (($1::text[])[5], ($2::date[])[5], 'admin', 'Synthetic Swap B',
       'swap-b@example.test', null, $6::uuid)
   ), known_entries as (
     select entry.id
