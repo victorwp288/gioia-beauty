@@ -21,6 +21,10 @@ export class TestTargetPgTapError extends Error {
 
 export const REMOTE_PGTAP_ROLLBACK_SQL = "rollback";
 export const REMOTE_PGTAP_CLEANUP_SQL = "drop extension if exists pgtap";
+export const REMOTE_PGTAP_SETUP_SQL =
+  "create extension if not exists pgtap with schema extensions";
+const REMOTE_PGTAP_SETUP_FILE = "000_0_pgtap_setup.test.sql";
+const REMOTE_PGTAP_SETUP_PREFIX = `${REMOTE_PGTAP_SETUP_SQL};\n\n`;
 
 function validatedDatabaseUrl(getter) {
   if (typeof getter !== "function") {
@@ -160,7 +164,17 @@ export function createRemotePgTapRunner({
       for (const file of suite.files) {
         const absoluteFile = path.join(root, file);
         const source = reviewedSource(file, absoluteFile);
-        const results = await sql.unsafe(source, [], { simple: true });
+        let testSource = source;
+        if (path.basename(file) === REMOTE_PGTAP_SETUP_FILE) {
+          if (!source.startsWith(REMOTE_PGTAP_SETUP_PREFIX)) {
+            throw new TestTargetPgTapError(
+              "Remote pgTAP setup source is invalid",
+            );
+          }
+          await sql.unsafe(REMOTE_PGTAP_SETUP_SQL);
+          testSource = source.slice(REMOTE_PGTAP_SETUP_PREFIX.length);
+        }
+        const results = await sql.unsafe(testSource, [], { simple: true });
         total += validateTapResult(file, source, results);
       }
       if (total !== suite.assertions) {

@@ -18,6 +18,7 @@ import { remotePgTapFiles } from "../../scripts/test-target-migrations.mjs";
 import {
   REMOTE_PGTAP_CLEANUP_SQL,
   REMOTE_PGTAP_ROLLBACK_SQL,
+  REMOTE_PGTAP_SETUP_SQL,
 } from "../../scripts/test-target-pgtap.mjs";
 
 const PASSWORD = "operator-password-12345678901234567890";
@@ -88,7 +89,8 @@ function fakePgTapDatabase(resultFactory = passingPgTapResults) {
     unsafe: vi.fn(async (source) => {
       if (
         source === REMOTE_PGTAP_ROLLBACK_SQL ||
-        source === REMOTE_PGTAP_CLEANUP_SQL
+        source === REMOTE_PGTAP_CLEANUP_SQL ||
+        source === REMOTE_PGTAP_SETUP_SQL
       ) {
         return [];
       }
@@ -205,7 +207,9 @@ describe("greenfield TEST Supabase CLI", () => {
         ssl: { ca: CERTIFICATE_PEM, rejectUnauthorized: true },
       }),
     );
-    const testCalls = database.sql.unsafe.mock.calls.slice(0, 21);
+    const testCalls = database.sql.unsafe.mock.calls.filter(
+      ([, , options]) => options?.simple === true,
+    );
     expect(testCalls).toHaveLength(21);
     expect(
       testCalls.every(
@@ -213,11 +217,11 @@ describe("greenfield TEST Supabase CLI", () => {
       ),
     ).toBe(true);
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
-      22,
+      23,
       REMOTE_PGTAP_ROLLBACK_SQL,
     );
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
-      23,
+      24,
       REMOTE_PGTAP_CLEANUP_SQL,
     );
     expect(database.sql.end).toHaveBeenCalledWith({ timeout: 5 });
