@@ -4,11 +4,17 @@ import { extname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
-const MODULE_NAMES = [
+const CONTRACT_NAMES = [
   "ownerScheduleReadContract",
   "ownerScheduleListResponseContract",
   "ownerScheduleCountReadContract",
 ] as const;
+const HANDLER_NAMES = [
+  "ownerScheduleReadHandler",
+  "ownerScheduleReadHandlerSupport",
+  "ownerScheduleReadAuthorization",
+] as const;
+const MODULE_NAMES = [...CONTRACT_NAMES, ...HANDLER_NAMES] as const;
 
 function sourceFiles(path: string): string[] {
   return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
@@ -30,7 +36,7 @@ function sourceFiles(path: string): string[] {
 }
 
 describe("owner schedule read contract source boundary", () => {
-  it.each(MODULE_NAMES)(
+  it.each(CONTRACT_NAMES)(
     "keeps %s server-only and operationally inert",
     (name) => {
       const source = readFileSync(
@@ -54,12 +60,31 @@ describe("owner schedule read contract source boundary", () => {
     },
   );
 
+  it.each(HANDLER_NAMES)("keeps %s server-only and inert", (name) => {
+    const source = readFileSync(resolve(ROOT, `lib/server/${name}.ts`), "utf8");
+    expect(source.startsWith('import "server-only";')).toBe(true);
+    expect(source.split("\n").length).toBeLessThanOrEqual(300);
+    for (const forbidden of [
+      "process.env",
+      "fetch(",
+      "console.",
+      "createRuntimeDatabase",
+      "ownerTransaction",
+      "ownerAuthRepository",
+      "next/headers",
+      "setTimeout",
+    ]) {
+      expect(source).not.toContain(forbidden);
+    }
+  });
+
   it("has no production importer, route, UI activation, script, or workflow", () => {
-    const contractPaths = new Set(
-      MODULE_NAMES.map((name) =>
+    const modulePaths = new Set([
+      ...CONTRACT_NAMES.map((name) =>
         resolve(ROOT, `lib/server/database/${name}.ts`),
       ),
-    );
+      ...HANDLER_NAMES.map((name) => resolve(ROOT, `lib/server/${name}.ts`)),
+    ]);
     const productionDirectories = [
       ".github",
       "app",
@@ -87,7 +112,7 @@ describe("owner schedule read contract source boundary", () => {
     const productionSources = [
       ...productionDirectories.flatMap(sourceFiles),
       ...rootSources,
-    ].filter((path) => !contractPaths.has(path));
+    ].filter((path) => !modulePaths.has(path));
 
     expect(
       productionSources.filter((path) => {
