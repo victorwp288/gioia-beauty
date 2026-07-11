@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-11 — Completed the inert bounded owner outbox read family
+**Phase:** Phase 3 authenticated owner read and reliable-side-effect foundation; broad checklist items remain open
+**Labels/environment:** [LOCAL] schema/contracts/handler, synthetic Auth/executors, static analysis, documentation, and build only
+**Data impact:** none; no SQL/function/repository singleton, real Auth/DB/provider call, route, UI activation, migration, environment key, remote, or customer-data action
+**Target:** local `refactor`; Production Supabase remains unregistered/null and protected TEST operator credentials remain absent
+**Expected reads/writes/rows:** verification executed 0 real DB/Auth/provider/network calls, 0 writes, and 0 rows. A future accepted page uses 1 context load, at most 2 Auth SDK checks, 1 owner authorization, and 1 transaction-authorized executor returning at most 101 rows; rejected requests stop before data access. Physical scans remain unclaimed.
+**Done:** Hardened admin outbox DTOs to the persistence delivery-state, snapshot-compatibility, and timestamp invariants. Added capability-issued status-filtered newest-first request/response contracts, exact six-digit PostgreSQL cursor positions tied to millisecond DTOs, strict `pageSize + 1` lookahead, and a GET-only owner handler with 1 KiB/9-pair pre-Auth gates and private PII-bearing responses. No masterplan item was ticked.
+**Verified/reconciled:** focused 3 files/33 tests after final equal-timestamp/page-two coverage; full format/static SQL/lint/TS7/TS6, 128 files/1,709 tests, both 56-test timezone runs, and production build pass before that test-only addition. Two independent reviews found no P1/P2. Commit `93dab57` passed all six CI jobs, including secrets/dependencies and two clean DB cycles, in run `29144550454`; replacement CI for this batch is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert this batch commit; no external recovery is required
+**Next:** Commit and push this batch, then green replacement CI. The migration-free owner list/count contract backlog is complete; obtain the exact protected TEST session-pooler DSN plus publishable key and run the guarded 37-migration checkpoint before reserved migration 38 and any read SQL/function/repository/route activation.
+**Gotchas:** Existing outbox indexes support provider lookup, claiming, and expired leases—not `(created_at DESC,id DESC)` owner listing. The future TEST-backed read migration must add/prove the exact global and status-filtered plans, repeat owner/session authorization atomically, preserve cursor microseconds, and keep recipient PII private/no-store/no-log.
+
 ## 2026-07-11 — Batched inert vacation, subscriber, and schedule-export owner reads
 **Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
 **Labels/environment:** [LOCAL] injected server contracts/handlers, synthetic Auth/executors, static analysis, documentation, and build only
