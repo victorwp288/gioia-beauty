@@ -24,6 +24,15 @@ This is a real business, not a demo: bugs lose bookings, and Firestore reads cos
 
 Small, coherent commits over one mega-commit — Victor reviews the branch diff before merging. If you discover something out of scope, note it in the worklog's Gotchas rather than fixing it opportunistically.
 
+**Owner-approved accelerated cadence (2026-07-11):** prefer complete vertical
+batches over separate sessions for each internal layer. During implementation,
+run focused tests and parallelize independent audits; run the full verification
+checklist and independent final review once when the batch is coherent. Do not
+split schema, contract, repository, handler, route, and client integration into
+separate milestones when they can safely land together. This changes cadence,
+not scope or safety: every production/remote approval boundary, TEST gate,
+bounded-query rule, build requirement, and final worklog/CI obligation remains.
+
 ## ⚠️ Read the masterplan first
 
 **`docs/MASTERPLAN.md` governs all refactor work.** It contains the audited problem list, target architecture, production labels, nine sequenced implementation phases, and optional future work. Before making a change, find which phase it belongs to and follow that phase's checklist. Don't freelance improvements that skip the sequence.

@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-11 — Guarded inert owner schedule read handlers
+**Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
+**Labels/environment:** [LOCAL] injected server handlers, synthetic Auth/executors, static analysis, documentation, and build only
+**Data impact:** none; no SQL/function/repository singleton, real Auth/DB/provider call, route, UI activation, migration, environment key, remote, or customer-data action
+**Target:** local `refactor`; Production Supabase remains unregistered/null and protected TEST operator credentials remain absent
+**Expected reads/writes/rows:** this slice executed 0 real DB/Auth/provider/network calls, 0 writes, and 0 rows. A future accepted list request is bounded to 1 context load, at most 2 Auth SDK checks, 1 current-owner authorization, 1 transaction-authorized executor, and at most 101 returned rows over 32 inclusive dates; count accepts at most 6 of 7 requested groups. Rejections stop earlier; physical scans remain unclaimed.
+**Done:** Commit `5ab55f1` adds GET-only list/count factories with 1 KiB and 10/8-pair query gates, pre-Auth cursor verification, one exact clock snapshot, fresh bound/current-owner authorization, transaction-authorization executor contracts, exact decision/error decoding, cleanup on authorization races, strict result derivation, safe Auth-header filtering, and static no-activation guards. No masterplan item was ticked.
+**Verified/reconciled:** focused 3 files/63 tests; full format/static SQL/lint/TS7/TS6, 121 files/1,646 tests, both 56-test timezone runs, and production build pass. Three independent final reviews found no P1/P2. The local dependency audit approval was temporarily unavailable; dependency files are unchanged and exact prior head passed secrets/dependencies plus all six CI jobs, including two clean DB cycles, in run `29126309436`; replacement CI is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert `5ab55f1`; no external recovery is required
+**Next:** Commit this handoff, push, and green replacement CI. Then run the guarded 37-migration TEST checkpoint if the exact protected session-pooler DSN and publishable key are available; otherwise implement one migration-free owner-read batch covering vacation, subscriber, and export request/response/handler contracts with injected synthetic collaborators—no SQL/function, runtime singleton, route/UI activation, or remote access.
+**Gotchas:** Read-only GET intentionally has no mutation Origin/CSRF gate; it is GET/body-only and relies on SameSite cookies plus SOP/CORP/private no-store. Future executors must repeat owner/session authorization atomically with the read. Trusted context cookies are passed through; request/executor data can never supply response headers.
+
 ## 2026-07-10 — Bound inert owner schedule list and count contracts
 **Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
 **Labels/environment:** [LOCAL] pure server contracts, synthetic tests, static analysis, documentation, and build only
