@@ -64,14 +64,17 @@ export async function reconcileGreenfieldOwnerLedger(sql) {
 export async function withGreenfieldRuntimeDatabase(
   databaseUrl,
   callback,
-  { clientFactory = postgres } = {},
+  { caCertificate, clientFactory = postgres } = {},
 ) {
   if (typeof callback !== "function") {
     throw new Error("Greenfield TEST runtime database requires a callback");
   }
+  if (typeof caCertificate !== "string" || caCertificate.length === 0) {
+    throw new Error("Greenfield TEST runtime database CA is invalid");
+  }
   const sql = clientFactory(databaseUrl, {
     prepare: false,
-    ssl: "verify-full",
+    ssl: { ca: caCertificate, rejectUnauthorized: true },
     max: DATABASE_POOL_SIZE,
     idle_timeout: 5,
     connect_timeout: 10,

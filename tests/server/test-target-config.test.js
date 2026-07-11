@@ -1,4 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -7,6 +15,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   parseTestTargetConfig,
   TEST_TARGET_API_URL,
+  TEST_TARGET_CA_RELATIVE_PATH,
   TEST_TARGET_REF,
   TestTargetConfigError,
 } from "../../scripts/test-target-config.mjs";
@@ -15,11 +24,17 @@ const RUN_ID = "018f5f50-a48b-7f3c-8b28-55f43fd91df0";
 const OPERATOR_PASSWORD = "Operator!Password-Only-In-Memory";
 const PUBLISHABLE_KEY = `sb_publishable_${"p".repeat(32)}`;
 const POOLER_HOST = "aws-17-eu-central-2.pooler.supabase.com";
+const CA_SOURCE = readFileSync(
+  path.resolve(process.cwd(), TEST_TARGET_CA_RELATIVE_PATH),
+);
 
 const temporaryDirectories = [];
 
 function emptyWorkspace() {
   const directory = mkdtempSync(path.join(tmpdir(), "gioia-test-target-"));
+  const certificatePath = path.join(directory, TEST_TARGET_CA_RELATIVE_PATH);
+  mkdirSync(path.dirname(certificatePath), { recursive: true });
+  writeFileSync(certificatePath, CA_SOURCE);
   temporaryDirectories.push(directory);
   return directory;
 }
@@ -88,6 +103,7 @@ describe("greenfield TEST target configuration", () => {
         "getOperatorSessionDatabaseUrl",
         "getOperatorWorkerDatabaseUrl",
         "getPublishableKey",
+        "getDatabaseCaCertificate",
       ]),
     );
   });
@@ -115,6 +131,7 @@ describe("greenfield TEST target configuration", () => {
     expect(runtime.port).toBe("6543");
     expect(runtime.search).toBe("?sslmode=verify-full");
     expect(config.getPublishableKey()).toBe(PUBLISHABLE_KEY);
+    expect(config.getDatabaseCaCertificate()).toBe(CA_SOURCE.toString("utf8"));
 
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_changed";
     env.GIOIA_TEST_OPERATOR_DATABASE_URL = "postgresql://changed";
@@ -171,6 +188,11 @@ describe("greenfield TEST target configuration", () => {
     ["PGPASSWORD", "libpq-secret"],
     ["PGPASSWORD", ""],
     ["PGSSLNEGOTIATION", "direct"],
+    ["SSL_CERT_FILE", "/tmp/alternate-ca.crt"],
+    ["SSL_CERT_DIR", "/tmp/alternate-ca-directory"],
+    ["NODE_EXTRA_CA_CERTS", "/tmp/alternate-ca.crt"],
+    ["NODE_TLS_REJECT_UNAUTHORIZED", "0"],
+    ["OPENSSL_CONF", "/tmp/alternate-openssl.cnf"],
     ["PG_FUTURE_OVERRIDE", "unexpected"],
     ["SUPABASE_DB_URL", "postgresql://unexpected"],
     ["SUPABASE_PROJECT_ID", TEST_TARGET_REF],
@@ -217,6 +239,61 @@ describe("greenfield TEST target configuration", () => {
     expect(() =>
       parse(validEnvironment({ DOTENV_CONFIG_PATH: ".env.operator" })),
     ).toThrow("dotenv loader settings are forbidden");
+  });
+
+  it("rejects a changed pinned TEST CA certificate", () => {
+    const rootDirectory = emptyWorkspace();
+    writeFileSync(
+      path.join(rootDirectory, TEST_TARGET_CA_RELATIVE_PATH),
+      "not a certificate\n",
+    );
+    expect(() =>
+      parseTestTargetConfig(validEnvironment(), {
+        execArgv: [],
+        rootDirectory,
+      }),
+    ).toThrow("Pinned TEST CA certificate is invalid");
+  });
+
+  it("rejects a writable, chained, or symlinked TEST CA certificate", () => {
+    const writableRoot = emptyWorkspace();
+    const writablePath = path.join(writableRoot, TEST_TARGET_CA_RELATIVE_PATH);
+    chmodSync(writablePath, 0o666);
+    expect(() =>
+      parseTestTargetConfig(validEnvironment(), {
+        execArgv: [],
+        rootDirectory: writableRoot,
+      }),
+    ).toThrow("Pinned TEST CA certificate is invalid");
+
+    const chainedRoot = emptyWorkspace();
+    writeFileSync(
+      path.join(chainedRoot, TEST_TARGET_CA_RELATIVE_PATH),
+      Buffer.concat([CA_SOURCE, CA_SOURCE]),
+    );
+    expect(() =>
+      parseTestTargetConfig(validEnvironment(), {
+        execArgv: [],
+        rootDirectory: chainedRoot,
+      }),
+    ).toThrow("Pinned TEST CA certificate is invalid");
+
+    const symlinkedRoot = emptyWorkspace();
+    const symlinkedPath = path.join(
+      symlinkedRoot,
+      TEST_TARGET_CA_RELATIVE_PATH,
+    );
+    rmSync(symlinkedPath);
+    symlinkSync(
+      path.resolve(process.cwd(), TEST_TARGET_CA_RELATIVE_PATH),
+      symlinkedPath,
+    );
+    expect(() =>
+      parseTestTargetConfig(validEnvironment(), {
+        execArgv: [],
+        rootDirectory: symlinkedRoot,
+      }),
+    ).toThrow("Pinned TEST CA certificate is invalid");
   });
 
   it("validates runtime passwords without including them in failures", () => {

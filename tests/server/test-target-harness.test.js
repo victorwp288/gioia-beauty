@@ -20,11 +20,13 @@ const operatorWorkerUrl =
   "postgresql://postgres.ref:operator@pooler.test:6543/postgres?sslmode=verify-full";
 const runtimeUrl =
   "postgresql://app_runtime.ref:runtime@pooler.test:6543/postgres?sslmode=verify-full";
+const CA_CERTIFICATE = "synthetic-ca-certificate";
 
 function config() {
   return {
     apiUrl: "https://lxvsspniipcotimbsfqm.supabase.co/",
     projectRef: "lxvsspniipcotimbsfqm",
+    getDatabaseCaCertificate: () => CA_CERTIFICATE,
     deriveAppRuntimeDatabaseUrl: vi.fn(() => runtimeUrl),
     getOperatorSessionDatabaseUrl: () => operatorSessionUrl,
     getOperatorWorkerDatabaseUrl: () => operatorWorkerUrl,
@@ -100,10 +102,10 @@ describe("greenfield TEST advisory lock", () => {
       idle_timeout: null,
       max_lifetime: null,
       max: 1,
-      ssl: "verify-full",
+      ssl: { ca: CA_CERTIFICATE, rejectUnauthorized: true },
     });
     expect(clientFactory.mock.calls[1][1]).toMatchObject({
-      ssl: "verify-full",
+      ssl: { ca: CA_CERTIFICATE, rejectUnauthorized: true },
     });
   });
 
@@ -230,6 +232,7 @@ describe("greenfield TEST child environment", () => {
       APP_ENV: "preview",
       EMAIL_TRANSPORT: "fake",
       NEXT_PUBLIC_APP_ENV: "preview",
+      SUPABASE_DATABASE_CA_CERTIFICATE: CA_CERTIFICATE,
       SUPABASE_DATABASE_URL: runtimeUrl,
       SUPABASE_PROJECT_REF: "lxvsspniipcotimbsfqm",
       VERCEL_ENV: "preview",
@@ -248,6 +251,7 @@ describe("greenfield TEST child environment", () => {
         "OWNER_SESSION_HMAC_SECRET",
         "PATH",
         "SUPABASE_DATABASE_URL",
+        "SUPABASE_DATABASE_CA_CERTIFICATE",
         "SUPABASE_PROJECT_REF",
         "TMPDIR",
         "VERCEL_ENV",

@@ -16,6 +16,7 @@ function harness(overrides = {}) {
     verifyVersion: vi.fn(async () => calls.push("version")),
   };
   const config = {
+    getDatabaseCaCertificate: vi.fn(() => "synthetic-ca"),
     getOperatorSessionDatabaseUrl: vi.fn(() => "private-operator-url"),
     projectRef: "lxvsspniipcotimbsfqm",
   };
@@ -102,6 +103,7 @@ describe("greenfield TEST two-cycle operator", () => {
       ...fingerprint,
     });
     expect(state.operationOverrides.createCli).toHaveBeenCalledWith({
+      getDatabaseCaCertificate: state.config.getDatabaseCaCertificate,
       getOperatorSessionDatabaseUrl: state.config.getOperatorSessionDatabaseUrl,
       rootDirectory: "/synthetic/repository",
     });

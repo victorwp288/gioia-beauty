@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { X509Certificate } from "node:crypto";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -11,6 +18,16 @@ const TEST_TARGET_REF = "lxvsspniipcotimbsfqm";
 const TEST_TARGET_POOLER = /^aws-[0-9]+-eu-central-2\.pooler\.supabase\.com$/u;
 const MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
+const TEST_TARGET_CA_FINGERPRINT =
+  "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
+const EXACT_LINT_STDOUT = '{"results":[],"message":"db lint"}\n';
+const EXACT_LINT_STDERR =
+  "Connecting to remote database...\n" +
+  "Linting schema: gioia_private\n\n" +
+  "No schema errors found\n";
+const EXACT_ADVISORS_STDOUT = '{"results":[],"message":"db advisors"}\n';
+const EXACT_ADVISORS_STDERR =
+  "Connecting to remote database...\nNo issues found\n";
 
 export class TestTargetCliError extends Error {
   constructor(message, { stdout = "", stderr = "" } = {}) {
@@ -109,6 +126,7 @@ function commandEnvironment(home) {
 }
 
 export function createTestTargetCli({
+  getDatabaseCaCertificate,
   getOperatorSessionDatabaseUrl,
   rootDirectory = process.cwd(),
   runProcess = execute,
@@ -118,6 +136,11 @@ export function createTestTargetCli({
       "TEST operator database URL must be supplied by a private getter",
     );
   }
+  if (typeof getDatabaseCaCertificate !== "function") {
+    throw new TestTargetCliError(
+      "TEST database CA certificate must be supplied by a private getter",
+    );
+  }
   if (typeof runProcess !== "function") {
     throw new TestTargetCliError("TEST CLI process runner is invalid");
   }
@@ -125,26 +148,49 @@ export function createTestTargetCli({
   const databaseUrl = validateOperatorDatabaseUrl(
     getOperatorSessionDatabaseUrl(),
   );
+  const certificatePem = getDatabaseCaCertificate();
+  let certificate;
+  try {
+    certificate = new X509Certificate(certificatePem);
+  } catch {
+    throw new TestTargetCliError("TEST database CA certificate is invalid");
+  }
+  if (
+    typeof certificatePem !== "string" ||
+    !certificate.ca ||
+    certificatePem !== certificate.toString() ||
+    certificate.fingerprint256 !== TEST_TARGET_CA_FINGERPRINT
+  ) {
+    throw new TestTargetCliError("TEST database CA certificate is invalid");
+  }
   const secrets = secretValues(databaseUrl);
   const root = path.resolve(rootDirectory);
   const binary = path.join(root, "node_modules", ".bin", "supabase");
   let versionVerified = false;
 
   async function invoke(label, args) {
-    const home = mkdtempSync(path.join(tmpdir(), "gioia-test-cli-"));
-    chmodSync(home, 0o700);
-    mkdirSync(path.join(home, ".supabase"), { mode: 0o700 });
-    const options = {
-      cwd: root,
-      encoding: "utf8",
-      env: commandEnvironment(home),
-      killSignal: "SIGTERM",
-      maxBuffer: MAX_BUFFER_BYTES,
-      timeout: COMMAND_TIMEOUT_MS,
-      windowsHide: true,
-    };
+    let home = "";
 
     try {
+      home = mkdtempSync(path.join(tmpdir(), "gioia-test-cli-"));
+      chmodSync(home, 0o700);
+      mkdirSync(path.join(home, ".supabase"), { mode: 0o700 });
+      const certificatePath = path.join(home, "root.crt");
+      writeFileSync(certificatePath, certificatePem, { mode: 0o600 });
+      const commandDatabaseUrl = new URL(databaseUrl);
+      commandDatabaseUrl.searchParams.set("sslrootcert", certificatePath);
+      const commandArgs = args.map((argument) =>
+        argument === databaseUrl ? commandDatabaseUrl.href : argument,
+      );
+      const options = {
+        cwd: root,
+        encoding: "utf8",
+        env: commandEnvironment(home),
+        killSignal: "SIGTERM",
+        maxBuffer: MAX_BUFFER_BYTES,
+        timeout: COMMAND_TIMEOUT_MS,
+        windowsHide: true,
+      };
       if (!versionVerified) {
         const version = await runProcess(binary, ["--version"], {
           ...options,
@@ -159,11 +205,25 @@ export function createTestTargetCli({
         versionVerified = true;
       }
 
-      const result = await runProcess(binary, args, options);
-      return Object.freeze({
+      const result = await runProcess(binary, commandArgs, options);
+      const redacted = Object.freeze({
         stderr: redact(result.stderr, secrets, home),
         stdout: redact(result.stdout, secrets, home),
       });
+      for (const source of [redacted.stdout, redacted.stderr]) {
+        try {
+          const envelope = JSON.parse(source);
+          if (
+            envelope?._tag === "Error" ||
+            envelope?.error?.code === "LegacyDbConnectError"
+          ) {
+            throw new TestTargetCliError(`${label} returned an error envelope`);
+          }
+        } catch (error) {
+          if (error instanceof TestTargetCliError) throw error;
+        }
+      }
+      return redacted;
     } catch (error) {
       if (error instanceof TestTargetCliError) throw error;
       const message = redact(error?.message ?? String(error), secrets, home);
@@ -172,7 +232,7 @@ export function createTestTargetCli({
         stdout: redact(error?.stdout, secrets, home),
       });
     } finally {
-      rmSync(home, { force: true, recursive: true });
+      if (home) rmSync(home, { force: true, recursive: true });
     }
   }
 
@@ -187,7 +247,7 @@ export function createTestTargetCli({
   }
 
   async function lintPrivateSchema() {
-    return invoke("Supabase database lint", [
+    const result = await invoke("Supabase database lint", [
       "db",
       "lint",
       "--db-url",
@@ -198,11 +258,20 @@ export function createTestTargetCli({
       "warning",
       "--fail-on",
       "warning",
+      "--output-format",
+      "json",
     ]);
+    if (
+      result.stdout !== EXACT_LINT_STDOUT ||
+      result.stderr !== EXACT_LINT_STDERR
+    ) {
+      throw new TestTargetCliError("Supabase database lint output is invalid");
+    }
+    return result;
   }
 
   async function runAdvisors() {
-    return invoke("Supabase database advisors", [
+    const result = await invoke("Supabase database advisors", [
       "db",
       "advisors",
       "--db-url",
@@ -213,7 +282,18 @@ export function createTestTargetCli({
       "warn",
       "--fail-on",
       "warn",
+      "--output-format",
+      "json",
     ]);
+    if (
+      result.stdout !== EXACT_ADVISORS_STDOUT ||
+      result.stderr !== EXACT_ADVISORS_STDERR
+    ) {
+      throw new TestTargetCliError(
+        "Supabase database advisors output is invalid",
+      );
+    }
+    return result;
   }
 
   async function runRemotePgTap() {
@@ -225,6 +305,21 @@ export function createTestTargetCli({
       databaseUrl,
       ...suite.files,
     ]);
+    const transcript = `${result.stdout}\n${result.stderr}`;
+    const lines = transcript.split(/\r?\n/u);
+    if (
+      !lines.includes(
+        `Files=${suite.files.length}, Tests=${suite.assertions}`,
+      ) ||
+      !lines.includes("Result: PASS") ||
+      lines.some((line) => {
+        const marker = line.trimStart();
+        return /^not ok\b/iu.test(marker) || /^Bail out!/iu.test(marker);
+      }) ||
+      lines.some((line) => line.trim() === "Result: FAIL")
+    ) {
+      throw new TestTargetCliError("Supabase remote pgTAP output is invalid");
+    }
     return Object.freeze({ ...result, ...suite });
   }
 

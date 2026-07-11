@@ -98,6 +98,7 @@ export async function runGreenfieldTestProject(
   operations.repositoryMigrations(rootDirectory);
   const plan = operations.createPlan(rootDirectory);
   const cli = operations.createCli({
+    getDatabaseCaCertificate: config.getDatabaseCaCertificate,
     getOperatorSessionDatabaseUrl: config.getOperatorSessionDatabaseUrl,
     rootDirectory,
   });

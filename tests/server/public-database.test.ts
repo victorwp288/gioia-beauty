@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -12,6 +14,11 @@ import {
   type RuntimeSqlClient,
   type RuntimeTransaction,
 } from "@/lib/server/database/runtime.ts";
+
+const SUPABASE_CA_CERTIFICATE = readFileSync(
+  "config/certificates/supabase-prod-ca-2021.crt",
+  "utf8",
+);
 
 describe("runtime Postgres adapter", () => {
   it("initializes lazily with bounded transaction-pooler settings", async () => {
@@ -102,6 +109,102 @@ describe("runtime Postgres adapter", () => {
       .catch((caught) => caught);
     expect(error).toEqual(new DatabaseConfigurationError());
     expect(String(error)).not.toContain("secret-not-a-url");
+  });
+
+  it("pins the Supabase CA for a remote verify-full database URL", async () => {
+    const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => []);
+    const client: RuntimeSqlClient = {
+      begin: vi.fn(async (work) => work({ unsafe } as RuntimeTransaction)),
+    };
+    const clientFactory = vi.fn<
+      NonNullable<RuntimeDatabaseOptions["clientFactory"]>
+    >(() => client);
+    const database = createRuntimeDatabase({
+      env: {
+        SUPABASE_DATABASE_CA_CERTIFICATE: SUPABASE_CA_CERTIFICATE,
+        SUPABASE_DATABASE_URL:
+          "postgresql://app_runtime.lxvsspniipcotimbsfqm:synthetic@" +
+          "aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+      },
+      clientFactory,
+    });
+
+    await database.transaction((tx) => tx.unsafe("select bounded_call()"));
+
+    expect(clientFactory).toHaveBeenCalledTimes(1);
+    expect(clientFactory.mock.calls[0]?.[1].ssl).toEqual({
+      ca: SUPABASE_CA_CERTIFICATE,
+      rejectUnauthorized: true,
+    });
+  });
+
+  it("keeps IPv6 loopback local without requiring a remote CA", async () => {
+    const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => []);
+    const client: RuntimeSqlClient = {
+      begin: vi.fn(async (work) => work({ unsafe } as RuntimeTransaction)),
+    };
+    const clientFactory = vi.fn<
+      NonNullable<RuntimeDatabaseOptions["clientFactory"]>
+    >(() => client);
+    const database = createRuntimeDatabase({
+      env: {
+        SUPABASE_DATABASE_URL:
+          "postgresql://app_runtime:synthetic@[::1]:54322/postgres",
+      },
+      clientFactory,
+    });
+
+    await database.transaction((tx) => tx.unsafe("select bounded_call()"));
+
+    expect(clientFactory.mock.calls[0]?.[1]).not.toHaveProperty("ssl");
+  });
+
+  it.each([
+    ["missing CA", undefined],
+    ["changed CA", "not the pinned Supabase CA"],
+    ["chained CA", `${SUPABASE_CA_CERTIFICATE}${SUPABASE_CA_CERTIFICATE}`],
+  ])(
+    "rejects a remote database with %s before client creation",
+    async (_, ca) => {
+      const clientFactory =
+        vi.fn<NonNullable<RuntimeDatabaseOptions["clientFactory"]>>();
+      const database = createRuntimeDatabase({
+        env: {
+          ...(ca ? { SUPABASE_DATABASE_CA_CERTIFICATE: ca } : {}),
+          SUPABASE_DATABASE_URL:
+            "postgresql://app_runtime.lxvsspniipcotimbsfqm:synthetic@" +
+            "aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+        },
+        clientFactory,
+      });
+
+      const error = await database
+        .transaction(async () => undefined)
+        .catch((caught) => caught);
+
+      expect(error).toEqual(new DatabaseConfigurationError());
+      expect(String(error)).not.toContain(String(ca));
+      expect(clientFactory).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects a remote database without verify-full before client creation", async () => {
+    const clientFactory =
+      vi.fn<NonNullable<RuntimeDatabaseOptions["clientFactory"]>>();
+    const database = createRuntimeDatabase({
+      env: {
+        SUPABASE_DATABASE_CA_CERTIFICATE: SUPABASE_CA_CERTIFICATE,
+        SUPABASE_DATABASE_URL:
+          "postgresql://app_runtime.lxvsspniipcotimbsfqm:synthetic@" +
+          "aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=require",
+      },
+      clientFactory,
+    });
+
+    await expect(database.transaction(async () => undefined)).rejects.toEqual(
+      new DatabaseConfigurationError(),
+    );
+    expect(clientFactory).not.toHaveBeenCalled();
   });
 });
 

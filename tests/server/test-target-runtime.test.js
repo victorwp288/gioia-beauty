@@ -10,6 +10,8 @@ import {
   withGreenfieldRuntimeDatabase,
 } from "../../scripts/test-target-runtime.mjs";
 
+const CA_CERTIFICATE = "synthetic-ca-certificate";
+
 describe("greenfield TEST ephemeral runtime fixtures", () => {
   it("generates a complex owner password from exactly 32 random bytes", () => {
     const randomBytes = vi.fn(() => Buffer.alloc(32, 0xab));
@@ -66,7 +68,7 @@ describe("greenfield TEST ephemeral runtime fixtures", () => {
           expect(received).toBe(sql);
           throw failure;
         },
-        { clientFactory },
+        { caCertificate: CA_CERTIFICATE, clientFactory },
       ),
     ).rejects.toBe(failure);
 
@@ -76,7 +78,7 @@ describe("greenfield TEST ephemeral runtime fixtures", () => {
         connection: { application_name: "gioia_public_api" },
         max: DATABASE_POOL_SIZE,
         prepare: false,
-        ssl: "verify-full",
+        ssl: { ca: CA_CERTIFICATE, rejectUnauthorized: true },
       }),
     );
     expect(sql.end).toHaveBeenCalledWith({ timeout: 5 });

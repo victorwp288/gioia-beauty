@@ -49,7 +49,8 @@ function harness(overrides = {}) {
       calls.push("server");
       return callback(new URL("http://127.0.0.1:43123"));
     }),
-    withRuntimeDatabase: vi.fn(async (_url, callback) => {
+    withRuntimeDatabase: vi.fn(async (_url, callback, options) => {
+      expect(options).toEqual({ caCertificate: "synthetic-ca" });
       calls.push("runtime-db");
       return callback({ synthetic: "runtime" });
     }),
@@ -66,7 +67,10 @@ function harness(overrides = {}) {
 function options(cli, overrides = {}) {
   return {
     cli,
-    config: { projectRef: "lxvsspniipcotimbsfqm" },
+    config: {
+      getDatabaseCaCertificate: () => "synthetic-ca",
+      projectRef: "lxvsspniipcotimbsfqm",
+    },
     cycle: "A",
     recoverRuntimeRole: vi.fn(async () => {}),
     worker: { synthetic: "operator" },

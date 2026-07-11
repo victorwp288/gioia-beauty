@@ -68,8 +68,10 @@ async function runFixtureAcceptance({
       worker,
       recoverRuntimeRole,
       callback: async ({ runtimeDatabaseUrl }) => {
-        await operations.withRuntimeDatabase(runtimeDatabaseUrl, (runtime) =>
-          operations.runBooking(runtime, { targets }),
+        await operations.withRuntimeDatabase(
+          runtimeDatabaseUrl,
+          (runtime) => operations.runBooking(runtime, { targets }),
+          { caCertificate: config.getDatabaseCaCertificate() },
         );
         await operations.withAuthServer(config, runtimeDatabaseUrl, (baseUrl) =>
           operations.runOwnerScenario({

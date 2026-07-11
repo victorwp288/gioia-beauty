@@ -1,4 +1,14 @@
-import { readdirSync } from "node:fs";
+import { X509Certificate } from "node:crypto";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+} from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -9,6 +19,8 @@ import {
 export const TEST_TARGET_REF = "lxvsspniipcotimbsfqm";
 export const TEST_TARGET_API_URL = `https://${TEST_TARGET_REF}.supabase.co`;
 export const TEST_TARGET_REGION = "eu-central-2";
+export const TEST_TARGET_CA_RELATIVE_PATH =
+  "config/certificates/supabase-prod-ca-2021.crt";
 
 const PUBLISHABLE_KEY_PATTERN = /^sb_publishable_[A-Za-z0-9_-]{20,}$/;
 const UUID_PATTERN =
@@ -16,6 +28,8 @@ const UUID_PATTERN =
 const POOLER_HOST_PATTERN = /^aws-[0-9]+-eu-central-2\.pooler\.supabase\.com$/;
 const OPERATOR_USERNAME = `postgres.${TEST_TARGET_REF}`;
 const RUNTIME_USERNAME = `app_runtime.${TEST_TARGET_REF}`;
+const TEST_TARGET_CA_FINGERPRINT =
+  "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
 const ALLOWED_SUPABASE_ENV_KEYS = new Set([
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -34,6 +48,11 @@ const FORBIDDEN_EXACT_ENV_KEYS = new Set([
   "MIGRATION_BACKUP_EVIDENCE_ID",
   "MIGRATION_RESTORE_EVIDENCE_ID",
   "MIGRATION_WRITE_FREEZE_ID",
+  "NODE_EXTRA_CA_CERTS",
+  "NODE_TLS_REJECT_UNAUTHORIZED",
+  "OPENSSL_CONF",
+  "SSL_CERT_DIR",
+  "SSL_CERT_FILE",
   "VERCEL_ENV",
 ]);
 
@@ -121,6 +140,47 @@ function validateNoDotenvFiles(rootDirectory, execArgv, errors) {
   }
 }
 
+function loadPinnedCertificate(rootDirectory, errors) {
+  let descriptor;
+  try {
+    const expectedPath = path.resolve(
+      realpathSync(rootDirectory),
+      TEST_TARGET_CA_RELATIVE_PATH,
+    );
+    descriptor = openSync(
+      expectedPath,
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+    const stat = fstatSync(descriptor);
+    if (!stat.isFile() || stat.size === 0 || stat.size > 16 * 1024) {
+      throw new Error();
+    }
+    if ((stat.mode & 0o022) !== 0) {
+      throw new Error();
+    }
+    const source = readFileSync(descriptor, "utf8");
+    const beginCount = source.split("-----BEGIN CERTIFICATE-----").length - 1;
+    const endCount = source.split("-----END CERTIFICATE-----").length - 1;
+    if (beginCount !== 1 || endCount !== 1) throw new Error();
+    const certificate = new X509Certificate(source);
+    if (
+      !certificate.ca ||
+      source !== certificate.toString() ||
+      certificate.fingerprint256 !== TEST_TARGET_CA_FINGERPRINT ||
+      Date.parse(certificate.validFrom) > Date.now() ||
+      Date.parse(certificate.validTo) <= Date.now()
+    ) {
+      throw new Error();
+    }
+    return source;
+  } catch {
+    errors.push("Pinned TEST CA certificate is invalid");
+    return null;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 function parseApiUrl(value, errors) {
   if (!hasValue(value)) {
     errors.push("NEXT_PUBLIC_SUPABASE_URL is required");
@@ -194,7 +254,13 @@ function runtimeDatabaseUrl(operatorWorkerUrl, password) {
   return url.href;
 }
 
-function safeConfig(publishableKey, runId, apiUrl, operatorUrl) {
+function safeConfig(
+  publishableKey,
+  runId,
+  apiUrl,
+  operatorUrl,
+  certificatePem,
+) {
   const operatorSessionUrl = operatorUrl.href;
   const operatorWorker = new URL(operatorUrl);
   operatorWorker.port = "6543";
@@ -219,6 +285,7 @@ function safeConfig(publishableKey, runId, apiUrl, operatorUrl) {
     getOperatorSessionDatabaseUrl: { value: () => operatorSessionUrl },
     getOperatorWorkerDatabaseUrl: { value: () => operatorWorkerUrl },
     getPublishableKey: { value: () => publishableKey },
+    getDatabaseCaCertificate: { value: () => certificatePem },
   });
   return Object.freeze(config);
 }
@@ -232,6 +299,7 @@ export function parseTestTargetConfig(
   requiredExactValue(env, "SUPABASE_PROJECT_REF", TEST_TARGET_REF, errors);
   validateForbiddenEnvironment(env, errors);
   validateNoDotenvFiles(rootDirectory, execArgv, errors);
+  const certificatePem = loadPinnedCertificate(rootDirectory, errors);
 
   const runId = env.GIOIA_TEST_RUN_ID;
   if (!UUID_PATTERN.test(runId ?? "")) {
@@ -252,12 +320,15 @@ export function parseTestTargetConfig(
     errors,
   );
 
-  if (errors.length > 0) throw new TestTargetConfigError(errors);
+  if (errors.length > 0 || certificatePem === null) {
+    throw new TestTargetConfigError(errors);
+  }
   return safeConfig(
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     runId,
     apiUrl,
     operatorUrl,
+    certificatePem,
   );
 }
 

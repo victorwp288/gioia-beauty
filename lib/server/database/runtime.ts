@@ -1,5 +1,7 @@
 import "server-only";
 
+import { X509Certificate } from "node:crypto";
+
 import postgres from "postgres";
 
 export type DatabaseRow = Record<string, unknown>;
@@ -44,6 +46,7 @@ export interface RuntimeDatabaseOptions {
       debug: false;
       onnotice: () => void;
       connection: { application_name: string };
+      ssl?: { ca: string; rejectUnauthorized: true };
     },
   ) => RuntimeSqlClient;
 }
@@ -64,6 +67,8 @@ export class DatabaseAuthorizationContextError extends Error {
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SUPABASE_CA_FINGERPRINT =
+  "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
 
 function requireOwnerIdentity(
   identity: OwnerTransactionIdentity,
@@ -97,6 +102,42 @@ function requireDatabaseUrl(
   return value;
 }
 
+function remoteDatabaseTls(
+  env: Readonly<Record<string, string | undefined>>,
+  databaseUrl: string,
+): { ca: string; rejectUnauthorized: true } | undefined {
+  const url = new URL(databaseUrl);
+  if (
+    url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "[::1]"
+  ) {
+    return undefined;
+  }
+  const source = env.SUPABASE_DATABASE_CA_CERTIFICATE;
+  try {
+    if (
+      typeof source !== "string" ||
+      url.searchParams.get("sslmode") !== "verify-full"
+    ) {
+      throw new Error();
+    }
+    const certificate = new X509Certificate(source);
+    if (
+      !certificate.ca ||
+      source !== certificate.toString() ||
+      certificate.fingerprint256 !== SUPABASE_CA_FINGERPRINT ||
+      Date.parse(certificate.validFrom) > Date.now() ||
+      Date.parse(certificate.validTo) <= Date.now()
+    ) {
+      throw new Error();
+    }
+    return { ca: source, rejectUnauthorized: true };
+  } catch {
+    throw new DatabaseConfigurationError();
+  }
+}
+
 const defaultClientFactory = postgres as unknown as NonNullable<
   RuntimeDatabaseOptions["clientFactory"]
 >;
@@ -110,7 +151,9 @@ export function createRuntimeDatabase({
 
   function getClient(): RuntimeSqlClient {
     if (!lazyClient) {
-      lazyClient = clientFactory(requireDatabaseUrl(env), {
+      const databaseUrl = requireDatabaseUrl(env);
+      const ssl = remoteDatabaseTls(env, databaseUrl);
+      lazyClient = clientFactory(databaseUrl, {
         prepare: false,
         max: 2,
         idle_timeout: 20,
@@ -119,6 +162,7 @@ export function createRuntimeDatabase({
         debug: false,
         onnotice: () => {},
         connection: { application_name: "gioia_public_api" },
+        ...(ssl ? { ssl } : {}),
       });
     }
     return lazyClient;

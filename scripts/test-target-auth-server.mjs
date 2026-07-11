@@ -98,6 +98,7 @@ export function greenfieldChildEnvironment(config, runtimeDatabaseUrl) {
     OWNER_SESSION_HMAC_SECRET: ephemeralSecret(),
     PATH: process.env.PATH,
     SUPABASE_DATABASE_URL: runtimeDatabaseUrl,
+    SUPABASE_DATABASE_CA_CERTIFICATE: config.getDatabaseCaCertificate(),
     SUPABASE_PROJECT_REF: config.projectRef,
     TMPDIR: process.env.TMPDIR ?? "/tmp",
     VERCEL_ENV: "preview",

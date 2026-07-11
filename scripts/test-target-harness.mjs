@@ -74,11 +74,14 @@ function databaseClient(
   databaseUrl,
   max,
   clientFactory = postgres,
-  { persistent = false } = {},
+  { caCertificate, persistent = false } = {},
 ) {
+  if (typeof caCertificate !== "string" || caCertificate.length === 0) {
+    throw new Error("Greenfield TEST database CA is invalid");
+  }
   return clientFactory(databaseUrl, {
     prepare: false,
-    ssl: "verify-full",
+    ssl: { ca: caCertificate, rejectUnauthorized: true },
     max,
     idle_timeout: persistent ? null : 5,
     connect_timeout: 10,
@@ -100,16 +103,18 @@ export async function withGreenfieldTestLock(
   if (typeof callback !== "function") {
     throw new Error("Greenfield TEST lock requires a callback");
   }
+  const caCertificate = config.getDatabaseCaCertificate();
   const lockPool = databaseClient(
     config.getOperatorSessionDatabaseUrl(),
     1,
     clientFactory,
-    { persistent: true },
+    { caCertificate, persistent: true },
   );
   const worker = databaseClient(
     config.getOperatorWorkerDatabaseUrl(),
     21,
     clientFactory,
+    { caCertificate },
   );
   let lockClient;
   let locked = false;
