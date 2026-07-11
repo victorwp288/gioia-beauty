@@ -79,7 +79,7 @@ export function responseHeadersWithCookies() {
   return headers;
 }
 
-interface FixtureOptions {
+export interface FixtureOptions {
   readonly sessionMissing?: boolean;
   readonly sessionError?: unknown;
   readonly userError?: unknown;
@@ -93,7 +93,7 @@ interface FixtureOptions {
   readonly readNow?: () => Date;
 }
 
-function createRuntimeFixture(options: FixtureOptions = {}) {
+export function createRuntimeFixture(options: FixtureOptions = {}) {
   const order: string[] = [];
   const token = accessToken();
   const getSession = vi.fn(async () => {

@@ -8,11 +8,19 @@ const CONTRACT_NAMES = [
   "ownerScheduleReadContract",
   "ownerScheduleListResponseContract",
   "ownerScheduleCountReadContract",
+  "ownerScheduleExportReadContract",
+  "ownerScheduleExportResponseContract",
+  "ownerSubscriberReadContract",
+  "ownerSubscriberListResponseContract",
+  "ownerVacationReadContract",
+  "ownerVacationListResponseContract",
 ] as const;
 const HANDLER_NAMES = [
   "ownerScheduleReadHandler",
   "ownerScheduleReadHandlerSupport",
   "ownerScheduleReadAuthorization",
+  "ownerScheduleExportHandler",
+  "ownerVacationSubscriberReadHandler",
 ] as const;
 const MODULE_NAMES = [...CONTRACT_NAMES, ...HANDLER_NAMES] as const;
 

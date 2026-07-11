@@ -1,12 +1,9 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import type { z } from "zod";
 
-import {
-  AdminScheduleListResponseSchema,
-  ScheduleCountResponseSchema,
-  UuidSchema,
-} from "@/lib/domain/schemas/index.ts";
+import { UuidSchema } from "@/lib/domain/schemas/index.ts";
 
 import {
   requireFreshOwnerSession,
@@ -161,8 +158,11 @@ export function createOwnerReadHandler<TPlan>(options: {
     result: unknown,
     now: Date,
   ) => unknown;
-  readonly responseSchema:
-    typeof AdminScheduleListResponseSchema | typeof ScheduleCountResponseSchema;
+  readonly responseSchema?: z.ZodType;
+  readonly createSuccessResponse?: (
+    body: unknown,
+    headers: Headers,
+  ) => Response;
   readonly createRequestId: () => string;
 }) {
   return async function GET(request: Request): Promise<Response> {
@@ -229,12 +229,12 @@ export function createOwnerReadHandler<TPlan>(options: {
     try {
       const headers = safeAuthHeaders(context);
       if (!headers) throw new TypeError();
-      return validatedJsonResponse(
-        options.responseSchema,
-        options.respond(prepared.plan, result, prepared.now),
-        200,
-        headers,
-      );
+      const body = options.respond(prepared.plan, result, prepared.now);
+      if (options.createSuccessResponse) {
+        return options.createSuccessResponse(body, headers);
+      }
+      if (!options.responseSchema) throw new TypeError();
+      return validatedJsonResponse(options.responseSchema, body, 200, headers);
     } catch {
       return errorResponse(503, "SERVICE_UNAVAILABLE", requestId, context);
     }

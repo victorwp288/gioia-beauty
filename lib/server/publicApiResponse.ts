@@ -17,7 +17,9 @@ const RESPONSE_HEADERS = {
   "X-Frame-Options": "DENY",
 } as const;
 
-function mergedResponseHeaders(headers: HeadersInit): Headers {
+export function securePrivateResponseHeaders(
+  headers: HeadersInit = {},
+): Headers {
   const merged = new Headers(RESPONSE_HEADERS);
   const supplied = new Headers(headers);
   const setCookies =
@@ -41,7 +43,7 @@ export function validatedJsonResponse<T extends z.ZodTypeAny>(
   const validated = schema.parse(body);
   return new Response(JSON.stringify(validated), {
     status,
-    headers: mergedResponseHeaders(headers),
+    headers: securePrivateResponseHeaders(headers),
   });
 }
 

@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-11 — Batched inert vacation, subscriber, and schedule-export owner reads
+**Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
+**Labels/environment:** [LOCAL] injected server contracts/handlers, synthetic Auth/executors, static analysis, documentation, and build only
+**Data impact:** none; no SQL/function/repository singleton, real Auth/DB/provider call, route, UI activation, migration, environment key, remote, or customer-data action
+**Target:** local `refactor`; Production Supabase remains unregistered/null and protected TEST operator credentials remain absent
+**Expected reads/writes/rows:** verification executed 0 real DB/Auth/provider/network calls, 0 writes, and 0 rows. Future accepted pages each use 1 context load, at most 2 Auth SDK checks, 1 owner authorization, and 1 transaction-authorized executor: vacation/subscriber return at most 101 rows; export returns at most 501 rows and emits at most 500 rows/16 MiB over at most 366 inclusive dates. Rejections stop earlier; physical scans remain unclaimed.
+**Done:** Added exact capability-issued vacation-overlap, newest-first subscriber, and schedule-export request/response contracts plus GET handler factories. Cursors bind scope/filter/page/time/position; subscriber pagination preserves PostgreSQL microseconds; CSV is server-rendered with note projection, BOM/CRLF, formula neutralization, safe filename, byte cap, private headers, and bounded continuation. Shared owner-read responses now support validated private non-JSON output. No masterplan item was ticked.
+**Verified/reconciled:** focused 5 files/38 tests; full format/static SQL/lint/TS7/TS6, 126 files/1,692 tests, both 56-test timezone runs, and production build pass. Two independent final reviews found no P1/P2. Prior pushed handler/cadence head passed all six CI jobs, including secrets/dependencies and two clean DB cycles, in run `29144125717`; replacement CI for this batch is pending.
+**Production actions performed:** none; no Firebase, Supabase project, Resend, Vercel, DNS, `main`, Production data, deployment, or configuration access
+**Backup/restore evidence:** n/a; no external state changed
+**Rollback/forward recovery:** revert this batch commit; no external recovery is required
+**Next:** Commit and push this coherent owner-read batch, then green replacement CI. If the exact protected TEST session-pooler DSN and publishable key remain absent, implement one migration-free outbox owner-list request/response/handler contract batch with synthetic collaborators only—no SQL/function, runtime singleton, route/UI activation, or remote access.
+**Gotchas:** Future vacation SQL must use overlap semantics. Future subscriber SQL/indexes must match `(created_at DESC,id DESC)` and bounded status filters; do not recreate legacy global sorts by loading every page. Each export page repeats its BOM/header, so the future client must follow `X-Next-Cursor` and merge pages deliberately rather than treating page one as complete.
+
 ## 2026-07-11 — Guarded inert owner schedule read handlers
 **Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
 **Labels/environment:** [LOCAL] injected server handlers, synthetic Auth/executors, static analysis, documentation, and build only
