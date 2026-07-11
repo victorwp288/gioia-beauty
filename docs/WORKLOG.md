@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-11 — Pinned TEST database TLS trust before the greenfield checkpoint
+**Phase:** Phase 2 staging migration/reset acceptance foundation; the TEST checkpoint remains open
+**Labels/environment:** [LOCAL] trust/runtime/CLI tooling and tests; bounded read-only [TEST] TLS, lint, and advisor diagnostics
+**Data impact:** none; TEST diagnostics read connection/schema metadata only, with no schema/data/Auth/provider write and no customer data
+**Target:** authorized greenfield TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase remains Production authority and was not accessed
+**Expected reads/writes/rows:** 1 direct metadata query returning exactly 1 row plus 7 CLI metadata-only lint/advisor invocations; 0 business rows and 0 writes. The future checkpoint remains exactly 2 destructive synthetic TEST rebuild cycles.
+**Done:** Commit `4fe60f3` pins the official Supabase Root 2021 CA by exact fingerprint/canonical PEM, rejects global TLS overrides and unsafe certificate files/bundles, passes explicit per-client trust through operator/runtime/Auth-child paths, uses disposable CLI trust homes, and requires exact structured CLI/pgTAP evidence. No masterplan item was ticked.
+**Verified/reconciled:** certificate matches the supplied download and is valid through 2031; direct TEST verify-full query, final remote lint/advisors, format/static SQL/lint/TS7/TS6, 128 files/1,726 tests, both 56-test timezone runs, and production build pass. Two audit rounds found and resolved CA-bundle, IPv6, cleanup, and false pgTAP-success cases; final review found no P1/P2. Dependency audit has 0 high/critical and 6 existing Firebase-Admin-chain moderate records; local Gitleaks is unavailable, so CI must supply secret/history evidence.
+**Production actions performed:** none; no Firebase, Production Supabase, Resend, Vercel, DNS, `main`, deployment, configuration, or customer-data access
+**Backup/restore evidence:** n/a; no Production or persistent TEST change occurred
+**Rollback/forward recovery:** revert `4fe60f3`; remove no external state. The guarded checkpoint still fails closed before mutation unless exact clean pushed commit and green CI evidence are supplied.
+**Next:** Commit this handoff, push `refactor`, green all six CI jobs, then run `npm run db:test:greenfield` with the exact CI run/commit and two-cycle confirmation before reserved migration 38.
+**Gotchas:** The pinned CLI emits structured JSON only with `--output-format json`; default successful lint output can be empty. Never replace explicit CA trust with `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, or disabled verification.
+
 ## 2026-07-11 — Completed the inert bounded owner outbox read family
 **Phase:** Phase 3 authenticated owner read and reliable-side-effect foundation; broad checklist items remain open
 **Labels/environment:** [LOCAL] schema/contracts/handler, synthetic Auth/executors, static analysis, documentation, and build only
