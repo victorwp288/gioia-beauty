@@ -122,5 +122,7 @@ export const GREENFIELD_FINGERPRINT_SQL = `
       join pg_catalog.pg_class c on c.oid = p.polrelid
       join pg_catalog.pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public') as public_policies,
+    (select count(*)::integer from pg_catalog.pg_extension
+      where extname = 'pgtap') as test_extensions,
     (select count(*)::integer from auth.instances) as auth_instances
 `;

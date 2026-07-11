@@ -117,6 +117,7 @@ function fingerprintRow(overrides = {}) {
     public_relations: 0,
     public_functions: 0,
     public_policies: 0,
+    test_extensions: 0,
     auth_instances: 0,
     ...overrides,
   };
@@ -145,6 +146,9 @@ describe("greenfield TEST fixture reconciliation", () => {
     );
     expect(() =>
       assertGreenfieldFingerprintRow(fingerprintRow({ public_functions: 1 })),
+    ).toThrow("catalog fingerprint does not reconcile");
+    expect(() =>
+      assertGreenfieldFingerprintRow(fingerprintRow({ test_extensions: 1 })),
     ).toThrow("catalog fingerprint does not reconcile");
     expect(() =>
       assertGreenfieldFingerprintRow(

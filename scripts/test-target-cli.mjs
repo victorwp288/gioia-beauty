@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { remotePgTapFiles } from "./test-target-migrations.mjs";
+import { createRemotePgTapRunner } from "./test-target-pgtap.mjs";
 
 export const TEST_TARGET_SUPABASE_CLI_VERSION = "2.109.1";
 
@@ -126,6 +126,7 @@ function commandEnvironment(home) {
 }
 
 export function createTestTargetCli({
+  databaseClient,
   getDatabaseCaCertificate,
   getOperatorSessionDatabaseUrl,
   rootDirectory = process.cwd(),
@@ -166,6 +167,12 @@ export function createTestTargetCli({
   const secrets = secretValues(databaseUrl);
   const root = path.resolve(rootDirectory);
   const binary = path.join(root, "node_modules", ".bin", "supabase");
+  const runRemotePgTap = createRemotePgTapRunner({
+    databaseClient,
+    getDatabaseCaCertificate,
+    getOperatorSessionDatabaseUrl,
+    rootDirectory: root,
+  });
   let versionVerified = false;
 
   async function invoke(label, args) {
@@ -294,33 +301,6 @@ export function createTestTargetCli({
       );
     }
     return result;
-  }
-
-  async function runRemotePgTap() {
-    const suite = remotePgTapFiles(root);
-    const result = await invoke("Supabase remote pgTAP", [
-      "test",
-      "db",
-      "--db-url",
-      databaseUrl,
-      ...suite.files,
-    ]);
-    const transcript = `${result.stdout}\n${result.stderr}`;
-    const lines = transcript.split(/\r?\n/u);
-    if (
-      !lines.includes(
-        `Files=${suite.files.length}, Tests=${suite.assertions}`,
-      ) ||
-      !lines.includes("Result: PASS") ||
-      lines.some((line) => {
-        const marker = line.trimStart();
-        return /^not ok\b/iu.test(marker) || /^Bail out!/iu.test(marker);
-      }) ||
-      lines.some((line) => line.trim() === "Result: FAIL")
-    ) {
-      throw new TestTargetCliError("Supabase remote pgTAP output is invalid");
-    }
-    return Object.freeze({ ...result, ...suite });
   }
 
   return Object.freeze({

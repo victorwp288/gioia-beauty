@@ -15,6 +15,10 @@ import {
   createTestTargetCli,
 } from "../../scripts/test-target-cli.mjs";
 import { remotePgTapFiles } from "../../scripts/test-target-migrations.mjs";
+import {
+  REMOTE_PGTAP_CLEANUP_SQL,
+  REMOTE_PGTAP_ROLLBACK_SQL,
+} from "../../scripts/test-target-pgtap.mjs";
 
 const PASSWORD = "operator-password-12345678901234567890";
 const DATABASE_URL =
@@ -60,12 +64,6 @@ function fakeRunner(overrides = {}) {
         stdout: overrides.stdout ?? ADVISORS_STDOUT,
       };
     }
-    if (args[0] === "test" && args[1] === "db") {
-      return {
-        stderr: overrides.stderr ?? "",
-        stdout: overrides.stdout ?? "Files=21, Tests=342\nResult: PASS\n",
-      };
-    }
     return {
       stderr: overrides.stderr ?? "",
       stdout: overrides.stdout ?? "ok\n",
@@ -74,8 +72,35 @@ function fakeRunner(overrides = {}) {
   return { homes, run };
 }
 
-function client(runProcess) {
+function passingPgTapResults(source) {
+  const assertions = Number(source.match(/select plan\((\d+)\);/u)?.[1]);
+  return [
+    [{ plan: `1..${assertions}` }],
+    ...Array.from({ length: assertions }, (_, index) => [
+      { result: `ok ${index + 1} - synthetic pass` },
+    ]),
+  ];
+}
+
+function fakePgTapDatabase(resultFactory = passingPgTapResults) {
+  const sql = {
+    end: vi.fn(async () => {}),
+    unsafe: vi.fn(async (source) => {
+      if (
+        source === REMOTE_PGTAP_ROLLBACK_SQL ||
+        source === REMOTE_PGTAP_CLEANUP_SQL
+      ) {
+        return [];
+      }
+      return resultFactory(source);
+    }),
+  };
+  return { client: vi.fn(() => sql), sql };
+}
+
+function client(runProcess, databaseClient = fakePgTapDatabase().client) {
   return createTestTargetCli({
+    databaseClient,
     getDatabaseCaCertificate: () => CERTIFICATE_PEM,
     getOperatorSessionDatabaseUrl: () => DATABASE_URL,
     runProcess,
@@ -166,19 +191,36 @@ describe("greenfield TEST Supabase CLI", () => {
 
   it("passes all 21 reviewed remote pgTAP files explicitly", async () => {
     const { run } = fakeRunner();
-    const result = await client(run).runRemotePgTap();
-    const args = run.mock.calls[1][1];
+    const database = fakePgTapDatabase();
+    const result = await client(run, database.client).runRemotePgTap();
     const suite = remotePgTapFiles();
 
     expect(result).toMatchObject({ assertions: 342, files: suite.files });
-    expect(args.slice(0, 3)).toEqual(["test", "db", "--db-url"]);
-    const databaseUrl = new URL(args[3]);
-    expect(databaseUrl.searchParams.get("sslrootcert")).toContain("root.crt");
-    databaseUrl.searchParams.delete("sslrootcert");
-    expect(databaseUrl.href).toBe(DATABASE_URL);
-    expect(args.slice(4)).toEqual(suite.files);
-    expect(args).not.toContain("supabase/tests");
-    expect(args.join(" ")).not.toContain("005_synthetic_seed.test.sql");
+    expect(run).not.toHaveBeenCalled();
+    expect(database.client).toHaveBeenCalledWith(
+      DATABASE_URL,
+      expect.objectContaining({
+        max: 1,
+        prepare: false,
+        ssl: { ca: CERTIFICATE_PEM, rejectUnauthorized: true },
+      }),
+    );
+    const testCalls = database.sql.unsafe.mock.calls.slice(0, 21);
+    expect(testCalls).toHaveLength(21);
+    expect(
+      testCalls.every(
+        ([, args, options]) => args.length === 0 && options.simple === true,
+      ),
+    ).toBe(true);
+    expect(database.sql.unsafe).toHaveBeenNthCalledWith(
+      22,
+      REMOTE_PGTAP_ROLLBACK_SQL,
+    );
+    expect(database.sql.unsafe).toHaveBeenNthCalledWith(
+      23,
+      REMOTE_PGTAP_CLEANUP_SQL,
+    );
+    expect(database.sql.end).toHaveBeenCalledWith({ timeout: 5 });
   });
 
   it("redacts database credentials from results and failures", async () => {
@@ -239,20 +281,56 @@ describe("greenfield TEST Supabase CLI", () => {
     await expect(
       client(fakeRunner({ stderr: "No findings maybe\n" }).run).runAdvisors(),
     ).rejects.toThrow("advisors output is invalid");
-    for (const stdout of [
-      "Files=20, Tests=342\nResult: PASS\n",
-      "Files=21, Tests=341\nResult: PASS\n",
-      "Files=21, Tests=3420\nResult: PASS\n",
-      "Files=21, Tests=342\nResult: PASSING\n",
-      "Files=21, Tests=342\nResult: FAIL\n",
-      "not ok 1 - failed\nFiles=21, Tests=342\nResult: PASS\n",
-      "    not ok 1 - failed\nFiles=21, Tests=342\nResult: PASS\n",
-      "Bail out! unexpected failure\nFiles=21, Tests=342\nResult: PASS\n",
-    ]) {
-      await expect(
-        client(fakeRunner({ stdout }).run).runRemotePgTap(),
-      ).rejects.toThrow("pgTAP output is invalid");
-    }
+  });
+
+  it.each([
+    [[[{ plan: "1..1" }], [{ result: "not ok 1 - failed" }]]],
+    [[[{ plan: "1..1" }], [{ result: "    not ok 1 - failed" }]]],
+    [[[{ plan: "1..1" }], [{ result: "Bail out! failed" }]]],
+    [[[{ plan: "1..10" }], [{ result: "ok 1 - incomplete" }]]],
+  ])("rejects invalid direct pgTAP result evidence", async (results) => {
+    const database = fakePgTapDatabase(() => results);
+    await expect(
+      client(fakeRunner().run, database.client).runRemotePgTap(),
+    ).rejects.toThrow("Remote pgTAP result failed");
+    expect(database.sql.end).toHaveBeenCalledWith({ timeout: 5 });
+  });
+
+  it("normalizes synchronous pgTAP client failures without reflecting credentials", async () => {
+    const databaseClient = vi.fn(() => {
+      throw new Error(`connection failed for ${DATABASE_URL}`);
+    });
+    const error = await client(fakeRunner().run, databaseClient)
+      .runRemotePgTap()
+      .catch((caught) => caught);
+
+    expect(error).toMatchObject({
+      name: "TestTargetPgTapError",
+      message: "Remote pgTAP execution failed",
+    });
+    expect(JSON.stringify(error)).not.toContain(PASSWORD);
+    expect(JSON.stringify(error)).not.toContain(DATABASE_URL);
+  });
+
+  it("attempts extension cleanup and pool closure after execution and rollback failures", async () => {
+    const sql = {
+      end: vi.fn(async () => {}),
+      unsafe: vi.fn(async (source) => {
+        if (source === REMOTE_PGTAP_ROLLBACK_SQL) {
+          throw new Error("synthetic rollback failure");
+        }
+        if (source === REMOTE_PGTAP_CLEANUP_SQL) return [];
+        throw new Error("synthetic pgTAP execution failure");
+      }),
+    };
+    const error = await client(fakeRunner().run, () => sql)
+      .runRemotePgTap()
+      .catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.message).toBe("Remote pgTAP execution and cleanup failed");
+    expect(sql.unsafe).toHaveBeenCalledWith(REMOTE_PGTAP_CLEANUP_SQL);
+    expect(sql.end).toHaveBeenCalledWith({ timeout: 5 });
   });
 
   it("rejects the wrong binary version and any non-TEST database target", async () => {

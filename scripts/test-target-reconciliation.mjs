@@ -72,6 +72,7 @@ export function assertGreenfieldFingerprintRow(row) {
     integer(row, "public_relations") !== 0 ||
     integer(row, "public_functions") !== 0 ||
     integer(row, "public_policies") !== 0 ||
+    integer(row, "test_extensions") !== 0 ||
     integer(row, "auth_instances") !== 0
   ) {
     throw new Error("Greenfield TEST catalog fingerprint does not reconcile");
