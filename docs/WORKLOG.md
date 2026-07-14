@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-14 — Preserved the Preview credential across TEST checkpoints
+**Phase:** Phase 2 final staging checkpoint hardening; the TEST checklist item remains open
+**Labels/environment:** [LOCAL] operator/config/tests/docs/build only; pending separately approved destructive [TEST] checkpoint
+**Data impact:** none; 0 real database, Auth, provider, or customer-data reads/writes/rows
+**Target:** local `refactor`; future TEST Supabase `lxvsspniipcotimbsfqm`; Production Firebase/Vercel/Resend untouched
+**Expected reads/writes/rows:** this session 0 external. The future checkpoint remains exactly two 37-migration synthetic rebuild cycles, bounded acceptance/concurrency fixtures, two one-row durable credential identity probes, and final zero operational/Auth/storage residue.
+**Done:** Commit `c894f2e` adds protected exact Preview DSN validation and a lock-owned active/suspended/recovery state machine: whole-checkpoint `NOLOGIN`, bound restoration, fresh pinned-CA auth proof, final zero-session guard, and aggregated redacted cleanup failures. No masterplan item was ticked.
+**Verified/reconciled:** format, SQL static checks, lint, TS7/TS6, 130 files/1,759 tests, both 56-test timezone suites, and production build pass. Two independent final reviews found no P1/P2. Dependency audit remains 0 high/critical with 6 existing moderate records; local Gitleaks is unavailable, so CI must supply secret/history evidence.
+**Production actions performed:** none; no Firebase, Supabase, Resend, Vercel, DNS, `main`, deployment, remote config, or customer-data access
+**Backup/restore evidence:** n/a; local-only implementation
+**Rollback/forward recovery:** revert `c894f2e`; external state is unchanged. An interrupted future checkpoint remains `NOLOGIN` with no password and can recover only from the exact protected Preview DSN.
+**Next:** Push this worklog head and green all six CI jobs. Then rotate the exposed Resend key under separately approved Production provider action; after exact destructive TEST approval and all four protected credentials are supplied, run `npm run db:test:greenfield` and tick Phase 2 only after both cycles and the exact final fingerprint pass.
+**Gotchas:** This shell has none of the four protected TEST variables, so no remote checkpoint was run. Do not fetch/expose Vercel secrets or weaken exact DSN/credential separation.
+
 ## 2026-07-11 — Activated an isolated Vercel Preview and fixed provider scopes
 **Phase:** Phase 1 environment isolation plus Phase 2 staging activation; Vercel scope audit ticked
 **Labels/environment:** approved [TEST] Supabase role configuration, [REMOTE-CONFIG]/[PROD-CONFIG] Vercel scope isolation, and Preview deployment
