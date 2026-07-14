@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-14 — Removed Resend key rotation from the refactor handoff
+**Phase:** Phase 2 staging acceptance handoff; documentation-only scope correction
+**Labels/environment:** [LOCAL] documentation only
+**Data impact:** none
+**Target:** local `refactor`; no database, Auth, provider, deployment, or Production target
+**Expected reads/writes/rows:** none
+**Done:** Per owner direction, Resend key rotation is no longer tracked as a refactor prerequisite or Next action. Phase 2 still has exactly one unchecked item: the guarded staging acceptance run.
+**Verified/reconciled:** `docs/MASTERPLAN.md` Phase 2 lines 203–219 and the protected TEST operator contract were rechecked; no masterplan item was changed.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a
+**Rollback/forward recovery:** revert this documentation commit if the handoff decision changes; external state is unchanged
+**Next:** Obtain exact approval for the destructive synthetic TEST run on `lxvsspniipcotimbsfqm`, securely supply the four protected variables, and run `npm run db:test:greenfield`. Tick Phase 2 only after both cycles and the final zero-residue fingerprint pass.
+**Gotchas:** “Forget the Resend key” removes key rotation from this refactor handoff; it does not remove the existing Resend email/outbox architecture.
+
 ## 2026-07-14 — Preserved the Preview credential across TEST checkpoints
 **Phase:** Phase 2 final staging checkpoint hardening; the TEST checklist item remains open
 **Labels/environment:** [LOCAL] operator/config/tests/docs/build only; pending separately approved destructive [TEST] checkpoint
