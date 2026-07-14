@@ -79,15 +79,18 @@ async function getLocalDatabaseUrl() {
   return parseLocalDatabaseUrl(JSON.parse(stdout).DB_URL);
 }
 
-export function parseBarrierWaiterCount(row, expected) {
+export function parseBarrierWaiterCount(row, expected, maximum = expected) {
   const waiting = Number(row?.waiting);
   if (
     !Number.isSafeInteger(expected) ||
     expected < 2 ||
     expected > REQUEST_COUNT ||
+    !Number.isSafeInteger(maximum) ||
+    maximum < expected ||
+    maximum > REQUEST_COUNT ||
     !Number.isSafeInteger(waiting) ||
     waiting < 0 ||
-    waiting > expected
+    waiting > maximum
   ) {
     throw new Error("Concurrency barrier returned an invalid waiter count");
   }
@@ -98,7 +101,7 @@ function pause(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitForWorkersAtBarrier(coordinator, expected) {
+async function waitForWorkersAtBarrier(coordinator, expected, maximum) {
   const deadline = Date.now() + BARRIER_TIMEOUT_MS;
   let waiting = 0;
   while (Date.now() < deadline) {
@@ -106,8 +109,8 @@ async function waitForWorkersAtBarrier(coordinator, expected) {
     if (rows.length !== 1) {
       throw new Error("Concurrency barrier waiter query returned invalid rows");
     }
-    waiting = parseBarrierWaiterCount(rows[0], expected);
-    if (waiting === expected) return;
+    waiting = parseBarrierWaiterCount(rows[0], expected, maximum);
+    if (waiting >= expected) return;
     await pause(BARRIER_POLL_MS);
   }
   throw new Error(
@@ -164,7 +167,11 @@ export async function runConcurrentRuntimeQueries(
       );
       settledPromise = Promise.allSettled(workers);
       try {
-        await waitForWorkersAtBarrier(coordinator, barrierWaiters);
+        await waitForWorkersAtBarrier(
+          coordinator,
+          barrierWaiters,
+          queries.length,
+        );
       } catch (error) {
         barrierState.aborted = true;
         throw error;

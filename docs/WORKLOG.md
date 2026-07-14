@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-14 — Hardened the guarded TEST checkpoint after real pooler behavior
+**Phase:** Phase 2 final staging acceptance; checklist item remains open
+**Labels/environment:** [LOCAL] operator/tests/build plus owner-approved destructive synthetic [TEST] attempts
+**Data impact:** TEST-only role credential update, temporary `app_runtime` suspension, and bounded synthetic mutation cleaned to zero residue; no customer or Production data
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase/site/`main` untouched
+**Expected reads/writes/rows:** the successful retry remains exactly two atomic 37-migration rebuilds, 21 pgTAP files/342 assertions per cycle, at most 27 synthetic commands, 5 schedule/vacation aggregates, 10 outbox rows, 5 changes/locks, 2 synthetic users, and final zero operational/Auth/storage residue
+**Done:** Repaired protected Keychain DSN entries, restored and freshly authenticated both TEST roles, bounded remote barrier observations by launched workers, and added bounded fresh-client retries for transaction-pooler credential propagation. The owner declined a TEST database-password reset. Phase 2 remains unchecked.
+**Verified/reconciled:** format, SQL static checks, lint, TS7/TS6, 130 files/1,760 tests, both 56-test timezone suites, dependency audit (0 high/critical; 6 existing moderate transitive `uuid` findings), pinned Gitleaks 8.30.1 working-tree/full-history scans, and production build pass. Independent review found no P1/P2. TEST recovery authenticated both roles after each failed operator attempt; prior bounded reconciliation showed zero residue.
+**Production actions performed:** none; 0 Production reads/writes, deployments, configuration changes, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST target only
+**Rollback/forward recovery:** revert this batch for code; TEST `app_runtime` is restored to LOGIN with its protected Preview credential. No Production recovery is required.
+**Next:** Commit/push this batch, require all CI jobs green on the exact pushed SHA, then bind that SHA/run ID in the protected launcher and rerun `npm run db:test:greenfield` once. Tick Phase 2 only after both cycles and the final zero-residue fingerprint pass.
+**Gotchas:** Vercel Preview still holds the previous `SUPABASE_DATABASE_URL`; no Vercel state changed because sending the protected replacement needs explicit external-secret authorization. The exposed TEST database password and legacy `service_role` JWT remain separate rotation work; never use or log the legacy key.
+
 ## 2026-07-14 — TEST checkpoint stopped safely on missing protected credentials
 **Phase:** Phase 2 final staging acceptance; checklist item remains open
 **Labels/environment:** approved destructive synthetic [TEST] checkpoint; bounded [TEST] metadata/count reads; [LOCAL] fail-closed operator attempt

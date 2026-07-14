@@ -77,7 +77,11 @@ describe("booking concurrency target and safety", () => {
     expect(BARRIER_WAITERS_SQL).toContain("not granted");
     expect(DATABASE_POOL_SIZE).toBe(21);
     expect(parseBarrierWaiterCount({ waiting: "20" }, 20)).toBe(20);
+    expect(parseBarrierWaiterCount({ waiting: "20" }, 5, 20)).toBe(20);
     expect(() => parseBarrierWaiterCount({ waiting: 21 }, 20)).toThrow(
+      "invalid waiter count",
+    );
+    expect(() => parseBarrierWaiterCount({ waiting: 6 }, 5, 5)).toThrow(
       "invalid waiter count",
     );
   });

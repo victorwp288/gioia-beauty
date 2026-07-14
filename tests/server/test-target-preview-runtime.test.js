@@ -114,6 +114,42 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.roleCanLogin()).toBe(true);
   });
 
+  it("retries a transient pooler authentication failure with a fresh client", async () => {
+    const transientFailure = new Error("synthetic pooler propagation delay");
+    const state = lifecycleHarness({
+      authorizations: [transientFailure, true, true],
+      initialLogin: false,
+    });
+
+    await withGreenfieldTestLock(
+      config(),
+      async () => {
+        state.events.push("callback");
+      },
+      { clientFactory: state.clientFactory },
+    );
+
+    expect(state.events).toEqual([
+      "lock",
+      "restore",
+      "authenticate-0",
+      "close-auth",
+      "authenticate-1",
+      "close-auth",
+      "suspend",
+      "callback",
+      "suspend",
+      "restore",
+      "authenticate-2",
+      "close-auth",
+      "unlock",
+    ]);
+    expect(state.credentialClients).toHaveLength(3);
+    expect(
+      state.credentialClients.every(({ end }) => end.mock.calls.length === 1),
+    ).toBe(true);
+  });
+
   it("re-suspends when interrupted-state credential recovery cannot authenticate", async () => {
     const state = lifecycleHarness({
       authorizations: [false],

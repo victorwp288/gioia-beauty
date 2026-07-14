@@ -17,6 +17,9 @@ import {
   RUNTIME_SESSION_TERMINATE_SQL,
 } from "./test-target-runtime-role-sql.mjs";
 
+const PREVIEW_AUTH_ATTEMPTS = 10;
+const PREVIEW_AUTH_RETRY_DELAY_MS = 250;
+
 export {
   GREENFIELD_PREVIEW_ROLE_SQL,
   GREENFIELD_RUNTIME_ROLE_SQL,
@@ -95,48 +98,59 @@ async function verifyPreviewCredential(config, clientFactory) {
     new Error(
       "Greenfield TEST durable Preview credential could not authenticate",
     );
-  let client;
-  try {
-    client = createTestTargetDatabaseClient(
-      config.getPreviewRuntimeDatabaseUrl(),
-      1,
-      {
-        caCertificate: config.getDatabaseCaCertificate(),
-        clientFactory,
-      },
-    );
-  } catch {
-    throw authenticationError();
-  }
-
-  let failedAuthentication = false;
-  try {
-    const [authorization, ...extra] = await client.unsafe(
-      PREVIEW_ROLE_AUTHENTICATE_SQL,
-    );
-    if (authorization?.authorized !== true || extra.length !== 0) {
-      throw new Error();
+  for (let attempt = 0; attempt < PREVIEW_AUTH_ATTEMPTS; attempt += 1) {
+    let client;
+    try {
+      client = createTestTargetDatabaseClient(
+        config.getPreviewRuntimeDatabaseUrl(),
+        1,
+        {
+          caCertificate: config.getDatabaseCaCertificate(),
+          clientFactory,
+        },
+      );
+    } catch {
+      throw authenticationError();
     }
-  } catch {
-    failedAuthentication = true;
+
+    let transientFailure = false;
+    let unauthorized = false;
+    try {
+      const [authorization, ...extra] = await client.unsafe(
+        PREVIEW_ROLE_AUTHENTICATE_SQL,
+      );
+      unauthorized = authorization?.authorized !== true || extra.length !== 0;
+    } catch {
+      transientFailure = true;
+    }
+
+    let failedClose = false;
+    try {
+      await endTestTargetDatabaseClient(client);
+    } catch {
+      failedClose = true;
+    }
+    if ((transientFailure || unauthorized) && failedClose) {
+      throw new AggregateError(
+        [
+          authenticationError(),
+          new Error("Greenfield TEST verifier did not close"),
+        ],
+        "Greenfield TEST Preview authentication and verifier cleanup both failed",
+      );
+    }
+    if (failedClose) {
+      throw new Error("Greenfield TEST verifier did not close");
+    }
+    if (unauthorized) throw authenticationError();
+    if (!transientFailure) return;
+    if (attempt < PREVIEW_AUTH_ATTEMPTS - 1) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, PREVIEW_AUTH_RETRY_DELAY_MS),
+      );
+    }
   }
-  let failedClose = false;
-  try {
-    await endTestTargetDatabaseClient(client);
-  } catch {
-    failedClose = true;
-  }
-  if (failedAuthentication && failedClose) {
-    throw new AggregateError(
-      [
-        authenticationError(),
-        new Error("Greenfield TEST verifier did not close"),
-      ],
-      "Greenfield TEST Preview authentication and verifier cleanup both failed",
-    );
-  }
-  if (failedAuthentication) throw authenticationError();
-  if (failedClose) throw new Error("Greenfield TEST verifier did not close");
+  throw authenticationError();
 }
 
 async function restorePreviewRuntimeRole(sql, config, clientFactory) {
