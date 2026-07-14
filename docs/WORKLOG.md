@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-14 — Reproved both TEST cycles after restart; transaction-pooler recovery still failed
+**Phase:** Phase 2 final staging acceptance gate; Phase 3 remains blocked
+**Labels/environment:** owner-approved destructive synthetic [TEST] checkpoint plus bounded [TEST] control-plane diagnostics/recovery and [LOCAL] process inspection
+**Data impact:** two complete 37-migration TEST rebuild/acceptance cycles cleaned to zero residue; one exact orphan Supavisor lock backend conditionally terminated; no customer or Production data
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase/site/`main`, Vercel Production, and Resend untouched
+**Expected reads/writes/rows:** exactly two atomic rebuilds, 21 pgTAP files/342 assertions per cycle, at most 27 synthetic commands, 5 schedule/vacation aggregates, 10 outbox rows, 5 changes/locks, 2 synthetic users, and final zero operational/Auth/storage residue
+**Done:** Post-restart audit proved `ACTIVE_HEALTHY`, exact local/remote 37-migration parity, 0 security findings, and only 11 informational unused-index findings. Protected recovery initially authenticated both roles. Cycles A/B each passed: distinct-key 1 accepted/19 conflicts, identical-key 1 first/19 replays, booking-vacation exactly one winner, opposite reschedules 0 overlaps, and zero residue. Final durable Preview restoration again stalled upstream of Postgres; the idle local operator was stopped and exactly one orphan idle/unblocked Supavisor backend holding only the checkpoint lock was conditionally terminated.
+**Verified/reconciled:** final bounded control-plane state is `app_runtime` NOLOGIN/valid indefinitely, 0 runtime/checkpoint sessions, 0 checkpoint/race locks, and 0 schedule/command/change/outbox/owner/owner-session/synthetic-Auth rows. Subsequent protected recovery failed first with `EDBHANDLEREXITED`, then after backoff with `08006 econnrefused`; no recovery SQL reached Postgres. No masterplan item was ticked.
+**Production actions performed:** none; 0 Production reads/writes, deployment/config/provider action, secret rotation, email send, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST target only
+**Rollback/forward recovery:** no application rollback required. TEST remains intentionally fail-closed at `app_runtime` NOLOGIN; do not expose DSNs, bypass guards, or activate Preview DB routes. The database restart succeeded, but the exact transaction-pooler tenant still requires provider recovery.
+**Next:** Ask Supabase support to repair the transaction-pooler tenant for `lxvsspniipcotimbsfqm` (eu-central-2): database/control plane/session checkpoint work, but transaction port 6543 returns `EDBHANDLEREXITED`/`econnrefused` after role restoration. Once fixed, run protected credential recovery, require fresh `app_runtime` transaction-pooler auth, then rerun the full exact-head checkpoint and tick Phase 2 only after final success JSON/zero residue.
+**Gotchas:** Restarting Postgres restored enough connectivity for both destructive cycles but did not repair the transaction-pooler tenant. Public health and project state can be green while this project-specific Supavisor path remains broken.
+
 ## 2026-07-14 — Audited Phase 3 and stopped at the project-specific Supavisor gate
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 full-scope inventory
 **Labels/environment:** [LOCAL] read-only code/docs/security audit plus bounded [TEST] project/log/connectivity reads and owner-approved guarded synthetic checkpoint/recovery attempts
