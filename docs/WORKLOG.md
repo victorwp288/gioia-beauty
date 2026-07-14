@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-14 — Kept TEST fail-closed after a Supavisor final-guard stall
+**Phase:** Phase 2 final staging acceptance; checklist item remains open
+**Labels/environment:** [LOCAL] operator/tests/build plus owner-approved destructive synthetic [TEST] checkpoint and bounded TEST control-plane recovery
+**Data impact:** two TEST rebuild/acceptance cycles cleaned to zero known residue; one orphan TEST pooler backend terminated after the local operator was interrupted; no customer or Production data
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase/site/`main` untouched
+**Expected reads/writes/rows:** exactly two atomic 37-migration rebuilds, 21 pgTAP files/342 assertions per cycle, at most 27 synthetic commands, 5 schedule/vacation aggregates, 10 outbox rows, 5 changes/locks, 2 synthetic users, and final zero operational/Auth/storage residue
+**Done:** Exact-head CI run `29346557329` greened all six jobs for `1cdb892`. Both guarded cycles passed their races and acceptance with zero residue, but Supavisor stalled the final credential guard before success JSON. Control-plane SQL identified and conditionally terminated only orphan TEST backend PID `403619`; exact state is now `app_runtime` NOLOGIN with 0 runtime/checkpoint sessions and 0 race/checkpoint locks. Commit `a562b09` adds a 15-second Preview-auth watchdog/fresh-client retry and 5/30-second lock/statement bounds only on the session-mode lock client; transaction-pooler clients remain pooler-safe.
+**Verified/reconciled:** format, SQL static checks, lint, TS7/TS6, 130 files/1,763 tests, both 56-test timezone suites, pinned Gitleaks working-tree/full-history scans, dependency audit (0 high/critical; 6 existing moderate transitive `uuid` findings), and production build pass. Independent review found and resolved transaction-pooler startup-GUC misuse; final review found no P1/P2.
+**Production actions performed:** none; 0 Production reads/writes, deployments, configuration changes, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST target only
+**Rollback/forward recovery:** revert `a562b09` for code. TEST remains intentionally fail-closed at NOLOGIN; after Supavisor recovers, use the protected recovery helper to restore and freshly authenticate the durable Preview credential, then rerun the entire checkpoint.
+**Next:** After both TEST pooler transports recover, use the protected helper to restore and freshly authenticate the Preview credential, then rerun `npm run db:test:greenfield` from an exact pushed head with green CI. Tick Phase 2 only after the full two-cycle run emits final success and zero-residue evidence.
+**Gotchas:** session pooler returned `econnrefused`, transaction pooler returned `EDBHANDLEREXITED`, and the Supabase dashboard reported an active technical issue. Vercel Preview still has the prior database URL and was unchanged. The exposed TEST database password and legacy `service_role` JWT remain separate rotation work; never use or log them.
+
 ## 2026-07-14 — Separated TEST runtime commands from privileged reconciliation
 **Phase:** Phase 2 final staging acceptance; checklist item remains open
 **Labels/environment:** [LOCAL] concurrency boundary/tests/build plus owner-approved destructive synthetic [TEST] checkpoint
