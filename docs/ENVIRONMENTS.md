@@ -41,9 +41,9 @@ confirmation, and the reviewed migration/pgTAP byte manifests. It holds one
 project advisory lock, applies teardown, all 37 migrations, exact migration
 history, and final reconciliation in one serializable transaction, then runs
 two complete synthetic acceptance/cleanup cycles and requires matching schema
-and reference-data fingerprints. As of 2026-07-10 this operator has not been
-executed remotely; the target therefore remains at the 35-migration snapshot
-described above.
+and reference-data fingerprints. Remote checkpoint attempts reached the clean
+37-migration state, but the final two-cycle proof remains open after the shared
+pool exhausted its client capacity.
 
 Safety rules:
 
@@ -53,6 +53,8 @@ Safety rules:
 - The schema, migrations, test Auth users, functions, and synthetic data may be created, changed, reset, or deleted as required for the rebuild. Remote changes must remain reproducible from the repository.
 - Vercel Preview may use this target only after fail-closed environment isolation is implemented and verified. Serialized Preview/E2E runs must lock and reset or namespace synthetic data.
 - Preview application traffic uses a separately provisioned `app_runtime` login over the transaction pooler (`:6543`) with prepared statements disabled. Environment validation rejects direct connections and the privileged `postgres` role.
+- A destructive greenfield checkpoint receives that exact Preview transaction-pooler DSN only through the protected TEST operator environment. It authenticates a fresh pinned-CA connection before mutation, holds `app_runtime` at `NOLOGIN` with no password for both cycles, and restores the same password with a second fresh authentication proof before releasing the project lock. The DSN is never accepted from dotenv, serialized config, subprocess arguments, logs, or artifacts.
+- An interrupted checkpoint may leave Preview database access disabled. A later guarded run may restore only from the same strictly validated protected DSN; an active credential that does not authenticate is never overwritten. Failed restoration is contained back to `NOLOGIN` with no password and keeps the checkpoint failed.
 - Connection mode is fixed by workload. Trusted migration/operator work prefers the
   direct `db.<ref>.supabase.co:5432` endpoint when its runner has IPv6 (or the
   separately purchased IPv4 add-on); an explicitly pinned shared session pooler

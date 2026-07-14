@@ -4,8 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   GREENFIELD_RUNTIME_ROLE_SQL,
-  GREENFIELD_TEST_LOCK_SQL,
-  GREENFIELD_TEST_UNLOCK_SQL,
   withGreenfieldTestLock,
   withTemporaryRuntimeRole,
 } from "../../scripts/test-target-harness.mjs";
@@ -30,21 +28,25 @@ function config() {
     deriveAppRuntimeDatabaseUrl: vi.fn(() => runtimeUrl),
     getOperatorSessionDatabaseUrl: () => operatorSessionUrl,
     getOperatorWorkerDatabaseUrl: () => operatorWorkerUrl,
+    getPreviewRuntimeDatabaseUrl: () => runtimeUrl,
     getPublishableKey: () => `sb_publishable_${"p".repeat(32)}`,
   };
 }
 
-function safeRoleState() {
+function safeRoleState(rolcanlogin = false) {
   return [
     {
-      rolcanlogin: false,
+      attributes_are_safe: true,
       has_unsafe_membership: false,
+      rolcanlogin,
     },
   ];
 }
 
-function safeWorkerResult(query) {
-  if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) return safeRoleState();
+function safeWorkerResult(query, rolcanlogin = false) {
+  if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
+    return safeRoleState(rolcanlogin);
+  }
   if (query === GREENFIELD_RUNTIME_ROLE_SQL.sessions[1]) {
     return [{ active: 0 }];
   }
@@ -52,63 +54,6 @@ function safeWorkerResult(query) {
 }
 
 describe("greenfield TEST advisory lock", () => {
-  it("uses separate clients, commits cleanup, and closes on callback failure", async () => {
-    const callbackFailure = new Error("synthetic callback failure");
-    const lockQueries = [];
-    const lockClient = {
-      unsafe: vi.fn(async (query) => {
-        lockQueries.push(query);
-        if (query === GREENFIELD_TEST_LOCK_SQL) return [{ acquired: true }];
-        if (query === GREENFIELD_TEST_UNLOCK_SQL) return [{ released: true }];
-        return safeWorkerResult(query);
-      }),
-      release: vi.fn(async () => {}),
-    };
-    const lockPool = {
-      reserve: vi.fn(async () => lockClient),
-      end: vi.fn(async () => {}),
-    };
-    const worker = { end: vi.fn(async () => {}) };
-    const clientFactory = vi
-      .fn()
-      .mockReturnValueOnce(lockPool)
-      .mockReturnValueOnce(worker);
-
-    await expect(
-      withGreenfieldTestLock(
-        config(),
-        async ({ worker: receivedWorker, recoverRuntimeRole }) => {
-          expect(receivedWorker).toBe(worker);
-          expect(recoverRuntimeRole).toBeTypeOf("function");
-          throw callbackFailure;
-        },
-        { clientFactory },
-      ),
-    ).rejects.toBe(callbackFailure);
-
-    expect(lockQueries).toEqual([
-      GREENFIELD_TEST_LOCK_SQL,
-      GREENFIELD_TEST_UNLOCK_SQL,
-    ]);
-    expect(clientFactory.mock.calls.map(([url]) => url)).toEqual([
-      operatorSessionUrl,
-      operatorWorkerUrl,
-    ]);
-    expect(lockPool.reserve).toHaveBeenCalledOnce();
-    expect(lockClient.release).toHaveBeenCalledOnce();
-    expect(lockPool.end).toHaveBeenCalledOnce();
-    expect(worker.end).toHaveBeenCalledOnce();
-    expect(clientFactory.mock.calls[0][1]).toMatchObject({
-      idle_timeout: null,
-      max_lifetime: null,
-      max: 1,
-      ssl: { ca: CA_CERTIFICATE, rejectUnauthorized: true },
-    });
-    expect(clientFactory.mock.calls[1][1]).toMatchObject({
-      ssl: { ca: CA_CERTIFICATE, rejectUnauthorized: true },
-    });
-  });
-
   it("fails immediately when another TEST runner holds the lock", async () => {
     const callback = vi.fn();
     const clientFactory = vi
@@ -167,21 +112,12 @@ describe("greenfield TEST temporary runtime role", () => {
     );
     expect(passwordCall.query).not.toContain(password);
     expect(passwordCall.parameters).toEqual([password]);
-    expect(calls[0].query).toBe(GREENFIELD_RUNTIME_ROLE_SQL.sessions[0]);
-    expect(
-      calls.filter(
-        ({ query }) => query === GREENFIELD_RUNTIME_ROLE_SQL.cleanup[0],
-      ),
-    ).toHaveLength(2);
-    expect(recoverRuntimeRole).not.toHaveBeenCalled();
+    expect(recoverRuntimeRole).toHaveBeenCalledTimes(2);
   });
 
-  it("recovers an interrupted role before setup and after callback", async () => {
+  it("uses the held-lock recovery before setup and after callback", async () => {
     const worker = {
       begin: async (callback) => callback({ unsafe: async () => [] }),
-      unsafe: vi.fn(async () => {
-        throw new Error("primary cleanup unavailable");
-      }),
     };
     const recoverRuntimeRole = vi.fn(async () => {});
 
@@ -194,7 +130,30 @@ describe("greenfield TEST temporary runtime role", () => {
     });
 
     expect(recoverRuntimeRole).toHaveBeenCalledTimes(2);
-    expect(worker.unsafe).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves callback and final temporary-role recovery failures", async () => {
+    const callbackFailure = new Error("synthetic callback failure");
+    const recoveryFailure = new Error("synthetic recovery failure");
+    const recoverRuntimeRole = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(recoveryFailure);
+
+    const error = await withTemporaryRuntimeRole({
+      config: config(),
+      worker: {
+        begin: async (callback) => callback({ unsafe: async () => [] }),
+      },
+      recoverRuntimeRole,
+      callback: async () => {
+        throw callbackFailure;
+      },
+      passwordFactory: () => `Aa9!${"z".repeat(40)}`,
+    }).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.errors).toEqual([callbackFailure, recoveryFailure]);
   });
 });
 

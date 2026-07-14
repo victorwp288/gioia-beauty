@@ -333,7 +333,7 @@ the keyset order and prove the physical scan plan in TEST before activation.
 - Supabase Auth contains the single owner/admin identity; invite/reset rather than attempting to migrate Firebase password hashes.
 - Authorization uses owner-controlled `app_metadata` or an explicit server-side allowlist. Never authorize from editable `user_metadata`.
 - Business operations remain behind server routes using a least-privilege pooled `app_runtime` Postgres role against the private `gioia_private` schema. It can execute only allowlisted definer functions and has no table privileges. `anon`, `authenticated`, and `service_role` have neither business-table nor business-function access.
-- `app_runtime` is committed as `NOLOGIN`. A TEST/Production operator separately provisions its strong password/login capability and transaction-pooler secret; the application never connects as `postgres`.
+- `app_runtime` is committed as `NOLOGIN`. A TEST/Production operator separately provisions its strong password/login capability and transaction-pooler secret; the application never connects as `postgres`. A destructive TEST checkpoint temporarily returns the role to the committed suspended state and must restore the exact protected Preview credential plus prove a fresh login before releasing its project lock.
 
 ## 3. Booking and privacy decisions
 

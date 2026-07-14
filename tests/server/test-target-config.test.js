@@ -22,6 +22,7 @@ import {
 
 const RUN_ID = "018f5f50-a48b-7f3c-8b28-55f43fd91df0";
 const OPERATOR_PASSWORD = "Operator!Password-Only-In-Memory";
+const PREVIEW_PASSWORD = "Preview!Password-Only-In-Memory-12345";
 const PUBLISHABLE_KEY = `sb_publishable_${"p".repeat(32)}`;
 const POOLER_HOST = "aws-17-eu-central-2.pooler.supabase.com";
 const CA_SOURCE = readFileSync(
@@ -46,6 +47,9 @@ function validEnvironment(overrides = {}) {
     GIOIA_TEST_OPERATOR_DATABASE_URL:
       `postgresql://postgres.${TEST_TARGET_REF}:` +
       `${OPERATOR_PASSWORD}@${POOLER_HOST}:5432/postgres?sslmode=verify-full`,
+    GIOIA_TEST_PREVIEW_DATABASE_URL:
+      `postgresql://app_runtime.${TEST_TARGET_REF}:` +
+      `${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE_KEY,
     NEXT_PUBLIC_SUPABASE_URL: TEST_TARGET_API_URL,
     SUPABASE_PROJECT_REF: TEST_TARGET_REF,
@@ -95,6 +99,7 @@ describe("greenfield TEST target configuration", () => {
     });
     const diagnostic = JSON.stringify(config);
     expect(diagnostic).not.toContain(OPERATOR_PASSWORD);
+    expect(diagnostic).not.toContain(PREVIEW_PASSWORD);
     expect(diagnostic).not.toContain(PUBLISHABLE_KEY);
     expect(diagnostic).not.toContain("postgresql://");
     expect(Object.keys(config)).not.toEqual(
@@ -102,6 +107,7 @@ describe("greenfield TEST target configuration", () => {
         "deriveAppRuntimeDatabaseUrl",
         "getOperatorSessionDatabaseUrl",
         "getOperatorWorkerDatabaseUrl",
+        "getPreviewRuntimeDatabaseUrl",
         "getPublishableKey",
         "getDatabaseCaCertificate",
       ]),
@@ -118,6 +124,7 @@ describe("greenfield TEST target configuration", () => {
     const runtime = new URL(
       config.deriveAppRuntimeDatabaseUrl(runtimePassword),
     );
+    const preview = new URL(config.getPreviewRuntimeDatabaseUrl());
 
     expect(session.port).toBe("5432");
     expect(worker.port).toBe("6543");
@@ -130,13 +137,22 @@ describe("greenfield TEST target configuration", () => {
     expect(decodeURIComponent(runtime.password)).toBe(runtimePassword);
     expect(runtime.port).toBe("6543");
     expect(runtime.search).toBe("?sslmode=verify-full");
+    expect(decodeURIComponent(preview.username)).toBe(
+      `app_runtime.${TEST_TARGET_REF}`,
+    );
+    expect(decodeURIComponent(preview.password)).toBe(PREVIEW_PASSWORD);
+    expect(preview.hostname).toBe(POOLER_HOST);
+    expect(preview.port).toBe("6543");
+    expect(preview.search).toBe("?sslmode=verify-full");
     expect(config.getPublishableKey()).toBe(PUBLISHABLE_KEY);
     expect(config.getDatabaseCaCertificate()).toBe(CA_SOURCE.toString("utf8"));
 
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_changed";
     env.GIOIA_TEST_OPERATOR_DATABASE_URL = "postgresql://changed";
+    env.GIOIA_TEST_PREVIEW_DATABASE_URL = "postgresql://changed";
     expect(config.getPublishableKey()).toBe(PUBLISHABLE_KEY);
     expect(config.getOperatorSessionDatabaseUrl()).toBe(session.href);
+    expect(config.getPreviewRuntimeDatabaseUrl()).toBe(preview.href);
   });
 
   it.each([
@@ -146,6 +162,7 @@ describe("greenfield TEST target configuration", () => {
     ["NEXT_PUBLIC_SUPABASE_URL", "http://lxvsspniipcotimbsfqm.supabase.co"],
     ["NEXT_PUBLIC_SUPABASE_URL", "https://attacker.supabase.co"],
     ["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "legacy-anon-jwt"],
+    ["GIOIA_TEST_PREVIEW_DATABASE_URL", ""],
   ])("rejects a non-exact %s", (key, value) => {
     expect(() => parse(validEnvironment({ [key]: value }))).toThrow(
       TestTargetConfigError,
@@ -167,6 +184,38 @@ describe("greenfield TEST target configuration", () => {
     );
     expect(error.message).not.toContain(databaseUrl);
     expect(error.message).not.toContain("secret");
+  });
+
+  it.each([
+    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@db.lxvsspniipcotimbsfqm.supabase.co:5432/postgres?sslmode=verify-full",
+    "postgresql://app_runtime.wrong:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    "postgresql://postgres.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=verify-full",
+    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres",
+    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=require",
+    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-2-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    `postgresql://app_runtime.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/wrong?sslmode=verify-full`,
+    `postgresql://app_runtime.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full&application_name=gioia`,
+    `postgresql://app_runtime.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full#fragment`,
+    `postgresql://app_runtime.lxvsspniipcotimbsfqm:%00${"x".repeat(40)}@${POOLER_HOST}:6543/postgres?sslmode=verify-full`,
+  ])("rejects a non-exact Preview DSN", (databaseUrl) => {
+    const error = rejection(
+      validEnvironment({ GIOIA_TEST_PREVIEW_DATABASE_URL: databaseUrl }),
+    );
+    expect(error.message).not.toContain(databaseUrl);
+    expect(error.message).not.toContain("secret");
+  });
+
+  it("rejects reuse of the privileged operator password without reflecting it", () => {
+    const databaseUrl =
+      `postgresql://app_runtime.${TEST_TARGET_REF}:` +
+      `${OPERATOR_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full`;
+    const error = rejection(
+      validEnvironment({ GIOIA_TEST_PREVIEW_DATABASE_URL: databaseUrl }),
+    );
+    expect(error.message).not.toContain(databaseUrl);
+    expect(error.message).not.toContain(OPERATOR_PASSWORD);
   });
 
   it.each([

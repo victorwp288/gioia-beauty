@@ -53,6 +53,7 @@ Required controls:
 4. Production environment variables exist only in the production provider scope.
 5. Client code receives at most a publishable Auth key and never direct access to business/PII tables. Server business-data access uses a least-privilege pooled Postgres role; any Supabase service secret is narrowly scoped to Auth administration and is understood to bypass RLS.
 6. Firebase/Supabase CLI commands always receive an explicit target. Never rely on a current/default linked production project.
+7. A serialized TEST reset that shares its database with Preview must receive the exact existing least-privilege Preview DSN from protected operator storage. It proves that credential before mutation, suspends it for the entire destructive checkpoint, restores and freshly authenticates it before unlock, and otherwise leaves the role disabled. The DSN never belongs in dotenv, command arguments, logs, or artifacts.
 
 ## Approval boundary
 

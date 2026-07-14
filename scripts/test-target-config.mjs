@@ -38,6 +38,7 @@ const ALLOWED_SUPABASE_ENV_KEYS = new Set([
 const ALLOWED_OPERATOR_ENV_KEYS = new Set([
   ...ALLOWED_SUPABASE_ENV_KEYS,
   "GIOIA_TEST_OPERATOR_DATABASE_URL",
+  "GIOIA_TEST_PREVIEW_DATABASE_URL",
 ]);
 const FORBIDDEN_EXACT_ENV_KEYS = new Set([
   ...PROTECTED_OPERATOR_ENV_KEYS.filter(
@@ -236,6 +237,45 @@ function parseOperatorDatabaseUrl(value, errors) {
   }
 }
 
+function parsePreviewDatabaseUrl(value, operatorUrl, errors) {
+  if (!hasValue(value)) {
+    errors.push("GIOIA_TEST_PREVIEW_DATABASE_URL is required");
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+    const password = decodeURIComponent(url.password);
+    const validQuery =
+      url.searchParams.size === 1 &&
+      url.searchParams.get("sslmode") === "verify-full";
+    if (
+      url.protocol !== "postgresql:" ||
+      decodeURIComponent(url.username) !== RUNTIME_USERNAME ||
+      password.trim() !== password ||
+      password.includes("\0") ||
+      Buffer.byteLength(password, "utf8") < 32 ||
+      Buffer.byteLength(password, "utf8") > 256 ||
+      !operatorUrl ||
+      password === decodeURIComponent(operatorUrl.password) ||
+      url.hostname !== operatorUrl.hostname ||
+      url.port !== "6543" ||
+      url.pathname !== "/postgres" ||
+      url.hash ||
+      !validQuery
+    ) {
+      errors.push(
+        "GIOIA_TEST_PREVIEW_DATABASE_URL does not match the exact TEST Preview transaction pooler",
+      );
+      return null;
+    }
+    return url;
+  } catch {
+    errors.push("GIOIA_TEST_PREVIEW_DATABASE_URL is not a valid URL");
+    return null;
+  }
+}
+
 function runtimeDatabaseUrl(operatorWorkerUrl, password) {
   if (
     typeof password !== "string" ||
@@ -259,6 +299,7 @@ function safeConfig(
   runId,
   apiUrl,
   operatorUrl,
+  previewUrl,
   certificatePem,
 ) {
   const operatorSessionUrl = operatorUrl.href;
@@ -284,6 +325,7 @@ function safeConfig(
     },
     getOperatorSessionDatabaseUrl: { value: () => operatorSessionUrl },
     getOperatorWorkerDatabaseUrl: { value: () => operatorWorkerUrl },
+    getPreviewRuntimeDatabaseUrl: { value: () => previewUrl.href },
     getPublishableKey: { value: () => publishableKey },
     getDatabaseCaCertificate: { value: () => certificatePem },
   });
@@ -319,6 +361,11 @@ export function parseTestTargetConfig(
     env.GIOIA_TEST_OPERATOR_DATABASE_URL,
     errors,
   );
+  const previewUrl = parsePreviewDatabaseUrl(
+    env.GIOIA_TEST_PREVIEW_DATABASE_URL,
+    operatorUrl,
+    errors,
+  );
 
   if (errors.length > 0 || certificatePem === null) {
     throw new TestTargetConfigError(errors);
@@ -328,6 +375,7 @@ export function parseTestTargetConfig(
     runId,
     apiUrl,
     operatorUrl,
+    previewUrl,
     certificatePem,
   );
 }
