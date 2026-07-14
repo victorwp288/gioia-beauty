@@ -19,6 +19,7 @@ import {
 
 const PREVIEW_AUTH_ATTEMPTS = 10;
 const PREVIEW_AUTH_RETRY_DELAY_MS = 250;
+const PREVIEW_AUTH_TIMEOUT_MS = 15_000;
 
 export {
   GREENFIELD_PREVIEW_ROLE_SQL,
@@ -93,7 +94,27 @@ async function suspendRuntimeRole(sql) {
   }
 }
 
-async function verifyPreviewCredential(config, clientFactory) {
+async function authenticatePreviewClient(client) {
+  let timeout;
+  try {
+    return await Promise.race([
+      client.unsafe(PREVIEW_ROLE_AUTHENTICATE_SQL),
+      new Promise((_, reject) => {
+        timeout = setTimeout(
+          () =>
+            reject(
+              new Error("Greenfield TEST Preview authentication timed out"),
+            ),
+          PREVIEW_AUTH_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function verifyPreviewCredential(config, clientFactory) {
   const authenticationError = () =>
     new Error(
       "Greenfield TEST durable Preview credential could not authenticate",
@@ -116,9 +137,7 @@ async function verifyPreviewCredential(config, clientFactory) {
     let transientFailure = false;
     let unauthorized = false;
     try {
-      const [authorization, ...extra] = await client.unsafe(
-        PREVIEW_ROLE_AUTHENTICATE_SQL,
-      );
+      const [authorization, ...extra] = await authenticatePreviewClient(client);
       unauthorized = authorization?.authorized !== true || extra.length !== 0;
     } catch {
       transientFailure = true;

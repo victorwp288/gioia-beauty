@@ -4,6 +4,7 @@ import {
   GREENFIELD_PREVIEW_ROLE_SQL,
   withGreenfieldTestLock,
 } from "../../scripts/test-target-harness.mjs";
+import { verifyPreviewCredential } from "../../scripts/test-target-runtime-role.mjs";
 import {
   config,
   lifecycleHarness,
@@ -66,6 +67,19 @@ describe("greenfield TEST durable Preview runtime", () => {
       runtimeUrl,
       runtimeUrl,
     ]);
+    const [, sessionOptions] = state.clientFactory.mock.calls[0];
+    expect(sessionOptions.connection).toEqual({
+      application_name: "gioia_greenfield_test",
+      lock_timeout: "5s",
+      statement_timeout: "30s",
+    });
+    for (const [, transactionOptions] of state.clientFactory.mock.calls.slice(
+      1,
+    )) {
+      expect(transactionOptions.connection).toEqual({
+        application_name: "gioia_greenfield_test",
+      });
+    }
   });
 
   it("does not mutate when the active credential cannot authenticate", async () => {
@@ -148,6 +162,34 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(
       state.credentialClients.every(({ end }) => end.mock.calls.length === 1),
     ).toBe(true);
+  });
+
+  it("bounds a hung pooler authentication query before using a fresh client", async () => {
+    vi.useFakeTimers();
+    try {
+      const pendingClient = {
+        unsafe: vi.fn(() => new Promise(() => {})),
+        end: vi.fn(async () => {}),
+      };
+      const successfulClient = {
+        unsafe: vi.fn(async () => [{ authorized: true }]),
+        end: vi.fn(async () => {}),
+      };
+      const clientFactory = vi
+        .fn()
+        .mockReturnValueOnce(pendingClient)
+        .mockReturnValueOnce(successfulClient);
+
+      const verification = verifyPreviewCredential(config(), clientFactory);
+      await vi.runAllTimersAsync();
+      await expect(verification).resolves.toBeUndefined();
+
+      expect(clientFactory).toHaveBeenCalledTimes(2);
+      expect(pendingClient.end).toHaveBeenCalledTimes(1);
+      expect(successfulClient.end).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("re-suspends when interrupted-state credential recovery cannot authenticate", async () => {

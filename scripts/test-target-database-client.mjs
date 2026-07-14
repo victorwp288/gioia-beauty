@@ -16,7 +16,15 @@ export function createTestTargetDatabaseClient(
     connect_timeout: 10,
     max_lifetime: persistent ? null : 120,
     onnotice: () => {},
-    connection: { application_name: "gioia_greenfield_test" },
+    connection: {
+      application_name: "gioia_greenfield_test",
+      ...(persistent
+        ? {
+            lock_timeout: "5s",
+            statement_timeout: "30s",
+          }
+        : {}),
+    },
   });
 }
 
