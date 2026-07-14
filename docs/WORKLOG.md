@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-14 — Audited Phase 3 and stopped at the project-specific Supavisor gate
+**Phase:** Phase 2 final staging acceptance gate; Phase 3 full-scope inventory
+**Labels/environment:** [LOCAL] read-only code/docs/security audit plus bounded [TEST] project/log/connectivity reads and owner-approved guarded synthetic checkpoint/recovery attempts
+**Data impact:** none; both protected database attempts failed before a Postgres session, so 0 schema/business/Auth/storage/provider writes and 0 customer/Production rows
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase/site/`main`, Vercel Production, and Resend untouched
+**Expected reads/writes/rows:** project status and recent Postgres log diagnostics only; guarded checkpoint remained exactly two 37-migration synthetic cycles but executed 0 cycles/commands/rows; recovery permitted only one role restore after exact zero-session/zero-lock guards but executed 0 SQL
+**Done:** Audited every Phase 3 checkbox with three independent reviews. Confirmed strong inert foundations but missing owner-read SQL/routes, durable distributed abuse controls, provider retry cutoff/dead-letter/webhook reprocessing, consent-cycle-bound newsletter routes, activated TEST observability/privacy workflows, and E2E. No Phase 3 item was ticked. Updated the protected launcher only in `/tmp` to exact clean head `50d5f03` and green CI run `29348427383`.
+**Verified/reconciled:** Supabase control plane reports `ACTIVE_HEALTHY`; TCP accepts both pooler ports, but the guarded checkpoint and two bounded transaction-pooler recovery attempts each returned `08006`/`econnrefused` before Postgres. Recent database logs contain no new attempt, confirming the failure is upstream of Postgres. Repository remained clean; prior exact-head six-job CI/build/test evidence is unchanged.
+**Production actions performed:** none; 0 Production reads/writes, deployments, configuration, provider sends, secret rotation, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST target and no mutation began
+**Rollback/forward recovery:** no code rollback required. TEST `app_runtime` remains intentionally fail-closed from the prior reconciled state; never bypass the pooler/credential guards or expose the protected DSNs. Provider support/recovery is required if the project-specific refusal persists.
+**Next:** Once both TEST poolers establish authenticated sessions, run the protected transaction-pooler recovery helper, require fresh `app_runtime` authentication, then rerun `npm run db:test:greenfield` from exact pushed head/green CI. Only after final success and zero residue: tick Phase 2, create reserved migration 38 for outbox/newsletter/abuse durability, migration 39+ for bounded owner reads, and resume the audited Phase 3 route/E2E batch.
+**Gotchas:** Public Supabase status and project health are green while this exact eu-central-2 Supavisor backend still refuses both roles. Phase 3 also requires explicit owner decisions/evidence for privacy retention/DPA/public-policy values and a separately approved TEST Sentry target before those checkboxes can close.
+
 ## 2026-07-14 — Kept TEST fail-closed after a Supavisor final-guard stall
 **Phase:** Phase 2 final staging acceptance; checklist item remains open
 **Labels/environment:** [LOCAL] operator/tests/build plus owner-approved destructive synthetic [TEST] checkpoint and bounded TEST control-plane recovery
