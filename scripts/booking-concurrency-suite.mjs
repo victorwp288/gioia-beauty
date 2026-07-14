@@ -29,7 +29,12 @@ import {
   oppositeRescheduleReconciliationQuery,
 } from "./concurrency-reconciliation.mjs";
 
-async function runDistinctKeyRace(sql, target, concurrencyOptions) {
+async function runDistinctKeyRace(
+  sql,
+  reconciliationSql,
+  target,
+  concurrencyOptions,
+) {
   const results = await runConcurrentRuntimeQueries(
     sql,
     Array.from({ length: REQUEST_COUNT }, (_, index) =>
@@ -38,7 +43,7 @@ async function runDistinctKeyRace(sql, target, concurrencyOptions) {
     concurrencyOptions,
   );
   const reconciliation = await queryOne(
-    sql,
+    reconciliationSql,
     distinctBookingReconciliationQuery,
   );
   const summary = assertDistinctKeyBookingRace(results, reconciliation);
@@ -48,7 +53,12 @@ async function runDistinctKeyRace(sql, target, concurrencyOptions) {
   );
 }
 
-async function runIdenticalKeyRace(sql, target, concurrencyOptions) {
+async function runIdenticalKeyRace(
+  sql,
+  reconciliationSql,
+  target,
+  concurrencyOptions,
+) {
   const query = identicalBookingQuery(target);
   const results = await runConcurrentRuntimeQueries(
     sql,
@@ -56,7 +66,7 @@ async function runIdenticalKeyRace(sql, target, concurrencyOptions) {
     concurrencyOptions,
   );
   const reconciliation = await queryOne(
-    sql,
+    reconciliationSql,
     identicalBookingReconciliationQuery,
   );
   const summary = assertIdenticalKeyReplayRace(results, reconciliation);
@@ -66,14 +76,19 @@ async function runIdenticalKeyRace(sql, target, concurrencyOptions) {
   );
 }
 
-async function runBookingVacationRace(sql, target, concurrencyOptions) {
+async function runBookingVacationRace(
+  sql,
+  reconciliationSql,
+  target,
+  concurrencyOptions,
+) {
   const results = await runConcurrentRuntimeQueries(
     sql,
     [bookingVacationBookingQuery(target), bookingVacationVacationQuery(target)],
     concurrencyOptions,
   );
   const reconciliation = await queryOne(
-    sql,
+    reconciliationSql,
     bookingVacationReconciliationQuery,
   );
   const summary = assertBookingVacationRace(results, reconciliation);
@@ -96,6 +111,7 @@ async function createSwapFixture(sql, target, suffix, fingerprintByte) {
 
 async function runOppositeRescheduleRace(
   sql,
+  reconciliationSql,
   targetA,
   targetB,
   concurrencyOptions,
@@ -121,7 +137,7 @@ async function runOppositeRescheduleRace(
     concurrencyOptions,
   );
   const reconciliation = await queryOne(
-    sql,
+    reconciliationSql,
     oppositeRescheduleReconciliationQuery({
       entryA,
       entryB,
@@ -163,10 +179,13 @@ function raceConcurrencyOptions(barrierWaiters, workerCount) {
 
 export async function runBookingConcurrencySuite(
   sql,
-  { targets, provisionOwner = true, barrierWaiters } = {},
+  { targets, provisionOwner = true, barrierWaiters, reconciliationSql } = {},
 ) {
   if (typeof provisionOwner !== "boolean") {
     throw new Error("Concurrency owner provisioning mode is invalid");
+  }
+  if (!reconciliationSql || typeof reconciliationSql.unsafe !== "function") {
+    throw new Error("Concurrency reconciliation database is invalid");
   }
   const selectedTargets = targets
     ? validatedTargets(targets)
@@ -174,21 +193,25 @@ export async function runBookingConcurrencySuite(
   if (provisionOwner) await provisionBookingConcurrencyOwner(sql);
   await runDistinctKeyRace(
     sql,
+    reconciliationSql,
     selectedTargets[0],
     raceConcurrencyOptions(barrierWaiters, REQUEST_COUNT),
   );
   await runIdenticalKeyRace(
     sql,
+    reconciliationSql,
     selectedTargets[1],
     raceConcurrencyOptions(barrierWaiters, REQUEST_COUNT),
   );
   await runBookingVacationRace(
     sql,
+    reconciliationSql,
     selectedTargets[2],
     raceConcurrencyOptions(barrierWaiters, 2),
   );
   await runOppositeRescheduleRace(
     sql,
+    reconciliationSql,
     selectedTargets[3],
     selectedTargets[4],
     raceConcurrencyOptions(barrierWaiters, 2),

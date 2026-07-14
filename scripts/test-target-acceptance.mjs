@@ -80,6 +80,7 @@ async function runFixtureAcceptance({
           (runtime) =>
             operations.runBooking(runtime, {
               barrierWaiters: GREENFIELD_REMOTE_BARRIER_WAITERS,
+              reconciliationSql: worker,
               targets,
               provisionOwner: false,
             }),

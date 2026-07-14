@@ -10,7 +10,9 @@ export * from "./concurrency-queries.mjs";
 export * from "./concurrency-reconciliation.mjs";
 
 async function main() {
-  await withLocalRuntimeDatabase(runBookingConcurrencySuite);
+  await withLocalRuntimeDatabase((sql) =>
+    runBookingConcurrencySuite(sql, { reconciliationSql: sql }),
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-14 — Separated TEST runtime commands from privileged reconciliation
+**Phase:** Phase 2 final staging acceptance; checklist item remains open
+**Labels/environment:** [LOCAL] concurrency boundary/tests/build plus owner-approved destructive synthetic [TEST] checkpoint
+**Data impact:** one cycle-A TEST rebuild and bounded synthetic race attempt, cleaned to zero known residue; temporary `app_runtime` suspension/recovery; no customer or Production data
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase/site/`main` untouched
+**Expected reads/writes/rows:** retry remains exactly two atomic 37-migration rebuilds, 21 pgTAP files/342 assertions per cycle, at most 27 synthetic commands, 5 schedule/vacation aggregates, 10 outbox rows, 5 changes/locks, 2 synthetic users, and final zero operational/Auth/storage residue
+**Done:** Exact-head CI run `29345709999` greened all six jobs for `d9d1eb7`. The guarded checkpoint then failed correctly when direct-table reconciliation used the table-blind `app_runtime` connection. Reconciliation now requires an explicit query-capable connection: commands/barriers remain least-privilege while four post-commit aggregate checks use the held TEST operator worker. No table grants or new definer boundary were added; the global pgTAP ACL invariant already forbids direct `app_runtime` table privileges.
+**Verified/reconciled:** TEST cleanup completed before the reported acceptance error; bounded recovery then freshly authenticated both protected roles. Format, SQL static checks, lint, TS7/TS6, 130 files/1,762 tests, both 56-test timezone suites, pinned Gitleaks working-tree/full-history scans, and production build pass. Independent root-cause audit confirmed the privilege boundary and found no other misrouted acceptance reconciliation path.
+**Production actions performed:** none; 0 Production reads/writes, deployments, configuration changes, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST target only
+**Rollback/forward recovery:** revert this batch for code; TEST `app_runtime` is restored to LOGIN with its protected Preview credential. No Production recovery is required.
+**Next:** Commit/push this privilege-boundary fix, require exact-head green CI, update the protected launcher SHA/run ID, and rerun `npm run db:test:greenfield` once. Tick Phase 2 only after both cycles and final zero-residue fingerprints pass.
+**Gotchas:** Vercel Preview still has the prior database URL and was not changed. The exposed TEST database password and legacy `service_role` JWT remain separate rotation work; never grant `app_runtime` table access to bypass test failures.
+
 ## 2026-07-14 — Hardened the guarded TEST checkpoint after real pooler behavior
 **Phase:** Phase 2 final staging acceptance; checklist item remains open
 **Labels/environment:** [LOCAL] operator/tests/build plus owner-approved destructive synthetic [TEST] attempts

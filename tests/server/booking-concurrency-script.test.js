@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -36,6 +38,10 @@ const parsedTarget = {
   serviceId: "manicure",
   variantId: "manicure-30-min",
 };
+const suiteSource = readFileSync(
+  new URL("../../scripts/booking-concurrency-suite.mjs", import.meta.url),
+  "utf8",
+);
 
 function bookingReconciliation(overrides = {}) {
   return {
@@ -115,9 +121,29 @@ describe("booking concurrency target and safety", () => {
     }));
 
     await expect(
-      runBookingConcurrencySuite(sql, { targets, provisionOwner: false }),
+      runBookingConcurrencySuite(sql, {
+        reconciliationSql: sql,
+        targets,
+        provisionOwner: false,
+      }),
     ).rejects.toBe(raceFailure);
     expect(ownerUnsafe).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit query-capable reconciliation database", async () => {
+    await expect(
+      runBookingConcurrencySuite(
+        { begin: vi.fn(), unsafe: vi.fn() },
+        { reconciliationSql: {}, targets: [], provisionOwner: false },
+      ),
+    ).rejects.toThrow("reconciliation database is invalid");
+  });
+
+  it("routes all four direct-table reconciliations away from runtime SQL", () => {
+    expect(suiteSource.match(/queryOne\(\s*reconciliationSql,/g)).toHaveLength(
+      4,
+    );
+    expect(suiteSource).not.toMatch(/queryOne\(\s*sql,/);
   });
 
   it("accepts only the loopback local postgres URL", () => {

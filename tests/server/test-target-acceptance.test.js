@@ -121,6 +121,7 @@ describe("greenfield TEST acceptance cycle", () => {
       {
         barrierWaiters: GREENFIELD_REMOTE_BARRIER_WAITERS,
         provisionOwner: false,
+        reconciliationSql: options(cli).worker,
         targets,
       },
     );
