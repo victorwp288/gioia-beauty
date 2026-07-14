@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-14 — TEST checkpoint stopped safely on missing protected credentials
+**Phase:** Phase 2 final staging acceptance; checklist item remains open
+**Labels/environment:** approved destructive synthetic [TEST] checkpoint; bounded [TEST] metadata/count reads; [LOCAL] fail-closed operator attempt
+**Data impact:** 0 writes and 0 customer/Production rows; read 1 project record, 37 migration records, 0 security findings, 12 informational performance findings, and 1 aggregate state row
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm`; live Firebase/site/`main` were not accessed
+**Expected reads/writes/rows:** when unblocked, exactly two atomic 37-migration rebuilds; per cycle 21 pgTAP files/342 assertions and at most 27 synthetic commands, 5 schedule/vacation aggregates, 10 outbox rows, 5 changes/locks, 2 synthetic users, then exact zero operational/Auth/storage residue
+**Done:** Owner approved the destructive TEST run conditioned on Production isolation. Official Supabase changelog/docs and an independent preflight audit found no applicable breaking change or P1/P2 safety issue. `npm run db:test:greenfield` was invoked once and rejected configuration before network access because the protected operator bundle is absent.
+**Verified/reconciled:** project is `ACTIVE_HEALTHY`, PostgreSQL 17, with exact 37 migrations, 0 security findings, `app_runtime` LOGIN/valid indefinitely, 0 runtime sessions, and 0 command/schedule/vacation/outbox/owner/Auth/storage rows. Repository was clean at pushed head `a4e19bb`; no masterplan item was ticked.
+**Production actions performed:** none; 0 Production reads/writes, no deployment/config/provider/customer-data access, and the live site was unchanged
+**Backup/restore evidence:** n/a; the TEST mutation never started
+**Rollback/forward recovery:** none required. The operator failed before acquiring a database connection; TEST and Production state are unchanged.
+**Next:** Securely inject the exact TEST operator session-pooler DSN and durable Preview transaction-pooler DSN into the protected operator process (never chat, repo, dotenv, or shell history). Then bind the current pushed SHA/green CI run, exact TEST ref/API/publishable key, UUID/confirmation/repository inputs, and rerun `npm run db:test:greenfield` once.
+**Gotchas:** The earlier four-variable shorthand was incomplete; most inputs are safe exact metadata that the operator can derive, but both DSNs are secret and unavailable here. Do not fetch Vercel secrets, reset passwords, or bypass the exact DSN separation.
+
 ## 2026-07-14 — Removed Resend key rotation from the refactor handoff
 **Phase:** Phase 2 staging acceptance handoff; documentation-only scope correction
 **Labels/environment:** [LOCAL] documentation only
