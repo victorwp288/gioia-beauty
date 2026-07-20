@@ -36,7 +36,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Backup/restore evidence:** n/a; isolated synthetic TEST target only
 **Rollback/forward recovery:** no application rollback required. TEST remains intentionally fail-closed; do not retry-loop, expose DSNs, bypass guards, activate Preview DB routes, or create reserved migration 38 before the exact Phase 2 checkpoint passes.
 **Next:** Have Supabase support repair the transaction-pooler tenant for `lxvsspniipcotimbsfqm`; then run exactly one protected recovery, require fresh `app_runtime` port-6543 authentication, and rerun `npm run db:test:greenfield` from exact pushed green CI. After final success JSON/zero residue, tick Phase 2 and implement Phase 3 as one migration-to-E2E vertical batch.
-**Gotchas:** Phase 3 also requires owner-approved `RET-01`–`RET-17`/`RET-HOLD`, Italian privacy/newsletter consent wording, processor evidence, and a separately approved TEST Sentry target; these are acceptance gates, not safe defaults Codex can invent.
+**Gotchas:** Phase 3 also requires owner-approved `RET-01`–`RET-17`/`RET-HOLD`, Italian privacy/newsletter consent wording, processor evidence, and a separately approved TEST Sentry target; these are acceptance gates, not safe defaults Codex can invent. The owner reaffirmed the accelerated cadence: minimal focused checks during a large vertical batch, then one full end-of-batch verification/review sweep; mandatory phase and safety gates remain.
 
 ## 2026-07-14 — Reproved both TEST cycles after restart; transaction-pooler recovery still failed
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 remains blocked

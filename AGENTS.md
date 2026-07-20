@@ -26,9 +26,12 @@ Small, coherent commits over one mega-commit — Victor reviews the branch diff 
 
 **Owner-approved accelerated cadence (2026-07-11):** prefer complete vertical
 batches over separate sessions for each internal layer. During implementation,
-run focused tests and parallelize independent audits; run the full verification
-checklist and independent final review once when the batch is coherent. Do not
-split schema, contract, repository, handler, route, and client integration into
+run only the smallest focused checks needed to catch high-fanout mistakes and
+parallelize independent audits. Defer the full format, lint, typecheck, unit,
+integration, database, build, security, and independent-review sweep until the
+large vertical batch is coherent; do not repeat that full sweep after each
+schema, contract, repository, handler, or route layer. Do not split schema,
+contract, repository, handler, route, and client integration into
 separate milestones when they can safely land together. This changes cadence,
 not scope or safety: every production/remote approval boundary, TEST gate,
 bounded-query rule, build requirement, and final worklog/CI obligation remains.
