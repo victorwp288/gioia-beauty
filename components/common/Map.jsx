@@ -1,5 +1,6 @@
 "use client";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+
+import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -13,10 +14,25 @@ L.Icon.Default.mergeOptions({
 });
 
 const Map = ({ latitude, longitude }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+
+    const map = L.map(container).setView([latitude, longitude], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    L.marker([latitude, longitude]).addTo(map).bindPopup("Ci trovi qui. ");
+
+    return () => map.remove();
+  }, [latitude, longitude]);
+
   return (
-    <MapContainer
-      center={[latitude, longitude]}
-      zoom={16}
+    <div
+      ref={containerRef}
       style={{
         height: "100%",
         width: "100%",
@@ -25,15 +41,7 @@ const Map = ({ latitude, longitude }) => {
         zIndex: 5,
         position: "relative",
       }}
-    >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      />
-      <Marker position={[latitude, longitude]}>
-        <Popup>Ci trovi qui. </Popup>
-      </Marker>
-    </MapContainer>
+    />
   );
 };
 

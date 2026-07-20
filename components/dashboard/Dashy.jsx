@@ -56,7 +56,10 @@ import {
   getTodayFormatted,
 } from "@/lib/utils/dateUtils";
 import { calculateEndTime } from "@/lib/utils/timeUtils";
-import { getOwnerScheduleCount } from "@/lib/client/ownerApi.ts";
+import {
+  getOwnerScheduleCount,
+  ownerErrorMessage,
+} from "@/lib/client/ownerApi.ts";
 import { salonDateFromLocalDate } from "@/lib/client/publicApi.ts";
 
 // Separate Components
@@ -428,7 +431,7 @@ const Dashy = ({ user, authLoading }) => {
           success: editingBlock
             ? "Blocco orario aggiornato con successo!"
             : "Blocco orario creato con successo!",
-          error: "Impossibile salvare il blocco orario",
+          error: ownerErrorMessage,
         },
       );
 
@@ -564,14 +567,14 @@ const Dashy = ({ user, authLoading }) => {
           {
             loading: "Aggiornamento appuntamento...",
             success: "Appuntamento aggiornato con successo!",
-            error: "Impossibile aggiornare l'appuntamento",
+            error: ownerErrorMessage,
           },
         );
       } else {
         await notifyAsync(() => createAppointment(appointmentData), {
           loading: "Creazione appuntamento...",
           success: "Appuntamento creato con successo!",
-          error: "Impossibile creare l'appuntamento",
+          error: ownerErrorMessage,
         });
       }
 
@@ -617,7 +620,7 @@ const Dashy = ({ user, authLoading }) => {
       await notifyAsync(() => createAppointment(appointmentData), {
         loading: "Creazione appuntamento...",
         success: "Appuntamento creato! Pronto per il prossimo.",
-        error: "Impossibile creare l'appuntamento",
+        error: ownerErrorMessage,
       });
 
       // Prepare form for next appointment: set startTime to previous endTime, clear client info
@@ -661,7 +664,7 @@ const Dashy = ({ user, authLoading }) => {
           success: appointment.isTimeBlock
             ? "Blocco orario annullato."
             : "Appuntamento annullato con successo.",
-          error: "Impossibile annullare la voce",
+          error: ownerErrorMessage,
         });
       } catch (error) {
         console.error("Schedule cancellation failed", {

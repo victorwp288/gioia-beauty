@@ -91,6 +91,19 @@ function createHandler(
 }
 
 describe("POST /api/bookings", () => {
+  it("accepts the canonical browser origin from Host behind an internal URL", async () => {
+    const { handler } = createHandler();
+    const response = await handler(
+      bookingRequest(
+        bookingBody,
+        { host: "127.0.0.1:3100", origin: "http://127.0.0.1:3100" },
+        "http://localhost:3100/api/bookings",
+      ),
+    );
+
+    expect(response.status).toBe(201);
+  });
+
   it.each([false, true])(
     "returns a validated success response when replayed=%s",
     async (replayed) => {

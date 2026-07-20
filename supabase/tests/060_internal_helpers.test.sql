@@ -51,16 +51,21 @@ select ok(
     where namespace.nspname = 'gioia_private'
       and procedure.prosecdef
       and (
-        owner.rolname <> 'gioia_mutator'
+        owner.rolname <> case
+          when procedure.proname in (
+            'begin_legacy_migration_import', 'prepare_legacy_migration_import_record',
+            'apply_legacy_quarantine_import', 'complete_legacy_migration_import'
+          ) then 'gioia_migrator' else 'gioia_mutator' end
         or has_function_privilege('app_runtime', procedure.oid, 'EXECUTE')
-          <> not exists (
-            select 1
-            from operator_only
-            where operator_only.signature = procedure.oid::regprocedure::text
+          <> (
+            procedure.proname not like '%legacy_migration_import%'
+            and procedure.proname not like 'apply_legacy_%_import'
+            and not exists (select 1 from operator_only where
+              operator_only.signature = procedure.oid::regprocedure::text)
           )
       )
   ),
-  'security-definer functions are mutator-owned and split exactly between runtime and operator-only entry points'
+  'security-definer functions have exact no-login owners and runtime/operator execution boundaries'
 );
 select ok(
   not exists (

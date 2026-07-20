@@ -1,5 +1,5 @@
-import { Cookie, Inter } from "next/font/google";
 import "./globals.css";
+import "react-toastify/dist/ReactToastify.css";
 import { Bricolage_Grotesque, DM_Serif_Display } from "next/font/google";
 import "@/styles/tailwind.css";
 import ConditionalLayout from "@/components/layout/ConditionalLayout";
@@ -7,8 +7,6 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
   title: {
@@ -68,7 +66,7 @@ export const metadata = {
   },
 };
 
-export const bricolage = Bricolage_Grotesque({
+const bricolage = Bricolage_Grotesque({
   weight: ["200", "300", "400", "500", "600", "700", "800"],
   style: "normal",
   display: "swap",
@@ -76,7 +74,7 @@ export const bricolage = Bricolage_Grotesque({
   variable: "--bricolage",
 });
 
-export const dmSerif = DM_Serif_Display({
+const dmSerif = DM_Serif_Display({
   weight: ["400"],
   style: "normal",
   display: "swap",

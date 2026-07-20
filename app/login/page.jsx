@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/Fields";
@@ -18,7 +18,12 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   async function handleAuth(event) {
     event.preventDefault();
@@ -69,7 +74,10 @@ export default function Login() {
         Accedi al tuo account
       </h2>
       <form
+        action="/api/auth/login"
+        method="post"
         onSubmit={handleAuth}
+        data-hydrated={isHydrated ? "true" : "false"}
         className="mt-10 grid grid-cols-1 gap-y-8 w-full max-w-sm mx-auto"
       >
         <TextField

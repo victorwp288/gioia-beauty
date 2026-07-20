@@ -117,6 +117,8 @@ export const REVIEWED_MIGRATION_DIGESTS = Object.freeze({
     "521f2ff7fb0c0985e39a9a15b86e1dd883ec0f58be40e99ebc0b7c0d1204b37c",
   "20260720172807_phase4_cutover_operator_lifecycle.sql":
     "1fd310d9102b91ea45df11ba007662fc573844144c2f7371575c5686fb485e1f",
+  "20260720184500_phase4_legacy_migration_import_boundary.sql":
+    "84516a7ba14d5f313581aa0b32c24884d3ea079a868ec0fb685b08173566524d",
 });
 
 export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
@@ -137,7 +139,7 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "050_migration_ledger.test.sql":
     "dc20191b58f2297ba7b3db6606e326ec13530a828af108e29ac1a9d5fb5f2168",
   "060_internal_helpers.test.sql":
-    "1a8e9f4183a3671a87f58210d46e9b2684b73add47867a159a81d03347528ecf",
+    "d0bc5f16e006c14c9fc4e66b1ad486e8758625f6fbb74df8a44404d7b41238b1",
   "065_command_staleness.test.sql":
     "264cadd9652d54c5f48db3612561deb4449fc59d91716014e06156c7f0e543e7",
   "070_command_boundaries.test.sql":
@@ -168,4 +170,6 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
     "19e6fcba0237484d6c7ceafcf0643ded0ba86d614f8c8cd498deb455c5437d03",
   "145_cutover_write_control.test.sql":
     "2f539722302f6c13fede5de6a37470a2dfe892d0808d45ec8834f34c5e0006ef",
+  "150_legacy_migration_import_boundary.test.sql":
+    "b29612276c3953d3d5a80e0709dd4d7b3d24cfccfc0e4d740fab5f51661e03ff",
 });

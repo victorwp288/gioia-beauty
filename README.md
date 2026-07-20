@@ -68,8 +68,20 @@ synthetic seed explicitly before running it:
 npm run db:start
 npm run db:reset
 npm run db:seed:replay
+npm run db:test:migration-rehearsal
 npm run test:e2e:phase3
+npm run test:e2e:phase4
 ```
+
+The migration rehearsal transforms a bounded synthetic legacy Firestore batch,
+imports it transactionally, proves exact replay/idempotency, reconciles its
+ledger/domain counts, and rejects a changed source checksum. It is Local-only
+and does not read Firebase.
+
+The Phase 4 browser slice adds public desktop/mobile visual baselines,
+keyboard and recovery acceptance, owner-session/idempotency flows, and the
+Local freeze/canary/reconciliation lifecycle. It also fails if the browser
+addresses Firebase or Supabase business-data protocols directly.
 
 `db:reset` destroys and recreates local synthetic data. The E2E command refuses
 remote URLs, linked Supabase projects, protected operator inputs, provider

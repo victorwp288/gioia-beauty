@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-20 — Rehearsed Phase 4 legacy migration and browser acceptance locally
+**Phase:** Phase 4 Local migration/recovery and browser acceptance; hosted TEST, real-source inventory, and production candidate remain open
+**Labels/environment:** [LOCAL] only; disposable synthetic Supabase, system Chrome, fake email/challenge/alerts; production Firebase and `main` untouched
+**Data impact:** destructive Local resets; one five-record synthetic import plus exact replay; bounded synthetic owner create/soft-cancel/canary/reconcile writes; no remote/customer data
+**Target:** local `gioia-beauty-local` on temporary loopback 56321/56322; committed ports restored to 54321/54322 and Local volumes removed
+**Expected reads/writes/rows:** forward transform ≤5,000 source records and DB import ≤100/call; rehearsal source/imported/quarantine/replay = 5/5/0/5 with 5 ledger rows and 5 domain events; reverse ETL ≤10,000 source rows and ≤500 Firestore operations/batch; browser/API bounds remain those recorded in the prior Phase 4 entry
+**Done:** Added deterministic Firestore appointment/block/vacation/subscriber transform, source-bound manifests, redacted quarantine/reconciliation, bounded transactional importer, lease-guarded high-water reverse ETL, Local migration rehearsal, and Phase 4 public/owner browser acceptance. Fixed pre-hydration login credential leakage, proxy-aware same-origin booking validation, duplicate owner toasts, Contacts map lifecycle crashes, and Local reset gateway/role cleanup.
+**Verified/reconciled:** 60-migration clean reset; DB static/lint/advisors; 26 pgTAP files/439 assertions (25 hosted-candidate files/431); synthetic Auth/routes and four concurrency races; migration rehearsal; 160 Vitest files/1,994 tests with one intentional skip; typecheck, lint, production build; Phase 3 1/1, Phase 4 public booking 3/3, public boundary 2/2, and owner 4/4 E2E in real system Chrome.
+**Production actions performed:** none; no Firebase read/write, remote Supabase/Auth/config, deployment, provider/email, Vercel, `main`, or support action
+**Backup/restore evidence:** n/a; disposable Local synthetic data only. Reverse ETL behavior is tested, but no Firebase sink was invoked.
+**Rollback/forward recovery:** revert this batch for code; rebuild Local from the reviewed 60-migration manifest. Live Firebase remains authoritative and unchanged.
+**Next:** After Supabase repairs the Phase 2 transaction-pooler gate, complete that checkpoint, apply the exact 60-migration head to hosted TEST, then obtain separate approval for a bounded `[PROD-READ]` Firestore shape inventory/export and run the TEST import/reconciliation/reverse-ETL/restore/browser acceptance before ticking Phase 4.
+**Gotchas:** No Phase 4 checkbox was ticked because every migration item is `[TEST]`, combined browser items still require TEST proof, and the exact source freeze is not yet appropriate. Linux CI still needs approved visual baselines; current CI credits are unavailable.
+
 ## 2026-07-20 — Completed the Phase 4 Local application-cutover vertical
 **Phase:** Phase 4 Local implementation; hosted TEST/Preview acceptance and source freeze remain open
 **Labels/environment:** [LOCAL] only; synthetic Docker Supabase, fake email/challenge/alerts; production Firebase and `main` untouched

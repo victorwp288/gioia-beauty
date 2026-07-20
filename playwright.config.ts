@@ -2,6 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
 const target = new URL(baseURL);
+const chromiumExecutablePath =
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 if (
   target.protocol !== "http:" ||
@@ -32,6 +34,9 @@ export default defineConfig({
     : [["list"], ["html", { open: "never" }]],
   use: {
     baseURL,
+    launchOptions: chromiumExecutablePath
+      ? { executablePath: chromiumExecutablePath }
+      : undefined,
     trace: "retain-on-failure",
   },
   projects: [
@@ -39,10 +44,18 @@ export default defineConfig({
       name: "phase3-api",
       testMatch: /phase3-.*\.spec\.ts/,
     },
+    {
+      name: "phase4-public",
+      testMatch: /phase4-public-.*\.spec\.ts/,
+    },
+    {
+      name: "phase4-owner",
+      testMatch: /phase4-owner-.*\.spec\.ts/,
+    },
   ],
   webServer: {
     command: "node scripts/start-local-phase3-e2e-server.mjs",
-    url: new URL("/api/health", baseURL).href,
+    url: new URL("/", baseURL).href,
     reuseExistingServer: false,
     timeout: 120_000,
   },

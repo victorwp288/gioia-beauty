@@ -11,6 +11,7 @@ import {
 } from "@/lib/domain/schemas/index.ts";
 
 import { requestFingerprint } from "./bookingSecurity.ts";
+import { requestHasExpectedOrigin } from "./auth/requestSecurity.ts";
 import { cutoverWriteGate, type CutoverWriteGate } from "./cutoverWriteGate.ts";
 import {
   evaluatePublicAbuseGuard,
@@ -28,7 +29,6 @@ const MAX_CONTENT_ENCODING_BYTES = 64;
 const MAX_CONTENT_LENGTH_BYTES = 32;
 const MAX_CONTENT_TYPE_BYTES = 64;
 const MAX_IDEMPOTENCY_HEADER_BYTES = 128;
-const MAX_ORIGIN_BYTES = 512;
 const PublicBookingBodySchema = PublicBookingCommandSchema.omit({
   idempotencyKey: true,
 });
@@ -86,20 +86,7 @@ export interface PublicBookingHandlerDependencies {
 function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (origin === null) return true;
-  if (
-    origin.trim() !== origin ||
-    Buffer.byteLength(origin, "utf8") > MAX_ORIGIN_BYTES
-  ) {
-    return false;
-  }
-  try {
-    const parsed = new URL(origin);
-    return (
-      origin === parsed.origin && parsed.origin === new URL(request.url).origin
-    );
-  } catch {
-    return false;
-  }
+  return requestHasExpectedOrigin(request);
 }
 
 function declaredBodyLength(request: Request): number | null {

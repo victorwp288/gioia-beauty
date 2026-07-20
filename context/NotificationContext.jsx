@@ -6,7 +6,7 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import { UI_CONFIG } from "../lib/utils/constants";
 
 // Import alert dialog components
@@ -753,6 +753,14 @@ export const NotificationProvider = ({ children }) => {
   return (
     <NotificationContext.Provider value={contextValue}>
       {children}
+      <ToastContainer
+        position={state.settings.position}
+        limit={state.settings.maxToasts}
+        newestOnTop
+        closeOnClick
+        pauseOnFocusLoss
+        pauseOnHover
+      />
       <ConfirmationDialogs />
     </NotificationContext.Provider>
   );

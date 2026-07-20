@@ -411,8 +411,8 @@ succeeded. The full restore and deployment gates in
 ## Migration ordering
 
 This document creates no migration and reserves no Production action.
-The current source manifest contains 59 migrations. Phase 3 migrations 38–54
-and Phase 4 migrations 55–59 exist in source and may have Local/CI evidence,
+The current source manifest contains 60 migrations. Phase 3 migrations 38–54
+and Phase 4 migrations 55–60 exist in source and may have Local/CI evidence,
 but they have not been applied and accepted by the protected hosted-TEST
 checkpoint. Their presence is not remote schema evidence. The Phase 2 TEST
 checkpoint is still open.

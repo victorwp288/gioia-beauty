@@ -211,8 +211,8 @@ const SubscriberList = ({ onClose }) => {
 
       setSubscribers((prev) => prev.filter((s) => s.id !== subscriber.id));
       setSelectedIds((prev) => prev.filter((id) => id !== subscriber.id));
-    } catch (error) {
-      toast.error(ownerErrorMessage(error));
+    } catch {
+      // notifyAsync already displays the mapped operation error.
     }
   };
 
@@ -266,7 +266,7 @@ const SubscriberList = ({ onClose }) => {
         prev.filter((subscriber) => !selectedSet.has(subscriber.id)),
       );
       setSelectedIds([]);
-    } catch (error) {
+    } catch {
       if (completedIds.length > 0) {
         const completedSet = new Set(completedIds);
         setSubscribers((prev) =>
@@ -276,7 +276,6 @@ const SubscriberList = ({ onClose }) => {
           prev.filter((subscriberId) => !completedSet.has(subscriberId)),
         );
       }
-      toast.error(ownerErrorMessage(error));
     } finally {
       setIsBulkDeleting(false);
     }
