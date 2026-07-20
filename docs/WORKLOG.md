@@ -24,6 +24,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-20 — Revalidated the TEST gate; transaction-pooler recovery still failed closed
+**Phase:** Phase 2 final staging acceptance gate; Phase 3 remains blocked
+**Labels/environment:** [LOCAL] repo/docs/official-doc audit plus bounded [TEST] control-plane/advisor/count reads and one guarded TEST credential-recovery attempt
+**Data impact:** one serialized recovery-only role lifecycle attempt; final state remains `app_runtime` NOLOGIN with zero runtime/business/Auth/storage residue; no customer or Production data
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm` in `eu-central-2`; live Firebase/site/`main`, Vercel Production, Resend, and customer data untouched
+**Expected reads/writes/rows:** exactly one project record, 37 migration records, security/performance advisors, bounded aggregate state reads, one advisory-lock/credential-recovery lifecycle, and zero business/Auth/storage rows
+**Done:** Updated clean `refactor` to exact `origin/refactor` head `2f4c900`; verified exact green six-job CI run `29353246586`, `ACTIVE_HEALTHY` PostgreSQL 17, 37 remote migrations, 0 security findings, 11 informational unused-index findings, both protected Keychain DSNs present, and current official Supabase connection/Auth/RLS guidance. Six independent Phase 3 audits mapped the remaining migration 38 durability, migration 39+ owner reads, routes/runtime activation, E2E, privacy, and observability work; no checklist item was ticked.
+**Verified/reconciled:** the single guarded recovery did not produce a successful runtime state and no matching SQL reached Postgres. Final bounded state is `app_runtime` NOLOGIN/valid indefinitely, 0 runtime sessions, and 0 command/schedule/outbox/owner/Auth/storage rows. The repository had no application change; Phase 2 remains correctly unchecked.
+**Production actions performed:** none; 0 Production reads/writes, deployment/config/provider action, email send, secret rotation, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST target only
+**Rollback/forward recovery:** no application rollback required. TEST remains intentionally fail-closed; do not retry-loop, expose DSNs, bypass guards, activate Preview DB routes, or create reserved migration 38 before the exact Phase 2 checkpoint passes.
+**Next:** Have Supabase support repair the transaction-pooler tenant for `lxvsspniipcotimbsfqm`; then run exactly one protected recovery, require fresh `app_runtime` port-6543 authentication, and rerun `npm run db:test:greenfield` from exact pushed green CI. After final success JSON/zero residue, tick Phase 2 and implement Phase 3 as one migration-to-E2E vertical batch.
+**Gotchas:** Phase 3 also requires owner-approved `RET-01`–`RET-17`/`RET-HOLD`, Italian privacy/newsletter consent wording, processor evidence, and a separately approved TEST Sentry target; these are acceptance gates, not safe defaults Codex can invent.
+
 ## 2026-07-14 — Reproved both TEST cycles after restart; transaction-pooler recovery still failed
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 remains blocked
 **Labels/environment:** owner-approved destructive synthetic [TEST] checkpoint plus bounded [TEST] control-plane diagnostics/recovery and [LOCAL] process inspection
