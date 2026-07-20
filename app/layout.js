@@ -5,7 +5,6 @@ import "@/styles/tailwind.css";
 import ConditionalLayout from "@/components/layout/ConditionalLayout";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { AppointmentProvider } from "@/context/AppointmentContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 
@@ -207,9 +206,7 @@ export default function RootLayout({ children }) {
       <body className="bg-white flex h-full flex-col">
         <ThemeProvider>
           <NotificationProvider>
-            <AppointmentProvider>
-              <ConditionalLayout>{children}</ConditionalLayout>
-            </AppointmentProvider>
+            <ConditionalLayout>{children}</ConditionalLayout>
           </NotificationProvider>
         </ThemeProvider>
         <Analytics />

@@ -187,6 +187,27 @@ export const OWNER_ROUTE_COMMAND_CASES = [
     },
   },
   {
+    commandName: "updateVacation",
+    path: "/api/admin/vacations/update",
+    operation: "owner_update_vacation",
+    status: 200,
+    code: "VACATION_UPDATED",
+    body: {
+      vacationId: RESOURCE_ID,
+      expectedVersion: 2,
+      startDate: "2035-02-02",
+      endDate: "2035-02-06",
+      reason: " Ferie aggiornate ",
+    },
+    normalizedBody: {
+      vacationId: RESOURCE_ID,
+      expectedVersion: 2,
+      startDate: "2035-02-02",
+      endDate: "2035-02-06",
+      reason: "Ferie aggiornate",
+    },
+  },
+  {
     commandName: "cancelVacation",
     path: "/api/admin/vacations/cancel",
     operation: "owner_cancel_vacation",

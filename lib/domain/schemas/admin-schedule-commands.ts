@@ -233,6 +233,22 @@ export const AdminCreateVacationCommandSchema = z
   .strict()
   .superRefine(validateVacationDateRange);
 
+const adminUpdateVacationFields = {
+  vacationId: UuidSchema,
+  expectedVersion: PositiveVersionSchema,
+  startDate: SalonDateSchema,
+  endDate: SalonDateSchema,
+  reason: VacationReasonSchema,
+};
+export const AdminUpdateVacationBodySchema = z
+  .object(adminUpdateVacationFields)
+  .strict()
+  .superRefine(validateVacationDateRange);
+export const AdminUpdateVacationCommandSchema = z
+  .object({ ...commandFields, ...adminUpdateVacationFields })
+  .strict()
+  .superRefine(validateVacationDateRange);
+
 const adminCancelVacationFields = {
   vacationId: UuidSchema,
   expectedVersion: PositiveVersionSchema,

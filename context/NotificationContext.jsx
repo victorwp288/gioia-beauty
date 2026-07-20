@@ -146,7 +146,7 @@ const notificationReducer = (state, action) => {
         toasts: state.toasts.map((toast) =>
           toast.id === action.payload.id
             ? { ...toast, ...action.payload.updates }
-            : toast
+            : toast,
         ),
       };
 
@@ -246,7 +246,7 @@ const notificationReducer = (state, action) => {
       return {
         ...state,
         confirmations: state.confirmations.filter(
-          (confirmation) => confirmation.id !== action.payload
+          (confirmation) => confirmation.id !== action.payload,
         ),
       };
 
@@ -275,7 +275,7 @@ export const useNotification = () => {
   const context = useContext(NotificationContext);
   if (!context) {
     throw new Error(
-      "useNotification must be used within a NotificationProvider"
+      "useNotification must be used within a NotificationProvider",
     );
   }
   return context;
@@ -335,35 +335,35 @@ export const NotificationProvider = ({ children }) => {
 
       return id;
     },
-    [state.settings, generateId]
+    [state.settings, generateId],
   );
 
   const showSuccess = useCallback(
     (message, options = {}) => {
       return showToast(NotificationTypes.SUCCESS, message, options);
     },
-    [showToast]
+    [showToast],
   );
 
   const showError = useCallback(
     (message, options = {}) => {
       return showToast(NotificationTypes.ERROR, message, options);
     },
-    [showToast]
+    [showToast],
   );
 
   const showWarning = useCallback(
     (message, options = {}) => {
       return showToast(NotificationTypes.WARNING, message, options);
     },
-    [showToast]
+    [showToast],
   );
 
   const showInfo = useCallback(
     (message, options = {}) => {
       return showToast(NotificationTypes.INFO, message, options);
     },
-    [showToast]
+    [showToast],
   );
 
   const showLoading = useCallback(
@@ -373,7 +373,7 @@ export const NotificationProvider = ({ children }) => {
         persistent: true,
       });
     },
-    [showToast]
+    [showToast],
   );
 
   const updateToast = useCallback((id, updates) => {
@@ -447,7 +447,7 @@ export const NotificationProvider = ({ children }) => {
 
       return id;
     },
-    [generateId]
+    [generateId],
   );
 
   const removeAlert = useCallback((id) => {
@@ -472,7 +472,7 @@ export const NotificationProvider = ({ children }) => {
         payload: { id, value, message, indeterminate },
       });
     },
-    []
+    [],
   );
 
   const updateProgress = useCallback((id, updates) => {
@@ -539,7 +539,7 @@ export const NotificationProvider = ({ children }) => {
         });
       });
     },
-    [generateId]
+    [generateId],
   );
 
   const removeConfirmation = useCallback((id) => {
@@ -585,11 +585,15 @@ export const NotificationProvider = ({ children }) => {
         return result;
       } catch (error) {
         removeToast(loadingId);
-        showError(errorMessage || `Operation failed: ${error.message}`);
+        showError(
+          typeof errorMessage === "function"
+            ? errorMessage(error)
+            : errorMessage || `Operation failed: ${error.message}`,
+        );
         throw error;
       }
     },
-    [showLoading, removeToast, showSuccess, showError]
+    [showLoading, removeToast, showSuccess, showError],
   );
 
   const notifyAsync = useCallback(
@@ -602,7 +606,7 @@ export const NotificationProvider = ({ children }) => {
 
       return notifyOperation(asyncFn, loading, success, error);
     },
-    [notifyOperation]
+    [notifyOperation],
   );
 
   // ============================================================================
@@ -611,24 +615,27 @@ export const NotificationProvider = ({ children }) => {
 
   // Clean up expired notifications periodically
   useEffect(() => {
-    const cleanup = setInterval(() => {
-      const now = Date.now();
-      const cutoff = now - 24 * 60 * 60 * 1000; // 24 hours
+    const cleanup = setInterval(
+      () => {
+        const now = Date.now();
+        const cutoff = now - 24 * 60 * 60 * 1000; // 24 hours
 
-      // Remove old toasts that somehow didn't get cleaned up
-      state.toasts.forEach((toast) => {
-        if (toast.createdAt < cutoff && !toast.persistent) {
-          removeToast(toast.id);
-        }
-      });
+        // Remove old toasts that somehow didn't get cleaned up
+        state.toasts.forEach((toast) => {
+          if (toast.createdAt < cutoff && !toast.persistent) {
+            removeToast(toast.id);
+          }
+        });
 
-      // Remove old alerts
-      state.alerts.forEach((alert) => {
-        if (alert.createdAt < cutoff && !alert.persistent) {
-          removeAlert(alert.id);
-        }
-      });
-    }, 5 * 60 * 1000); // Every 5 minutes
+        // Remove old alerts
+        state.alerts.forEach((alert) => {
+          if (alert.createdAt < cutoff && !alert.persistent) {
+            removeAlert(alert.id);
+          }
+        });
+      },
+      5 * 60 * 1000,
+    ); // Every 5 minutes
 
     return () => clearInterval(cleanup);
   }, [state.toasts, state.alerts, removeToast, removeAlert]);

@@ -40,6 +40,7 @@ export interface OwnerOutboxRetryRepository {
     identity: OwnerTransactionIdentity,
     command: unknown,
     requestFingerprint: Buffer,
+    canaryToken?: string | null,
   ): Promise<OwnerCommandResult>;
 }
 
@@ -47,7 +48,12 @@ export function createOwnerOutboxRetryRepository(
   database: Pick<RuntimeDatabase, "ownerTransaction"> = createRuntimeDatabase(),
 ): OwnerOutboxRetryRepository {
   return {
-    async retryOutbox(identityInput, commandInput, fingerprintInput) {
+    async retryOutbox(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken = null,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -68,6 +74,7 @@ export function createOwnerOutboxRetryRepository(
           ...OWNER_OUTBOX_RETRY_CONTRACT,
           resourceId: command.outboxId,
         },
+        canaryToken,
       );
     },
   };

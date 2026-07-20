@@ -5,6 +5,7 @@ import {
   type DatabaseRow,
   type RuntimeDatabase,
 } from "./runtime.ts";
+import { authorizeCutoverWrite } from "./cutoverWriteRepository.ts";
 
 export interface AvailabilityDatabaseInput {
   date: string;
@@ -21,6 +22,7 @@ export interface PublicBookingDatabaseInput extends AvailabilityDatabaseInput {
   clientEmail: string;
   clientPhone: string;
   clientNote: string | null;
+  canaryToken?: string | null;
 }
 
 export interface PublicBookingRepository {
@@ -61,8 +63,14 @@ export function createPublicBookingRepository(
     },
 
     async createBooking(input) {
-      const rows = await database.transaction((transaction) =>
-        transaction.unsafe(CREATE_BOOKING_QUERY, [
+      const rows = await database.transaction(async (transaction) => {
+        await authorizeCutoverWrite(transaction, {
+          operation: "public_booking",
+          idempotencyKey: input.idempotencyKey,
+          requestFingerprint: input.requestFingerprint,
+          canaryToken: input.canaryToken ?? null,
+        });
+        return transaction.unsafe(CREATE_BOOKING_QUERY, [
           input.principalScopeHash,
           input.idempotencyKey,
           input.requestFingerprint,
@@ -74,8 +82,8 @@ export function createPublicBookingRepository(
           input.clientEmail,
           input.clientPhone,
           input.clientNote,
-        ]),
-      );
+        ]);
+      });
 
       if (rows.length !== 1 || !rows[0]) {
         throw new Error("Unexpected booking command result");

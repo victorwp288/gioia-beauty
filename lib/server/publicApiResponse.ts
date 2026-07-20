@@ -86,6 +86,14 @@ export function databaseErrorResponse(
   if (error && typeof error === "object") {
     const candidate = error as { code?: unknown; message?: unknown };
     if (
+      candidate.code === "PT503" &&
+      candidate.message === "MAINTENANCE_ACTIVE"
+    ) {
+      return apiErrorResponse(503, "MAINTENANCE_ACTIVE", requestId, {
+        "Retry-After": "300",
+      });
+    }
+    if (
       typeof candidate.code === "string" &&
       /^PT(?:400|404|409)$/.test(candidate.code) &&
       typeof candidate.message === "string"

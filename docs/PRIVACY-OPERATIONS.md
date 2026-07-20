@@ -411,10 +411,14 @@ succeeded. The full restore and deployment gates in
 ## Migration ordering
 
 This document creates no migration and reserves no Production action.
-The current source manifest contains 54 migrations. Phase 3 migrations 38–54
-exist in source and may have Local/CI evidence, but they have not been applied
-and accepted by the protected hosted-TEST checkpoint. Their presence is not
-remote schema evidence. The Phase 2 TEST checkpoint also remains unresolved:
+The current source manifest contains 59 migrations. Phase 3 migrations 38–54
+and Phase 4 migrations 55–59 exist in source and may have Local/CI evidence,
+but they have not been applied and accepted by the protected hosted-TEST
+checkpoint. Their presence is not remote schema evidence. The Phase 2 TEST
+checkpoint is still open.
+
+**The Phase 2 TEST checkpoint also remains unresolved.**
+
 the required final durable `app_runtime` transaction-pooler authentication and
 success/zero-residue evidence have not completed.
 

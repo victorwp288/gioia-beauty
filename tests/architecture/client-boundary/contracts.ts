@@ -46,6 +46,7 @@ export const EXCLUDED_SOURCE_ROOTS = new Set([
 export const FORBIDDEN_PACKAGES = [
   "@supabase/ssr",
   "@supabase/supabase-js",
+  "firebase",
   "firebase-admin",
   "next/cache",
   "next/headers",

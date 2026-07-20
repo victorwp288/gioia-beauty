@@ -12,6 +12,7 @@ import type { OwnerCommandResult } from "./database/ownerScheduleRepositorySuppo
 import type { OwnerTransactionIdentity } from "./database/runtime.ts";
 import { createOwnerCommandHandler } from "./ownerScheduleCommandHandler.ts";
 import { apiErrorResponse } from "./publicApiResponse.ts";
+import type { CutoverWriteGate } from "./cutoverWriteGate.ts";
 
 interface OwnerSecurityTokens {
   readonly bindingToken: string | null | undefined;
@@ -30,6 +31,7 @@ export interface NextOwnerCommandRouteDependencies {
   readonly getBindingSecret?: () => string;
   readonly createRequestId?: () => string;
   readonly now?: Date;
+  readonly writeGate?: CutoverWriteGate;
 }
 
 interface NextOwnerCommandDefinition<TBody extends Record<string, unknown>> {
@@ -40,6 +42,7 @@ interface NextOwnerCommandDefinition<TBody extends Record<string, unknown>> {
     identity: OwnerTransactionIdentity,
     command: TBody & { readonly idempotencyKey: string },
     requestFingerprint: Buffer,
+    canaryToken: string | null,
   ) => Promise<OwnerCommandResult>;
 }
 
@@ -61,6 +64,7 @@ export function createNextOwnerCommandRoute<
     getBindingSecret = () => process.env.OWNER_SESSION_HMAC_SECRET ?? "",
     createRequestId,
     now,
+    writeGate,
   }: NextOwnerCommandRouteDependencies = {},
 ) {
   return async function POST(request: Request): Promise<Response> {
@@ -78,6 +82,7 @@ export function createNextOwnerCommandRoute<
       version: definition.version,
       createRequestId,
       now,
+      writeGate,
       loadRuntimeContext: async () => {
         const context = await createAuthContext(request);
         return {

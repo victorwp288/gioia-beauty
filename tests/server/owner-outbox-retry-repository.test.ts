@@ -41,7 +41,10 @@ function row(
 
 function setup(rows: Array<Record<string, unknown>>) {
   const unsafe = vi.fn(
-    async (_query: string, _parameters?: readonly unknown[]) => rows,
+    async (query: string, _parameters?: readonly unknown[]) =>
+      query.includes("authorize_cutover_write")
+        ? [{ is_canary: false, canary_run_id: null, canary_grant_id: null }]
+        : rows,
   );
   const ownerTransaction = vi.fn();
   const database = {
@@ -72,8 +75,11 @@ describe("owner outbox retry repository", () => {
       ).resolves.toEqual(row(200, "OUTBOX_RETRY_SCHEDULED", replayed));
 
       expect(fixture.ownerTransaction).toHaveBeenCalledOnce();
-      expect(fixture.unsafe).toHaveBeenCalledOnce();
-      const [query, parameters] = fixture.unsafe.mock.calls[0]!;
+      expect(fixture.unsafe).toHaveBeenCalledTimes(2);
+      expect(fixture.unsafe.mock.calls[0]?.[0]).toContain(
+        "authorize_cutover_write",
+      );
+      const [query, parameters] = fixture.unsafe.mock.calls[1]!;
       expect(query).toBe(OWNER_OUTBOX_RETRY_CONTRACT.query);
       expect(query).toContain("gioia_private.retry_email_outbox_as_owner(");
       expect(query).toMatch(/\)\s+as command\s+limit 2\s*$/i);

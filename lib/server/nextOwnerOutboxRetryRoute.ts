@@ -62,8 +62,13 @@ export function createNextOwnerOutboxRetryRoute(
       bodySchema: AdminRetryOutboxBodySchema,
       operation: OWNER_OUTBOX_RETRY_CONTRACT.operation,
       version: OWNER_OUTBOX_RETRY_CONTRACT.fingerprintVersion,
-      execute: (identity, command, requestFingerprint) =>
-        repository.retryOutbox(identity, command, requestFingerprint),
+      execute: (identity, command, requestFingerprint, canaryToken) =>
+        repository.retryOutbox(
+          identity,
+          command,
+          requestFingerprint,
+          canaryToken,
+        ),
     },
     routeDependencies,
   );

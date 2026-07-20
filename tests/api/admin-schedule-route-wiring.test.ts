@@ -32,6 +32,7 @@ import * as blockRescheduleRoute from "@/app/api/admin/blocks/reschedule/route.t
 import * as scheduleCancelRoute from "@/app/api/admin/schedule/cancel/route.ts";
 import * as vacationCancelRoute from "@/app/api/admin/vacations/cancel/route.ts";
 import * as vacationRoute from "@/app/api/admin/vacations/route.ts";
+import * as vacationUpdateRoute from "@/app/api/admin/vacations/update/route.ts";
 
 type ConfiguredPost = {
   readonly observedMethod?: string;
@@ -58,6 +59,7 @@ describe("admin schedule route wiring", () => {
     [blockRescheduleRoute, "rescheduleBlock", "admin.block.reschedule"],
     [scheduleCancelRoute, "cancelScheduleEntry", "admin.schedule.cancel"],
     [vacationRoute, "createVacation", "admin.vacation.create"],
+    [vacationUpdateRoute, "updateVacation", "admin.vacation.update"],
     [vacationCancelRoute, "cancelVacation", "admin.vacation.cancel"],
   ])(
     "binds each route to its exact command and observation label",

@@ -32,7 +32,11 @@ function success(
 }
 
 function setup(rows: Array<Record<string, unknown>>) {
-  const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => rows);
+  const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async (query) =>
+    query.includes("authorize_cutover_write")
+      ? [{ is_canary: false, canary_run_id: null, canary_grant_id: null }]
+      : rows,
+  );
   const ownerTransaction = vi.fn(
     async (
       context: typeof identity,
@@ -149,6 +153,29 @@ const commandCases: readonly CommandCase[] = [
     ],
   },
   {
+    method: "updateVacation",
+    functionName: "owner_update_vacation",
+    result: success(200, "VACATION_UPDATED"),
+    command: {
+      idempotencyKey,
+      vacationId: resourceId,
+      expectedVersion: 2,
+      startDate: "2026-08-18",
+      endDate: "2026-08-22",
+      reason: " Ferie aggiornate ",
+    },
+    parameters: [
+      identity.userId,
+      idempotencyKey,
+      fingerprint,
+      resourceId,
+      2,
+      "2026-08-18",
+      "2026-08-22",
+      "Ferie aggiornate",
+    ],
+  },
+  {
     method: "cancelVacation",
     functionName: "owner_cancel_vacation",
     result: success(200, "VACATION_CANCELLED"),
@@ -172,8 +199,11 @@ describe("owner schedule repository", () => {
       ).resolves.toEqual(result);
 
       expect(fixture.ownerTransaction).toHaveBeenCalledTimes(1);
-      expect(fixture.unsafe).toHaveBeenCalledTimes(1);
-      const [query, boundParameters] = fixture.unsafe.mock.calls[0]!;
+      expect(fixture.unsafe).toHaveBeenCalledTimes(2);
+      expect(fixture.unsafe.mock.calls[0]?.[0]).toContain(
+        "authorize_cutover_write",
+      );
+      const [query, boundParameters] = fixture.unsafe.mock.calls[1]!;
       expect(query).toContain(`gioia_private.${functionName}`);
       expect(query.match(/\bselect\b/gi)).toHaveLength(1);
       expect(query).toMatch(/\)\s+as command\s+limit 2\s*$/i);

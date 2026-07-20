@@ -116,6 +116,13 @@ function fixture({
   }));
   const dependencies = {
     repository,
+    writeGate: {
+      check: vi.fn(async () => ({
+        ok: true as const,
+        canaryToken: null,
+        mode: "open" as const,
+      })),
+    },
     env,
     readSecurityTokens,
     createAuthContext,
@@ -176,6 +183,7 @@ describe("Next owner outbox retry route", () => {
           version: 1,
           request: { outboxId: OUTBOX_ID, expectedVersion: 2 },
         }),
+        null,
       );
       expect(route.createAuthContext).toHaveBeenCalledOnce();
     },
@@ -202,6 +210,7 @@ describe("Next owner outbox retry route", () => {
         version: 1,
         request: { outboxId: OUTBOX_ID, expectedVersion: 2_147_483_647 },
       }),
+      null,
     );
   });
 

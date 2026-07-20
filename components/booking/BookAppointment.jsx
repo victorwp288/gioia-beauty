@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Controller } from "react-hook-form";
 import { Clock } from "lucide-react";
 import PhoneInput from "react-phone-input-2";
@@ -18,51 +18,40 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 
-// Context and Hooks
-import { useAppointmentContext } from "@/context/AppointmentContext";
 import { useNotification } from "@/context/NotificationContext";
 import { useBookingForm } from "@/hooks/useBookingForm";
-import {
-  useOptimizedTimeSlots,
-  timeSlotsUtils,
-} from "@/hooks/useOptimizedTimeSlots";
+import { useOptimizedTimeSlots } from "@/hooks/useOptimizedTimeSlots";
 
 // Utilities
 import { APPOINTMENT_TYPES, getAppointmentType } from "@/lib/utils/constants";
-import {
-  isBusinessDay,
-  isInVacationPeriod,
-  getNextBusinessDay,
-} from "@/lib/utils/timeUtils";
+import { isBusinessDay } from "@/lib/utils/timeUtils";
 import { formatDate } from "@/lib/utils/dateUtils";
 import {
-  deliveryFailed,
-  sendBookingEmailRequest,
-} from "@/lib/client/emailDelivery";
+  catalogSelection,
+  bookingErrorInvalidatesSelection,
+  createPublicBooking,
+  newIdempotencyKey,
+  publicErrorMessage,
+  salonDateFromLocalDate,
+  shouldRetainPublicIdempotencyKey,
+  startMinutesFromTime,
+} from "@/lib/client/publicApi.ts";
 
 // Components
 import BookingConfirmation from "./BookingConfirmation";
 
 const BookAppointment = () => {
-  // Context hooks
-  const {
-    selectedDate,
-    selectedTimeSlot,
-    vacationPeriods,
-    setSelectedDate,
-    setSelectedTimeSlot,
-    createAppointment,
-    loading,
-    fetchVacations,
-  } = useAppointmentContext();
-
-  const { showError, showWarning, notifyAsync } = useNotification();
+  const { showError, notifyAsync } = useNotification();
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const bookingAttemptRef = useRef(null);
 
   // Local state (must be declared before hooks that use them)
   const [appointmentType, setAppointmentType] = useState(() => {
     // Get the first available appointment type from the generated data structure
     const firstAvailableType = Object.values(APPOINTMENT_TYPES).find(
-      (type) => type.active
+      (type) => type.active,
     );
     return firstAvailableType || null;
   });
@@ -73,7 +62,7 @@ const BookAppointment = () => {
   const [isClient, setIsClient] = useState(false);
 
   // Custom hooks
-  const { form, formState, resetForm } = useBookingForm();
+  const { form, resetForm } = useBookingForm();
 
   // Ensure client-side rendering for appointment types to avoid hydration issues
   useEffect(() => {
@@ -102,9 +91,8 @@ const BookAppointment = () => {
   const {
     timeSlots: availableTimeSlots,
     loading: timeSlotsLoading,
+    error: timeSlotsError,
     refreshTimeSlots,
-    getTimeSlotsForDate,
-    isDateAvailable,
   } = useOptimizedTimeSlots(
     selectedDate,
     appointmentType?.type,
@@ -113,7 +101,7 @@ const BookAppointment = () => {
       enableRealTime: false, // DISABLED: Reduce Firebase reads during testing
       preloadDays: 0, // DISABLED: No background preloading
       bufferMinutes: 10, // Buffer time between appointments for salon setup/cleanup
-    }
+    },
   );
 
   const initialVisibleSlots = 12;
@@ -144,12 +132,7 @@ const BookAppointment = () => {
     const checkDay = new Date(day);
     checkDay.setHours(0, 0, 0, 0);
 
-    // Disable if in the past, not a business day, or in vacation period
-    return (
-      checkDay < today ||
-      !isBusinessDay(checkDay) ||
-      isInVacationPeriod(checkDay, vacationPeriods)
-    );
+    return checkDay < today || !isBusinessDay(checkDay);
   };
 
   // Handle appointment type change (EXACT MATCH by .type)
@@ -207,26 +190,21 @@ const BookAppointment = () => {
 
   // Form submission handler
   const handleSubmit = async (data) => {
+    setBookingLoading(true);
     try {
-      // Always fetch latest vacations before booking
-      await fetchVacations();
-      // Import unified date utilities
-      const { createAppointmentDate } = await import("@/lib/utils/dateUtils");
+      const selection = catalogSelection(
+        data.appointmentType,
+        Number(data.duration),
+      );
+      if (!selection) throw new Error("INVALID_CATALOG_SELECTION");
 
-      // Create standardized appointment date using unified system
-      const standardizedDate = createAppointmentDate(data.selectedDate);
-      if (!standardizedDate) {
-        throw new Error("Invalid appointment date selected");
-      }
-
-      // Prepare appointment data
       const appointmentData = {
         name: data.name?.trim(),
-        email: data.email?.trim(),
+        email: data.email?.trim().toLowerCase(),
         number: data.number,
-        appointmentType: data.appointmentType, // human-readable type
+        appointmentType: data.appointmentType,
         duration: Number(data.duration),
-        selectedDate: standardizedDate, // Use standardized date
+        selectedDate: data.selectedDate,
         startTime: data.timeSlot,
         note: data.note?.trim() || "",
         variant: data.variant || "",
@@ -241,61 +219,40 @@ const BookAppointment = () => {
       const endHours = Math.floor(totalMinutes / 60) % 24;
       const endMinutes = totalMinutes % 60;
       appointmentData.endTime = `${String(endHours).padStart(2, "0")}:${String(
-        endMinutes
+        endMinutes,
       ).padStart(2, "0")}`;
 
-      // Create appointment using context
-      await notifyAsync(() => createAppointment(appointmentData), {
-        loading: "Prenotazione in corso...",
-        success: "Appuntamento prenotato con successo!",
-        error: "Errore nella prenotazione. Riprova.",
-      });
-
-      // Send confirmation email for new appointments
-      try {
-        const emailData = {
-          email: appointmentData.email,
-          name: appointmentData.name,
-          startTime: appointmentData.startTime,
-          endTime: appointmentData.endTime,
-          duration: appointmentData.duration,
-          date: (() => {
-            try {
-              if (appointmentData.selectedDate instanceof Date) {
-                return formatDate(appointmentData.selectedDate);
-              } else if (typeof appointmentData.selectedDate === "string") {
-                const parsedDate = new Date(appointmentData.selectedDate);
-                return isNaN(parsedDate.getTime())
-                  ? "Unknown Date"
-                  : formatDate(parsedDate);
-              } else if (appointmentData.selectedDate?.toDate) {
-                return formatDate(appointmentData.selectedDate.toDate());
-              } else if (appointmentData.selectedDate?.seconds) {
-                return formatDate(
-                  new Date(appointmentData.selectedDate.seconds * 1000)
-                );
-              } else {
-                return "Unknown Date";
-              }
-            } catch (error) {
-              console.error("Error formatting date for email:", error);
-              return "Unknown Date";
-            }
-          })(),
-          appointmentType: appointmentData.appointmentType,
+      const command = {
+        date: salonDateFromLocalDate(data.selectedDate),
+        startMinutes: startMinutesFromTime(data.timeSlot),
+        serviceId: selection.serviceId,
+        variantId: selection.variantId,
+        clientName: appointmentData.name,
+        clientEmail: appointmentData.email,
+        clientPhone: appointmentData.number,
+        clientNote: appointmentData.note || null,
+      };
+      const fingerprint = JSON.stringify(command);
+      if (bookingAttemptRef.current?.fingerprint !== fingerprint) {
+        bookingAttemptRef.current = {
+          fingerprint,
+          idempotencyKey: newIdempotencyKey(),
         };
-
-        const result = await sendBookingEmailRequest(emailData);
-        if (!result.delivery || deliveryFailed(result, "customer")) {
-          showWarning(
-            "L'appuntamento è confermato, ma l'email non è stata inviata. Contatta il salone se non ricevi la conferma.",
-          );
-        }
-      } catch {
-        showWarning(
-          "L'appuntamento è confermato, ma il servizio email non è disponibile.",
-        );
       }
+
+      await notifyAsync(
+        () =>
+          createPublicBooking(
+            command,
+            bookingAttemptRef.current.idempotencyKey,
+          ),
+        {
+          loading: "Prenotazione in corso...",
+          success: "Appuntamento prenotato con successo!",
+          error: (error) => publicErrorMessage(error),
+        },
+      );
+      bookingAttemptRef.current = null;
 
       // Store booking data for confirmation modal
       setBookingData({
@@ -310,8 +267,25 @@ const BookAppointment = () => {
       setSelectedTimeSlot(null);
       setModalIsOpen(true);
     } catch (error) {
-      console.error("Error booking appointment:", error);
-      // Error handling is done by notifyAsync
+      if (
+        error instanceof Error &&
+        error.message === "INVALID_CATALOG_SELECTION"
+      ) {
+        showError(
+          "Il trattamento selezionato non è disponibile. Ricarica la pagina e riprova.",
+        );
+      } else {
+        if (!shouldRetainPublicIdempotencyKey(error)) {
+          bookingAttemptRef.current = null;
+        }
+      }
+      if (bookingErrorInvalidatesSelection(error)) {
+        setSelectedTimeSlot(null);
+        form.setValue("timeSlot", "");
+        refreshTimeSlots();
+      }
+    } finally {
+      setBookingLoading(false);
     }
   };
 
@@ -336,15 +310,15 @@ const BookAppointment = () => {
       // Show error notification
       showError(
         `Compila tutti i campi obbligatori prima di prenotare: ${missingFields.join(
-          ", "
+          ", ",
         )}`,
-        { duration: 6000 }
+        { duration: 6000 },
       );
 
       // Scroll to first error field
       const firstErrorField = Object.keys(errors)[0];
       const firstErrorElement = document.querySelector(
-        `[name="${firstErrorField}"]`
+        `[name="${firstErrorField}"]`,
       );
       if (firstErrorElement) {
         firstErrorElement.scrollIntoView({
@@ -353,7 +327,7 @@ const BookAppointment = () => {
         });
         firstErrorElement.focus();
       }
-    }
+    },
   );
 
   const openModal = () => setModalIsOpen(true);
@@ -414,6 +388,20 @@ const BookAppointment = () => {
                             Caricamento orari disponibili...
                           </div>
                         </div>
+                      ) : timeSlotsError ? (
+                        <div className="flex h-32 flex-col items-center justify-center gap-3 rounded-lg border px-4 text-center">
+                          <div className="text-muted-foreground">
+                            {publicErrorMessage(timeSlotsError)}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={refreshTimeSlots}
+                          >
+                            Riprova
+                          </Button>
+                        </div>
                       ) : !availableTimeSlots ||
                         availableTimeSlots.length === 0 ? (
                         <div className="flex h-32 items-center justify-center rounded-lg border">
@@ -428,7 +416,7 @@ const BookAppointment = () => {
                               ? availableTimeSlots || []
                               : (availableTimeSlots || []).slice(
                                   0,
-                                  initialVisibleSlots
+                                  initialVisibleSlots,
                                 )
                             ).map((timeSlot, index) => (
                               <Button
@@ -515,7 +503,7 @@ const BookAppointment = () => {
                               <optgroup key={categoryName} label={categoryName}>
                                 {types
                                   .sort((a, b) =>
-                                    a.type.type.localeCompare(b.type.type)
+                                    a.type.type.localeCompare(b.type.type),
                                   )
                                   .map(({ key, type }) => (
                                     <option key={key} value={type.type}>
@@ -706,9 +694,11 @@ const BookAppointment = () => {
             <Button
               type="submit"
               className="w-full md:w-auto px-8 py-3"
-              disabled={loading || !selectedDate || !selectedTimeSlot}
+              disabled={bookingLoading || !selectedDate || !selectedTimeSlot}
             >
-              {loading ? "Prenotazione in corso..." : "Prenota Appuntamento"}
+              {bookingLoading
+                ? "Prenotazione in corso..."
+                : "Prenota Appuntamento"}
             </Button>
           </div>
 

@@ -31,6 +31,7 @@ import {
   apiErrorResponse,
   validatedJsonResponse,
 } from "./publicApiResponse.ts";
+import { cutoverWriteGate, type CutoverWriteGate } from "./cutoverWriteGate.ts";
 
 export interface OwnerCommandRuntimeContext {
   readonly auth: OwnerAuthVerifier & Pick<OwnerAuthActions, "signOut">;
@@ -52,7 +53,9 @@ export interface OwnerCommandHandlerOptions<
     identity: OwnerTransactionIdentity,
     command: TBody & { readonly idempotencyKey: string },
     requestFingerprint: Buffer,
+    canaryToken: string | null,
   ) => Promise<OwnerCommandResult>;
+  readonly writeGate?: CutoverWriteGate;
   readonly createRequestId?: () => string;
   readonly now?: Date;
 }
@@ -95,6 +98,7 @@ export function createOwnerCommandHandler<
   version,
   loadRuntimeContext,
   execute,
+  writeGate = cutoverWriteGate,
   createRequestId = randomUUID,
   now,
 }: OwnerCommandHandlerOptions<TBody>) {
@@ -119,6 +123,9 @@ export function createOwnerCommandHandler<
         requestId,
       );
     }
+
+    const writeDecision = await writeGate.check(request, "owner");
+    if (!writeDecision.ok) return writeDecision.response;
 
     let context: OwnerCommandRuntimeContext;
     try {
@@ -159,6 +166,7 @@ export function createOwnerCommandHandler<
         { userId: identity.userId, sessionId: identity.sessionId },
         commandRequest.command,
         commandRequest.requestFingerprint,
+        writeDecision.canaryToken,
       );
       if (result.result.resource_id) {
         return validatedJsonResponse(

@@ -51,9 +51,15 @@ const EXPECTED = [
   ["app/api/admin/schedule/export/route.ts", "GET", "admin.schedule.export"],
   ["app/api/admin/schedule/route.ts", "GET", "admin.schedule.list"],
   ["app/api/admin/subscribers/route.ts", "GET", "admin.subscriber.list"],
+  [
+    "app/api/admin/subscribers/unsubscribe/route.ts",
+    "POST",
+    "admin.subscribers.unsubscribe",
+  ],
   ["app/api/admin/vacations/cancel/route.ts", "POST", "admin.vacation.cancel"],
   ["app/api/admin/vacations/route.ts", "GET", "admin.vacation.list"],
   ["app/api/admin/vacations/route.ts", "POST", "admin.vacation.create"],
+  ["app/api/admin/vacations/update/route.ts", "POST", "admin.vacation.update"],
   ["app/api/auth/login/route.ts", "POST", "auth.login"],
   ["app/api/auth/logout/route.ts", "POST", "auth.logout"],
   ["app/api/auth/session/route.ts", "GET", "auth.session"],
@@ -62,6 +68,7 @@ const EXPECTED = [
   ["app/api/cancel/route.js", "POST", "email.cancellation.legacy"],
   ["app/api/cron/outbox/route.ts", "GET", "cron.outbox"],
   ["app/api/health/route.ts", "GET", "health"],
+  ["app/api/maintenance/route.ts", "GET", "public.maintenance.status"],
   ["app/api/newsletter/confirm/route.ts", "POST", "public.newsletter.confirm"],
   [
     "app/api/newsletter/subscribe/route.ts",

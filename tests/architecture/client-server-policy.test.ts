@@ -11,6 +11,11 @@ describe("client/server boundary policy", () => {
   it.each([
     "@supabase/ssr",
     "@supabase/supabase-js",
+    "firebase",
+    "firebase/app",
+    "firebase/auth",
+    "firebase/firestore",
+    "firebase/storage",
     "server-only",
     "postgres/cf",
     "resend",

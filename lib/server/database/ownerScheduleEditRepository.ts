@@ -42,7 +42,12 @@ export function createOwnerScheduleEditMethods(
   database: Pick<RuntimeDatabase, "ownerTransaction">,
 ): Pick<OwnerScheduleRepository, OwnerScheduleEditMethodName> {
   return {
-    async updateAppointment(identityInput, commandInput, fingerprintInput) {
+    async updateAppointment(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -64,10 +69,16 @@ export function createOwnerScheduleEditMethods(
           ...OWNER_SCHEDULE_COMMAND_CONTRACTS.updateAppointment,
           resourceId: command.entryId,
         },
+        canaryToken,
       );
     },
 
-    async updateBlock(identityInput, commandInput, fingerprintInput) {
+    async updateBlock(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -89,10 +100,16 @@ export function createOwnerScheduleEditMethods(
           ...OWNER_SCHEDULE_COMMAND_CONTRACTS.updateBlock,
           resourceId: command.entryId,
         },
+        canaryToken,
       );
     },
 
-    async rescheduleAppointment(identityInput, commandInput, fingerprintInput) {
+    async rescheduleAppointment(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -118,10 +135,16 @@ export function createOwnerScheduleEditMethods(
           ...OWNER_SCHEDULE_COMMAND_CONTRACTS.rescheduleAppointment,
           resourceId: command.entryId,
         },
+        canaryToken,
       );
     },
 
-    async rescheduleBlock(identityInput, commandInput, fingerprintInput) {
+    async rescheduleBlock(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -146,10 +169,16 @@ export function createOwnerScheduleEditMethods(
           ...OWNER_SCHEDULE_COMMAND_CONTRACTS.rescheduleBlock,
           resourceId: command.entryId,
         },
+        canaryToken,
       );
     },
 
-    async setAppointmentStatus(identityInput, commandInput, fingerprintInput) {
+    async setAppointmentStatus(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -172,6 +201,7 @@ export function createOwnerScheduleEditMethods(
           ...OWNER_SCHEDULE_COMMAND_CONTRACTS.setAppointmentStatus,
           resourceId: command.entryId,
         },
+        canaryToken,
       );
     },
   };

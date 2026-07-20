@@ -35,7 +35,11 @@ function result(
 }
 
 function setup(rows: Array<Record<string, unknown>>) {
-  const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => rows);
+  const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async (query) =>
+    query.includes("authorize_cutover_write")
+      ? [{ is_canary: false, canary_run_id: null, canary_grant_id: null }]
+      : rows,
+  );
   const ownerTransaction = vi.fn(
     async (
       context: typeof identity,
@@ -187,8 +191,11 @@ describe("owner schedule edit repository", () => {
       ).resolves.toEqual(expected);
 
       expect(fixture.ownerTransaction).toHaveBeenCalledOnce();
-      expect(fixture.unsafe).toHaveBeenCalledOnce();
-      const [query, boundParameters] = fixture.unsafe.mock.calls[0]!;
+      expect(fixture.unsafe).toHaveBeenCalledTimes(2);
+      expect(fixture.unsafe.mock.calls[0]?.[0]).toContain(
+        "authorize_cutover_write",
+      );
+      const [query, boundParameters] = fixture.unsafe.mock.calls[1]!;
       expect(query).toBe(OWNER_SCHEDULE_COMMAND_CONTRACTS[method].query);
       expect(boundParameters).toEqual(parameters);
       expect(boundParameters?.[2]).not.toBe(fingerprint);

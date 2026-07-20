@@ -6,6 +6,7 @@ import {
   AdminCreateAppointmentCommandSchema,
   AdminCreateBlockCommandSchema,
   AdminCreateVacationCommandSchema,
+  AdminUpdateVacationCommandSchema,
 } from "@/lib/domain/schemas/index.ts";
 
 import { createOwnerScheduleEditMethods } from "./ownerScheduleEditRepository.ts";
@@ -24,57 +25,25 @@ import {
 
 export type { OwnerScheduleCommandResult } from "./ownerScheduleRepositorySupport.ts";
 
+type OwnerScheduleRepositoryMethod = (
+  identity: OwnerTransactionIdentity,
+  command: unknown,
+  requestFingerprint: Buffer,
+  canaryToken?: string | null,
+) => Promise<OwnerScheduleCommandResult>;
+
 export interface OwnerScheduleRepository {
-  createAppointment(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  createBlock(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  updateAppointment(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  updateBlock(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  rescheduleAppointment(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  rescheduleBlock(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  setAppointmentStatus(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  cancelScheduleEntry(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  createVacation(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
-  cancelVacation(
-    identity: OwnerTransactionIdentity,
-    command: unknown,
-    requestFingerprint: Buffer,
-  ): Promise<OwnerScheduleCommandResult>;
+  createAppointment: OwnerScheduleRepositoryMethod;
+  createBlock: OwnerScheduleRepositoryMethod;
+  updateAppointment: OwnerScheduleRepositoryMethod;
+  updateBlock: OwnerScheduleRepositoryMethod;
+  rescheduleAppointment: OwnerScheduleRepositoryMethod;
+  rescheduleBlock: OwnerScheduleRepositoryMethod;
+  setAppointmentStatus: OwnerScheduleRepositoryMethod;
+  cancelScheduleEntry: OwnerScheduleRepositoryMethod;
+  createVacation: OwnerScheduleRepositoryMethod;
+  updateVacation: OwnerScheduleRepositoryMethod;
+  cancelVacation: OwnerScheduleRepositoryMethod;
 }
 
 export function createOwnerScheduleRepository(
@@ -82,7 +51,12 @@ export function createOwnerScheduleRepository(
 ): OwnerScheduleRepository {
   return {
     ...createOwnerScheduleEditMethods(database),
-    async createAppointment(identityInput, commandInput, fingerprintInput) {
+    async createAppointment(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -105,10 +79,16 @@ export function createOwnerScheduleRepository(
           command.clientNote,
         ],
         OWNER_SCHEDULE_COMMAND_CONTRACTS.createAppointment,
+        canaryToken,
       );
     },
 
-    async createBlock(identityInput, commandInput, fingerprintInput) {
+    async createBlock(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -128,10 +108,16 @@ export function createOwnerScheduleRepository(
           command.internalNote,
         ],
         OWNER_SCHEDULE_COMMAND_CONTRACTS.createBlock,
+        canaryToken,
       );
     },
 
-    async cancelScheduleEntry(identityInput, commandInput, fingerprintInput) {
+    async cancelScheduleEntry(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -153,10 +139,16 @@ export function createOwnerScheduleRepository(
           ...OWNER_SCHEDULE_COMMAND_CONTRACTS.cancelScheduleEntry,
           resourceId: command.entryId,
         },
+        canaryToken,
       );
     },
 
-    async createVacation(identityInput, commandInput, fingerprintInput) {
+    async createVacation(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -174,10 +166,16 @@ export function createOwnerScheduleRepository(
           command.reason,
         ],
         OWNER_SCHEDULE_COMMAND_CONTRACTS.createVacation,
+        canaryToken,
       );
     },
 
-    async cancelVacation(identityInput, commandInput, fingerprintInput) {
+    async cancelVacation(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
       const { identity, requestFingerprint } = parseOwnerCommandContext(
         identityInput,
         fingerprintInput,
@@ -198,6 +196,40 @@ export function createOwnerScheduleRepository(
           ...OWNER_SCHEDULE_COMMAND_CONTRACTS.cancelVacation,
           resourceId: command.vacationId,
         },
+        canaryToken,
+      );
+    },
+
+    async updateVacation(
+      identityInput,
+      commandInput,
+      fingerprintInput,
+      canaryToken,
+    ) {
+      const { identity, requestFingerprint } = parseOwnerCommandContext(
+        identityInput,
+        fingerprintInput,
+      );
+      const command = AdminUpdateVacationCommandSchema.parse(commandInput);
+      const expectedVersion = parsePostgresVersion(command.expectedVersion);
+      return executeOwnerScheduleCommand(
+        database,
+        identity,
+        [
+          identity.userId,
+          command.idempotencyKey,
+          requestFingerprint,
+          command.vacationId,
+          expectedVersion,
+          command.startDate,
+          command.endDate,
+          command.reason,
+        ],
+        {
+          ...OWNER_SCHEDULE_COMMAND_CONTRACTS.updateVacation,
+          resourceId: command.vacationId,
+        },
+        canaryToken,
       );
     },
   };

@@ -13,6 +13,7 @@ import {
   type OwnerCommandContract,
 } from "./ownerScheduleCommandContracts.ts";
 import type { OwnerTransactionIdentity, RuntimeDatabase } from "./runtime.ts";
+import { authorizeCutoverWrite } from "./cutoverWriteRepository.ts";
 
 const OwnerIdentitySchema = z
   .object({ userId: UuidSchema, sessionId: UuidSchema })
@@ -94,9 +95,27 @@ export async function executeOwnerCommand(
   identity: OwnerTransactionIdentity,
   parameters: readonly unknown[],
   expected: ExpectedResult,
+  canaryToken: string | null | undefined,
 ): Promise<OwnerCommandResult> {
-  const rows = await database.ownerTransaction(identity, (transaction) =>
-    transaction.unsafe(expected.query, parameters),
+  const idempotencyKey = parameters[1];
+  const requestFingerprint = parameters[2];
+  if (
+    typeof idempotencyKey !== "string" ||
+    !Buffer.isBuffer(requestFingerprint)
+  ) {
+    throw new Error("Invalid owner command cutover context");
+  }
+  const rows = await database.ownerTransaction(
+    identity,
+    async (transaction) => {
+      await authorizeCutoverWrite(transaction, {
+        operation: expected.operation,
+        idempotencyKey,
+        requestFingerprint,
+        canaryToken: canaryToken ?? null,
+      });
+      return transaction.unsafe(expected.query, parameters);
+    },
   );
   return parseCommandResult(rows, expected);
 }

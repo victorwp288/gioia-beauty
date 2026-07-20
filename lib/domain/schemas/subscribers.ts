@@ -189,6 +189,20 @@ export const AdminSetSubscriberStatusCommandSchema = z
   })
   .strict();
 
+const adminUnsubscribeSubscriberFields = {
+  subscriberId: UuidSchema,
+  expectedVersion: PositiveVersionSchema,
+};
+export const AdminUnsubscribeSubscriberBodySchema = z
+  .object(adminUnsubscribeSubscriberFields)
+  .strict();
+export const AdminUnsubscribeSubscriberCommandSchema = z
+  .object({
+    idempotencyKey: IdempotencyKeySchema,
+    ...adminUnsubscribeSubscriberFields,
+  })
+  .strict();
+
 export type SubscriberPersistence = z.infer<typeof SubscriberPersistenceSchema>;
 export type AdminSubscriberDto = z.infer<typeof AdminSubscriberDtoSchema>;
 export type PublicSubscribeCommand = z.infer<
@@ -202,4 +216,7 @@ export type PublicNewsletterConfirmCommand = z.infer<
 >;
 export type AdminSetSubscriberStatusCommand = z.infer<
   typeof AdminSetSubscriberStatusCommandSchema
+>;
+export type AdminUnsubscribeSubscriberCommand = z.infer<
+  typeof AdminUnsubscribeSubscriberCommandSchema
 >;

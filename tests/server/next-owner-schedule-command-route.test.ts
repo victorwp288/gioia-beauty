@@ -66,6 +66,7 @@ function repositoryFixture() {
       success(200, "SCHEDULE_ENTRY_CANCELLED"),
     ),
     createVacation: vi.fn(async () => success(201, "VACATION_CREATED")),
+    updateVacation: vi.fn(async () => success(200, "VACATION_UPDATED")),
     cancelVacation: vi.fn(async () => success(200, "VACATION_CANCELLED")),
   } satisfies OwnerScheduleRepository;
 }
@@ -87,6 +88,13 @@ function routeDependencies(repository: OwnerScheduleRepository) {
   }));
   const dependencies = {
     repository,
+    writeGate: {
+      check: vi.fn(async () => ({
+        ok: true as const,
+        canaryToken: null,
+        mode: "open" as const,
+      })),
+    },
     createAuthContext,
     readSecurityTokens,
     getBindingSecret: () => secret,
@@ -238,6 +246,7 @@ describe("Next owner schedule command route adapter", () => {
         { userId, sessionId },
         expect.objectContaining({ expectedVersion: 2_147_483_647 }),
         expect.any(Buffer),
+        null,
       );
     },
   );
@@ -272,6 +281,7 @@ describe("Next owner schedule command route adapter", () => {
         { userId, sessionId },
         { ...normalizedBody, idempotencyKey: IDEMPOTENCY_KEY },
         requestFingerprint({ operation, version: 1, request: normalizedBody }),
+        null,
       );
       for (const otherName of commandNames) {
         expect(repository[otherName]).toHaveBeenCalledTimes(

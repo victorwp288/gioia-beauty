@@ -78,6 +78,13 @@ function createHandler(
     handler: createPublicBookingPostHandler({
       database: { createBooking },
       abuseGuard: abuse.guard,
+      writeGate: {
+        check: vi.fn(async () => ({
+          ok: true as const,
+          canaryToken: null,
+          mode: "open" as const,
+        })),
+      },
       createRequestId: () => REQUEST_ID,
     }),
   };

@@ -6,6 +6,7 @@ export type OwnerScheduleCommandOperation =
   | "owner_create_block"
   | "owner_cancel_schedule_entry"
   | "owner_create_vacation"
+  | "owner_update_vacation"
   | "owner_cancel_vacation"
   | "owner_reschedule_appointment"
   | "owner_reschedule_block"
@@ -13,7 +14,9 @@ export type OwnerScheduleCommandOperation =
   | "owner_update_appointment_details"
   | "owner_update_block_details";
 export type OwnerCommandOperation =
-  OwnerScheduleCommandOperation | "owner_outbox_retry";
+  | OwnerScheduleCommandOperation
+  | "owner_outbox_retry"
+  | "owner_unsubscribe_subscriber";
 
 export interface OwnerCommandContract {
   readonly operation: OwnerCommandOperation;
@@ -250,6 +253,31 @@ export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
       ["VACATION_OVERLAP", 409],
     ]),
   }),
+  updateVacation: Object.freeze({
+    operation: "owner_update_vacation",
+    fingerprintVersion: 1,
+    query: `
+      select command.http_status, command.result, command.replayed
+      from gioia_private.owner_update_vacation(
+        $1::uuid, $2::text, $3::bytea, $4::uuid, $5::integer,
+        $6::date, $7::date, $8::text
+      ) as command
+      limit 2
+    `,
+    httpStatus: 200,
+    code: "VACATION_UPDATED",
+    failures: failures([
+      ["VACATION_REASON_INVALID", 400],
+      ["VACATION_DATE_RANGE_INVALID", 400],
+      ["VACATION_DATE_IN_PAST", 400],
+      ["VACATION_NOT_FOUND", 404],
+      ["VERSION_CONFLICT", 409],
+      ["VACATION_NOT_EDITABLE", 409],
+      ["VACATION_NO_CHANGE", 409],
+      ["VACATION_CONFLICTS_WITH_SCHEDULE", 409],
+      ["VACATION_OVERLAP", 409],
+    ]),
+  }),
   cancelVacation: Object.freeze({
     operation: "owner_cancel_vacation",
     fingerprintVersion: 1,
@@ -269,3 +297,22 @@ export const OWNER_SCHEDULE_COMMAND_CONTRACTS = Object.freeze({
     ]),
   }),
 } satisfies Record<string, OwnerScheduleCommandContract>);
+
+export const OWNER_SUBSCRIBER_UNSUBSCRIBE_CONTRACT = Object.freeze({
+  operation: "owner_unsubscribe_subscriber",
+  fingerprintVersion: 1,
+  query: `
+    select command.http_status, command.result, command.replayed
+    from gioia_private.owner_unsubscribe_subscriber(
+      $1::uuid, $2::text, $3::bytea, $4::uuid, $5::integer
+    ) as command
+    limit 2
+  `,
+  httpStatus: 200,
+  code: "SUBSCRIBER_UNSUBSCRIBED",
+  failures: failures([
+    ["SUBSCRIBER_NOT_FOUND", 404],
+    ["VERSION_CONFLICT", 409],
+    ["SUBSCRIBER_NOT_UNSUBSCRIBABLE", 409],
+  ]),
+} satisfies OwnerCommandContract);

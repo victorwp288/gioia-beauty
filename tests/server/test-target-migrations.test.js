@@ -40,8 +40,8 @@ describe("greenfield TEST migration manifest", () => {
     const manifest = migrationChecksumManifest();
 
     expect(GREENFIELD_BASELINE_VERSIONS).toHaveLength(35);
-    expect(GREENFIELD_TARGET_VERSIONS).toHaveLength(54);
-    expect(files).toHaveLength(54);
+    expect(GREENFIELD_TARGET_VERSIONS).toHaveLength(59);
+    expect(files).toHaveLength(59);
     expect(manifest.map(({ file }) => file)).toEqual(files);
     expect(manifest.every(({ sha256 }) => /^[0-9a-f]{64}$/u.test(sha256))).toBe(
       true,
@@ -89,8 +89,8 @@ describe("greenfield TEST remote pgTAP manifest", () => {
   it("excludes the local synthetic seed and pins the reviewed plan total", () => {
     const suite = remotePgTapFiles();
 
-    expect(suite).toMatchObject({ assertions: 359 });
-    expect(suite.files).toHaveLength(22);
+    expect(suite).toMatchObject({ assertions: 406 });
+    expect(suite.files).toHaveLength(24);
     expect(suite.files).not.toContain(
       "supabase/tests/005_synthetic_seed.test.sql",
     );

@@ -250,6 +250,13 @@ export function createHandlerFixture(
     version: 1,
     loadRuntimeContext,
     execute,
+    writeGate: {
+      check: vi.fn(async () => ({
+        ok: true as const,
+        canaryToken: null,
+        mode: "open" as const,
+      })),
+    },
     createRequestId: () => REQUEST_ID,
     now: NOW,
   });

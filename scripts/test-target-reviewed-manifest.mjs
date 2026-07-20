@@ -107,13 +107,23 @@ export const REVIEWED_MIGRATION_DIGESTS = Object.freeze({
     "491fe849d721b649fb26c5ef55b58f5e68ebe48ef61eb518eec206f85b600d7b",
   "20260720163713_phase3_newsletter_issuance_horizon.sql":
     "50566eee4d14dab5bc338413443f968aa75f43c8c327a3490402d1408aeedea9",
+  "20260720171418_phase4_cutover_write_control.sql":
+    "7d6b2c1053ae9f334d7c5fbdb4e71f218b1756557d13973e1b9161e2658b95f2",
+  "20260720171522_phase4_owner_subscriber_unsubscribe.sql":
+    "39be4d8964ffa7ef6efb146a502b9c51590f77342e46912cd6790d2f9c09a525",
+  "20260720171613_phase4_owner_vacation_update.sql":
+    "1e3ef97a03843a479585d59386df99845b6251cb4f153cd43f06e07b9443ce81",
+  "20260720172805_phase4_cutover_command_enforcement.sql":
+    "521f2ff7fb0c0985e39a9a15b86e1dd883ec0f58be40e99ebc0b7c0d1204b37c",
+  "20260720172807_phase4_cutover_operator_lifecycle.sql":
+    "1fd310d9102b91ea45df11ba007662fc573844144c2f7371575c5686fb485e1f",
 });
 
 export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "000_0_pgtap_setup.test.sql":
     "0ae2198cbf1d3207f4f52aa19c64c685efdfad417600ea3f6f25c5f624618ed0",
   "000_schema_security.test.sql":
-    "74a13c44f056fa57804ebee1295729ce4ccb5cff5cc7cd8d682d9d62cceecf89",
+    "6a050ae3a6b4b2128a140496812406e1e6f47cde4aed3f896d1c8a15852555fc",
   "005_foreign_key_indexes.test.sql":
     "9dfac6e3500b1d72d3123d2f020eb1c57ab23ba77fd488e56ad70d39b85f14fc",
   "010_catalog_policy.test.sql":
@@ -127,13 +137,13 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "050_migration_ledger.test.sql":
     "dc20191b58f2297ba7b3db6606e326ec13530a828af108e29ac1a9d5fb5f2168",
   "060_internal_helpers.test.sql":
-    "55ddd6dc9b3aca4d2494cd4885584a93cf0dab80bc3432c9491c0690e11afbea",
+    "1a8e9f4183a3671a87f58210d46e9b2684b73add47867a159a81d03347528ecf",
   "065_command_staleness.test.sql":
     "264cadd9652d54c5f48db3612561deb4449fc59d91716014e06156c7f0e543e7",
   "070_command_boundaries.test.sql":
     "a3ceca621b1df3d4f7722d47a8c62f722e63d6b98c43d4da2ac3510a539af3ee",
   "075_runtime_function_acl.test.sql":
-    "b4d69777d92b3e50978d4303587821aa94ea8aa40d339720936015537deec37d",
+    "04067eb4bfe3a3433ee1014c21f45e2c1909020e291031cbb8cd37100931534d",
   "080_subscriber_commands.test.sql":
     "94ffe773d2897063468883f98516716143ae0323110db32564d7c304b5d7cc03",
   "090_outbox_worker_commands.test.sql":
@@ -145,13 +155,17 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "115_owner_schedule_edit_commands.test.sql":
     "6d2995b388513316223cb0a6704dcd701a1d83afbd3c3eb6d905b480d5260cec",
   "120_owner_vacation_commands.test.sql":
-    "89a71a932d96532be3962f4b9f979501eb4a0fc2ae4f40ab78e939a3efdbc064",
+    "7c492c631998fe7bbb1e5d28d99d507adeacd2ba1d1c1310a485eb3f4fc5b1a6",
   "125_owner_auth_context.test.sql":
-    "434dbb4fcfffcd667eb1f13f5d8ac7960985bb12c3f4051afb408dd9cefee3d5",
+    "776c7fe49f175b845c9180146c3d80c0e42ebbfe7862b36d9bdb8d02bd12f6b7",
   "127_owner_session_schema.test.sql":
     "e09c31d10ffd653cfd715fee069dc168d911f14be6fd6a221d47ae33d098aed9",
   "130_owner_session_revocation.test.sql":
     "c230a5a26cd8c9029367afdb6acb4530602e1122e1481e8d25616091ee791eb5",
   "135_consent_evidence_binding.test.sql":
     "32bdbe18d76cfb97ca0d260651136b39787413be3962727ee5f4dff2d688bfcf",
+  "140_owner_subscriber_commands.test.sql":
+    "19e6fcba0237484d6c7ceafcf0643ded0ba86d614f8c8cd498deb455c5437d03",
+  "145_cutover_write_control.test.sql":
+    "2f539722302f6c13fede5de6a37470a2dfe892d0808d45ec8834f34c5e0006ef",
 });

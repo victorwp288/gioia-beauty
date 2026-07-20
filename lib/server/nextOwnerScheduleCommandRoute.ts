@@ -13,6 +13,7 @@ import {
   AdminSetAppointmentStatusBodySchema,
   AdminUpdateAppointmentBodySchema,
   AdminUpdateBlockBodySchema,
+  AdminUpdateVacationBodySchema,
 } from "@/lib/domain/schemas/index.ts";
 
 import { OWNER_SCHEDULE_COMMAND_CONTRACTS } from "./database/ownerScheduleCommandContracts.ts";
@@ -37,6 +38,7 @@ const COMMAND_BODY_SCHEMAS = Object.freeze({
   setAppointmentStatus: AdminSetAppointmentStatusBodySchema,
   cancelScheduleEntry: AdminCancelScheduleEntryBodySchema,
   createVacation: AdminCreateVacationBodySchema,
+  updateVacation: AdminUpdateVacationBodySchema,
   cancelVacation: AdminCancelVacationBodySchema,
 });
 
@@ -61,8 +63,13 @@ export function createNextOwnerScheduleCommandRoute(
       bodySchema,
       operation: contract.operation,
       version: contract.fingerprintVersion,
-      execute: (identity, command, requestFingerprint) =>
-        repository[commandName](identity, command, requestFingerprint),
+      execute: (identity, command, requestFingerprint, canaryToken) =>
+        repository[commandName](
+          identity,
+          command,
+          requestFingerprint,
+          canaryToken,
+        ),
     },
     routeDependencies,
   );

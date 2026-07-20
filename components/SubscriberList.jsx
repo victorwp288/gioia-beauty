@@ -1,9 +1,13 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
-import { SubscriberService } from "@/lib/firebase/subscribers";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
 import { Copy, Trash2 } from "lucide-react";
+import {
+  getOwnerSubscribers,
+  ownerErrorMessage,
+  runOwnerCommand,
+} from "@/lib/client/ownerApi.ts";
 import {
   Select,
   SelectContent,
@@ -19,6 +23,8 @@ const SubscriberList = ({ onClose }) => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [sortBy, setSortBy] = useState("newest");
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const sortLabels = {
     newest: "Più recenti",
@@ -28,7 +34,6 @@ const SubscriberList = ({ onClose }) => {
   };
 
   const { showConfirmation, notifyAsync } = useNotification();
-  const subscriberService = useMemo(() => new SubscriberService(), []);
 
   const sortedSubscribers = useMemo(() => {
     const getTime = (subscriber) => {
@@ -46,13 +51,13 @@ const SubscriberList = ({ onClose }) => {
         return list.sort((a, b) =>
           (a.email || "").localeCompare(b.email || "", "it", {
             sensitivity: "base",
-          })
+          }),
         );
       case "email_desc":
         return list.sort((a, b) =>
           (b.email || "").localeCompare(a.email || "", "it", {
             sensitivity: "base",
-          })
+          }),
         );
       case "newest":
       default:
@@ -68,20 +73,37 @@ const SubscriberList = ({ onClose }) => {
   useEffect(() => {
     const fetchSubscribers = async () => {
       try {
-        const subscriberData = await subscriberService.getSubscribers({
-          limit: 1000,
+        const result = await getOwnerSubscribers({
+          statuses: ["legacy_unverified", "pending", "active", "bounced"],
         });
-        setSubscribers(subscriberData);
+        setSubscribers(result.items);
+        setNextCursor(result.nextCursor);
       } catch (error) {
-        console.error("SubscriberList: Error fetching subscribers:", error);
-        toast.error(`Impossibile caricare gli iscritti: ${error.message}`);
+        toast.error(ownerErrorMessage(error));
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSubscribers();
-  }, [subscriberService]);
+    void fetchSubscribers();
+  }, []);
+
+  const loadMoreSubscribers = async () => {
+    if (!nextCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const result = await getOwnerSubscribers({
+        statuses: ["legacy_unverified", "pending", "active", "bounced"],
+        cursor: nextCursor,
+      });
+      setSubscribers((current) => [...current, ...result.items]);
+      setNextCursor(result.nextCursor);
+    } catch (error) {
+      toast.error(ownerErrorMessage(error));
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -125,7 +147,7 @@ const SubscriberList = ({ onClose }) => {
     setSelectedIds((prev) =>
       prev.includes(subscriberId)
         ? prev.filter((id) => id !== subscriberId)
-        : [...prev, subscriberId]
+        : [...prev, subscriberId],
     );
   };
 
@@ -158,12 +180,12 @@ const SubscriberList = ({ onClose }) => {
     });
   };
 
-  const handleDeleteSubscriber = async (subscriberId) => {
+  const handleDeleteSubscriber = async (subscriber) => {
     const confirmed = await showConfirmation({
-      title: "Elimina iscritto",
+      title: "Disiscrivi contatto",
       message:
-        "Vuoi eliminare definitivamente questo iscritto dalla newsletter?",
-      confirmText: "Elimina",
+        "Vuoi disiscrivere questo contatto? La modifica resterà nello storico e impedirà nuovi invii.",
+      confirmText: "Disiscrivi",
       cancelText: "Annulla",
       type: "error",
       allowClose: false,
@@ -175,20 +197,22 @@ const SubscriberList = ({ onClose }) => {
 
     try {
       await notifyAsync(
-        () => subscriberService.deleteSubscriber(subscriberId),
+        () =>
+          runOwnerCommand("/api/admin/subscribers/unsubscribe", {
+            subscriberId: subscriber.id,
+            expectedVersion: subscriber.version,
+          }),
         {
-          loading: "Eliminazione iscritto...",
-          success: "Iscritto eliminato correttamente",
-          error: "Errore durante l'eliminazione",
-        }
+          loading: "Disiscrizione in corso...",
+          success: "Contatto disiscritto correttamente",
+          error: ownerErrorMessage,
+        },
       );
 
-      setSubscribers((prev) => prev.filter((s) => s.id !== subscriberId));
-      setSelectedIds((prev) => prev.filter((id) => id !== subscriberId));
-      toast.success("Iscritto eliminato con successo");
+      setSubscribers((prev) => prev.filter((s) => s.id !== subscriber.id));
+      setSelectedIds((prev) => prev.filter((id) => id !== subscriber.id));
     } catch (error) {
-      console.error("Error deleting subscriber:", error);
-      toast.error("Impossibile eliminare l'iscritto. Riprova.");
+      toast.error(ownerErrorMessage(error));
     }
   };
 
@@ -196,11 +220,15 @@ const SubscriberList = ({ onClose }) => {
     if (!hasSelection) {
       return;
     }
+    if (selectedCount > 20) {
+      toast.error("Seleziona al massimo 20 contatti per operazione.");
+      return;
+    }
 
     const confirmed = await showConfirmation({
-      title: "Eliminazione multipla",
-      message: `Stai per eliminare ${selectedCount} iscritti. Questa azione non può essere annullata.`,
-      confirmText: `Elimina ${selectedCount}`,
+      title: "Disiscrizione multipla",
+      message: `Stai per disiscrivere ${selectedCount} contatti. Le modifiche resteranno nello storico.`,
+      confirmText: `Disiscrivi ${selectedCount}`,
       cancelText: "Annulla",
       type: "error",
       allowClose: false,
@@ -211,24 +239,44 @@ const SubscriberList = ({ onClose }) => {
     }
 
     setIsBulkDeleting(true);
+    const completedIds = [];
     try {
       await notifyAsync(
-        () => subscriberService.batchDeleteSubscribers(selectedIds),
+        async () => {
+          const selected = subscribers.filter((subscriber) =>
+            selectedIds.includes(subscriber.id),
+          );
+          for (const subscriber of selected) {
+            await runOwnerCommand("/api/admin/subscribers/unsubscribe", {
+              subscriberId: subscriber.id,
+              expectedVersion: subscriber.version,
+            });
+            completedIds.push(subscriber.id);
+          }
+        },
         {
-          loading: "Eliminazione iscritti selezionati...",
-          success: `${selectedCount} iscritti eliminati`,
-          error: "Errore durante l'eliminazione multipla",
-        }
+          loading: "Disiscrizione contatti selezionati...",
+          success: `${selectedCount} contatti disiscritti`,
+          error: ownerErrorMessage,
+        },
       );
 
       const selectedSet = new Set(selectedIds);
       setSubscribers((prev) =>
-        prev.filter((subscriber) => !selectedSet.has(subscriber.id))
+        prev.filter((subscriber) => !selectedSet.has(subscriber.id)),
       );
       setSelectedIds([]);
     } catch (error) {
-      console.error("Error bulk deleting subscribers:", error);
-      toast.error("Eliminazione multipla non riuscita. Riprova.");
+      if (completedIds.length > 0) {
+        const completedSet = new Set(completedIds);
+        setSubscribers((prev) =>
+          prev.filter((subscriber) => !completedSet.has(subscriber.id)),
+        );
+        setSelectedIds((prev) =>
+          prev.filter((subscriberId) => !completedSet.has(subscriberId)),
+        );
+      }
+      toast.error(ownerErrorMessage(error));
     } finally {
       setIsBulkDeleting(false);
     }
@@ -265,7 +313,7 @@ const SubscriberList = ({ onClose }) => {
             variant="secondary"
             disabled={subscribers.length === 0}
           >
-            Copia tutte le email
+            Copia email caricate
           </Button>
           <Button
             onClick={copySelectedEmails}
@@ -283,7 +331,7 @@ const SubscriberList = ({ onClose }) => {
             className="flex items-center gap-2"
           >
             <Trash2 size={14} />
-            {isBulkDeleting ? "Eliminazione..." : "Elimina selezionati"}
+            {isBulkDeleting ? "Disiscrizione..." : "Disiscrivi selezionati"}
           </Button>
         </div>
       </div>
@@ -331,6 +379,9 @@ const SubscriberList = ({ onClose }) => {
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       Iscritto: {formatSubscriberDate(subscriber)}
                     </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Stato: {subscriber.status}
+                    </p>
                   </div>
                 </div>
 
@@ -343,9 +394,9 @@ const SubscriberList = ({ onClose }) => {
                     <Copy size={16} />
                   </button>
                   <button
-                    onClick={() => handleDeleteSubscriber(subscriber.id)}
+                    onClick={() => handleDeleteSubscriber(subscriber)}
                     className="rounded-full p-2 hover:bg-red-100 dark:hover:bg-red-900"
-                    aria-label="Elimina"
+                    aria-label="Disiscrivi"
                   >
                     <Trash2 size={16} className="text-red-500" />
                   </button>
@@ -355,6 +406,17 @@ const SubscriberList = ({ onClose }) => {
           </ul>
         )}
       </div>
+      {nextCursor ? (
+        <Button
+          className="w-full"
+          disabled={isLoadingMore}
+          onClick={loadMoreSubscribers}
+          type="button"
+          variant="outline"
+        >
+          {isLoadingMore ? "Caricamento..." : "Carica altri iscritti"}
+        </Button>
+      ) : null}
     </div>
   );
 };

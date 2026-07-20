@@ -45,7 +45,12 @@ function success(status: 200 | 201, code: string) {
 }
 
 function repositoryWith(rows: Array<Record<string, unknown>>) {
-  const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => rows);
+  const unsafe = vi
+    .fn<RuntimeTransaction["unsafe"]>()
+    .mockResolvedValueOnce([
+      { is_canary: false, canary_run_id: null, canary_grant_id: null },
+    ])
+    .mockResolvedValueOnce(rows);
   return createOwnerScheduleRepository({
     ownerTransaction: vi.fn(async (_identity, work) =>
       work({ unsafe } as RuntimeTransaction),

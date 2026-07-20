@@ -206,6 +206,15 @@ export async function queryOne(sql, query) {
 
 export async function withLocalRuntimeDatabase(callback) {
   const databaseUrl = await getLocalDatabaseUrl();
+  const adminUrl = new URL(databaseUrl);
+  adminUrl.username = "supabase_admin";
+  const admin = postgres(adminUrl.href, {
+    prepare: false,
+    max: 1,
+    idle_timeout: 1,
+    connect_timeout: 5,
+    onnotice: () => {},
+  });
   const sql = postgres(databaseUrl, {
     prepare: false,
     max: DATABASE_POOL_SIZE,
@@ -216,16 +225,20 @@ export async function withLocalRuntimeDatabase(callback) {
   });
   let membershipGranted = false;
   try {
-    await sql.unsafe("grant app_runtime to postgres");
+    await admin.unsafe(
+      "grant app_runtime to postgres with inherit false, set true granted by current_user",
+    );
     membershipGranted = true;
     return await callback(sql);
   } finally {
     try {
       if (membershipGranted) {
-        await sql.unsafe("revoke app_runtime from postgres");
+        await admin.unsafe(
+          "revoke app_runtime from postgres granted by current_user",
+        );
       }
     } finally {
-      await sql.end({ timeout: 5 });
+      await Promise.all([sql.end({ timeout: 5 }), admin.end({ timeout: 5 })]);
     }
   }
 }

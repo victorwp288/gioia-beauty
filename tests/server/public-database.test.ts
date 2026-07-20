@@ -210,7 +210,11 @@ describe("runtime Postgres adapter", () => {
 
 describe("public booking repository", () => {
   function fakeDatabase(rows: Array<Record<string, unknown>>) {
-    const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => rows);
+    const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async (query) =>
+      query.includes("authorize_cutover_write")
+        ? [{ is_canary: false, canary_run_id: null, canary_grant_id: null }]
+        : rows,
+    );
     const transaction = vi.fn(
       async (work: (tx: RuntimeTransaction) => unknown) =>
         work({ unsafe } as RuntimeTransaction),
@@ -279,12 +283,15 @@ describe("public booking repository", () => {
     ).resolves.toEqual(row);
 
     expect(fake.transaction).toHaveBeenCalledTimes(1);
-    expect(fake.unsafe).toHaveBeenCalledTimes(1);
+    expect(fake.unsafe).toHaveBeenCalledTimes(2);
     expect(fake.unsafe.mock.calls[0]?.[0]).toContain(
+      "gioia_private.authorize_cutover_write",
+    );
+    expect(fake.unsafe.mock.calls[1]?.[0]).toContain(
       "gioia_private.create_public_booking",
     );
-    expect(fake.unsafe.mock.calls[0]?.[0]).toContain("limit 1");
-    expect(fake.unsafe.mock.calls[0]?.[1]?.[0]).toBe(hash);
+    expect(fake.unsafe.mock.calls[1]?.[0]).toContain("limit 1");
+    expect(fake.unsafe.mock.calls[1]?.[1]?.[0]).toBe(hash);
   });
 
   it("rejects missing or multiple command rows", async () => {

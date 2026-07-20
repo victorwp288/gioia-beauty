@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   OWNER_SCHEDULE_COMMAND_CONTRACTS,
+  OWNER_SUBSCRIBER_UNSUBSCRIBE_CONTRACT,
   ownerCommandFailureKey,
   type OwnerCommandFailureStatus,
 } from "./database/ownerScheduleCommandContracts.ts";
@@ -31,6 +32,7 @@ const OWNER_COMMAND_ERRORS = new Set([
   ...Object.values(OWNER_SCHEDULE_COMMAND_CONTRACTS).flatMap((contract) => [
     ...contract.failures,
   ]),
+  ...OWNER_SUBSCRIBER_UNSUBSCRIBE_CONTRACT.failures,
   ownerCommandFailureKey(400, "COMMAND_HASH_INVALID"),
   ownerCommandFailureKey(409, "COMMAND_IN_PROGRESS"),
   ownerCommandFailureKey(409, "IDEMPOTENCY_KEY_REUSED"),
@@ -61,6 +63,10 @@ export function classifyOwnerCommandDatabaseError(
 ): OwnerCommandErrorClassification {
   const fields = databaseErrorFields(error);
   if (!fields) return SERVICE_UNAVAILABLE;
+
+  if (fields.code === "PT503" && fields.message === "MAINTENANCE_ACTIVE") {
+    return { status: 503, code: "MAINTENANCE_ACTIVE" };
+  }
 
   if (fields.code === "PT401" && OWNER_SESSION_MESSAGES.has(fields.message)) {
     return { status: 401, code: "OWNER_SESSION_REQUIRED" };
@@ -111,10 +117,14 @@ export function ownerCommandDatabaseErrorResponse(
   authRefreshHeaders: HeadersInit = {},
 ): Response {
   const classification = classifyOwnerCommandDatabaseError(error);
+  const headers = ownerCommandAuthResponseHeaders(authRefreshHeaders);
+  if (classification.code === "MAINTENANCE_ACTIVE") {
+    headers.set("Retry-After", "300");
+  }
   return apiErrorResponse(
     classification.status,
     classification.code,
     requestId,
-    ownerCommandAuthResponseHeaders(authRefreshHeaders),
+    headers,
   );
 }

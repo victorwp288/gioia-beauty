@@ -4,7 +4,7 @@ grant app_runtime to postgres;
 grant usage on schema extensions to app_runtime;
 set local search_path = extensions, public, pg_catalog;
 
-select plan(19);
+select plan(26);
 
 do $setup$
 declare v_dates date[];
@@ -18,10 +18,11 @@ begin
       interval '1 day'
     ) as day(value)
     where extract(isodow from day.value) between 1 and 5
-    order by day.value limit 2
+    order by day.value limit 3
   ) as candidate;
   perform set_config('gioia.test_occupied_date', v_dates[1]::text, true);
   perform set_config('gioia.test_vacation_date', v_dates[2]::text, true);
+  perform set_config('gioia.test_updated_vacation_date', v_dates[3]::text, true);
 end
 $setup$;
 
@@ -137,16 +138,76 @@ select results_eq(
 
 set local role app_runtime;
 select results_eq(
+  $$select http_status,result->>'code',replayed from gioia_private.owner_update_vacation(
+    '92000000-0000-4000-8000-000000000001','owner:vacation:update:stale',
+    decode(repeat('c6',32),'hex'),current_setting('gioia.test_vacation_id')::uuid,99,
+    current_setting('gioia.test_updated_vacation_date')::date,
+    current_setting('gioia.test_updated_vacation_date')::date,'Chiusura aggiornata')$$,
+  $$values (409::smallint,'VERSION_CONFLICT'::text,false)$$,
+  'vacation update rejects a stale version'
+);
+select results_eq(
+  $$select http_status,result->>'code',replayed from gioia_private.owner_update_vacation(
+    '92000000-0000-4000-8000-000000000001','owner:vacation:update:1',
+    decode(repeat('c7',32),'hex'),current_setting('gioia.test_vacation_id')::uuid,1,
+    current_setting('gioia.test_updated_vacation_date')::date,
+    current_setting('gioia.test_updated_vacation_date')::date,' Chiusura aggiornata ')$$,
+  $$values (200::smallint,'VACATION_UPDATED'::text,false)$$,
+  'owner atomically updates an active vacation'
+);
+select results_eq(
+  $$select http_status,result->>'code',replayed from gioia_private.owner_update_vacation(
+    '92000000-0000-4000-8000-000000000001','owner:vacation:update:1',
+    decode(repeat('c7',32),'hex'),current_setting('gioia.test_vacation_id')::uuid,1,
+    current_setting('gioia.test_updated_vacation_date')::date,
+    current_setting('gioia.test_updated_vacation_date')::date,' Chiusura aggiornata ')$$,
+  $$values (200::smallint,'VACATION_UPDATED'::text,true)$$,
+  'vacation update replays without another mutation'
+);
+
+reset role;
+select results_eq(
+  $$select start_date,end_date,reason,status,version
+    from gioia_private.vacations
+    where id=current_setting('gioia.test_vacation_id')::uuid$$,
+  $$values (
+    current_setting('gioia.test_updated_vacation_date')::date,
+    current_setting('gioia.test_updated_vacation_date')::date,
+    'Chiusura aggiornata'::text,'active'::text,2
+  )$$,
+  'vacation update stores one normalized versioned replacement'
+);
+
+set local role app_runtime;
+select is((select count(*) from gioia_private.get_public_availability(
+  current_setting('gioia.test_vacation_date')::date,'manicure','manicure-30-min')
+  where start_minutes=600),1::bigint,
+  'moving a vacation restores availability on its old date');
+select is((select count(*) from gioia_private.get_public_availability(
+  current_setting('gioia.test_updated_vacation_date')::date,
+  'manicure','manicure-30-min')),0::bigint,
+  'moving a vacation closes its new date');
+
+reset role;
+select results_eq(
+  $$select status,version from gioia_private.vacations
+    where id=current_setting('gioia.test_vacation_id')::uuid$$,
+  $$values ('active'::text,2)$$,
+  'stale update and replay preserve one active version-two vacation'
+);
+
+set local role app_runtime;
+select results_eq(
   $$select http_status,result->>'code',replayed from gioia_private.owner_cancel_vacation(
     '92000000-0000-4000-8000-000000000001','owner:vacation:cancel:1',
-    decode(repeat('c5',32),'hex'),current_setting('gioia.test_vacation_id')::uuid,1)$$,
+    decode(repeat('c5',32),'hex'),current_setting('gioia.test_vacation_id')::uuid,2)$$,
   $$values (200::smallint,'VACATION_CANCELLED'::text,false)$$,
   'owner soft-cancels an active vacation'
 );
 select results_eq(
   $$select http_status,result->>'code',replayed from gioia_private.owner_cancel_vacation(
     '92000000-0000-4000-8000-000000000001','owner:vacation:cancel:1',
-    decode(repeat('c5',32),'hex'),current_setting('gioia.test_vacation_id')::uuid,1)$$,
+    decode(repeat('c5',32),'hex'),current_setting('gioia.test_vacation_id')::uuid,2)$$,
   $$values (200::smallint,'VACATION_CANCELLED'::text,true)$$,
   'vacation cancellation replays after version changes'
 );
@@ -156,14 +217,15 @@ select results_eq(
   $$select status,version,cancelled_at is not null,cancelled_by
     from gioia_private.vacations
     where id=current_setting('gioia.test_vacation_id')::uuid$$,
-  $$values ('cancelled'::text,2,true,
+  $$values ('cancelled'::text,3,true,
     '92000000-0000-4000-8000-000000000001'::uuid)$$,
   'soft cancellation retains vacation and owner evidence'
 );
 
 set local role app_runtime;
 select is((select count(*) from gioia_private.get_public_availability(
-  current_setting('gioia.test_vacation_date')::date,'manicure','manicure-30-min')
+  current_setting('gioia.test_updated_vacation_date')::date,
+  'manicure','manicure-30-min')
   where start_minutes=600),1::bigint,
   'cancelling a vacation restores public availability');
 
@@ -179,7 +241,8 @@ select results_eq(
     from gioia_private.domain_change_log order by sequence_id$$,
   $$values
     (current_setting('gioia.test_vacation_id')::uuid,1,'create'::text),
-    (current_setting('gioia.test_vacation_id')::uuid,2,'cancel'::text)$$,
+    (current_setting('gioia.test_vacation_id')::uuid,2,'update'::text),
+    (current_setting('gioia.test_vacation_id')::uuid,3,'cancel'::text)$$,
   'only successful vacation mutations append audit rows'
 );
 select results_eq(
@@ -192,7 +255,10 @@ select results_eq(
       'DATE_CLOSED_FOR_VACATION'::text),
     ('owner_create_vacation'::text,'completed'::text,201::smallint,''::text),
     ('owner_create_vacation'::text,'failed'::text,409::smallint,
-      'VACATION_CONFLICTS_WITH_SCHEDULE'::text)$$,
+      'VACATION_CONFLICTS_WITH_SCHEDULE'::text),
+    ('owner_update_vacation'::text,'completed'::text,200::smallint,''::text),
+    ('owner_update_vacation'::text,'failed'::text,409::smallint,
+      'VERSION_CONFLICT'::text)$$,
   'vacation command outcomes and booking rejection are deterministic'
 );
 select ok(not exists (

@@ -11,6 +11,7 @@ import {
 } from "@/lib/domain/schemas/index.ts";
 
 import { requestFingerprint } from "./bookingSecurity.ts";
+import { cutoverWriteGate, type CutoverWriteGate } from "./cutoverWriteGate.ts";
 import {
   evaluatePublicAbuseGuard,
   publicAbuseRejectionResponse,
@@ -71,12 +72,14 @@ interface BookingDatabase {
     clientEmail: string;
     clientPhone: string;
     clientNote: string | null;
+    canaryToken: string | null;
   }): Promise<Record<string, unknown>>;
 }
 
 export interface PublicBookingHandlerDependencies {
   database: BookingDatabase;
   abuseGuard: PublicAbuseGuard;
+  writeGate?: CutoverWriteGate;
   createRequestId?: () => string;
 }
 
@@ -188,6 +191,7 @@ async function readBookingBody(request: Request) {
 export function createPublicBookingPostHandler({
   database,
   abuseGuard,
+  writeGate = cutoverWriteGate,
   createRequestId = randomUUID,
 }: PublicBookingHandlerDependencies) {
   return async function POST(request: Request): Promise<Response> {
@@ -225,6 +229,9 @@ export function createPublicBookingPostHandler({
         requestId,
       );
     }
+
+    const writeDecision = await writeGate.check(request, "public");
+    if (!writeDecision.ok) return writeDecision.response;
 
     let abuseDecision;
     try {
@@ -273,6 +280,7 @@ export function createPublicBookingPostHandler({
           version: 1,
           request: bodyResult.body,
         }),
+        canaryToken: writeDecision.canaryToken,
       });
       const result = BookingDatabaseRowSchema.parse(row);
 

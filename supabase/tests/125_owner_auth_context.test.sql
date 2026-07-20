@@ -102,8 +102,8 @@ select is(
         or procedure.proname = 'retry_email_outbox_as_owner'
       )
   ),
-  11::bigint,
-  'all eleven reviewed owner mutation boundaries remain allowlisted'
+  13::bigint,
+  'all thirteen reviewed owner mutation boundaries remain allowlisted'
 );
 select ok(
   not exists (

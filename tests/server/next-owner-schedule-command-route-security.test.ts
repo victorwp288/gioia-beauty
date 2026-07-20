@@ -36,6 +36,7 @@ function repositoryFixture() {
     setAppointmentStatus: vi.fn(async () => success()),
     cancelScheduleEntry: vi.fn(async () => success()),
     createVacation: vi.fn(async () => success()),
+    updateVacation: vi.fn(async () => success()),
     cancelVacation: vi.fn(async () => success()),
   } satisfies OwnerScheduleRepository;
 }
@@ -93,6 +94,13 @@ function adapterFixture({
   const getBindingSecret = vi.fn(() => secret);
   const dependencies = {
     repository,
+    writeGate: {
+      check: vi.fn(async () => ({
+        ok: true as const,
+        canaryToken: null,
+        mode: "open" as const,
+      })),
+    },
     createAuthContext,
     readSecurityTokens,
     getBindingSecret,

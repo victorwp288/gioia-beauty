@@ -16,6 +16,8 @@ insert into expected_runtime_functions values
   ('gioia_private.confirm_public_newsletter(uuid,integer,uuid,integer,timestamp with time zone,timestamp with time zone,text,bytea,text,bytea)'),
   ('gioia_private.consume_public_abuse_bucket(text,text,text,bytea,boolean)'),
   ('gioia_private.process_verified_email_webhook(text,text,text,bytea,timestamp with time zone)'),
+  ('gioia_private.owner_unsubscribe_subscriber(uuid,text,bytea,uuid,integer)'),
+  ('gioia_private.owner_update_vacation(uuid,text,bytea,uuid,integer,date,date,text)'),
   ('gioia_private.retry_email_outbox_as_owner(uuid,text,bytea,uuid,integer)'),
   ('gioia_private.replay_pending_verified_email_webhooks(smallint)'),
   ('gioia_private.purge_expired_public_abuse_buckets(integer)'),

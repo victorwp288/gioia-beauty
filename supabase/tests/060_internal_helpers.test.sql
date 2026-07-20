@@ -32,7 +32,16 @@ select is(
   4::bigint,
   'internal command helpers are owned by the no-login mutator role'
 );
-
+with operator_only(signature) as (
+  values
+    ('gioia_private.begin_cutover_canary_run(uuid,text,timestamp with time zone)'::text),
+    ('gioia_private.begin_cutover_write_freeze(text)'::text),
+    ('gioia_private.complete_cutover_unfreeze(uuid,integer,text)'::text),
+    ('gioia_private.enter_cutover_owner_reconcile(uuid,integer,text)'::text),
+    ('gioia_private.issue_cutover_canary_grant(uuid,bytea,text,text,bytea,timestamp with time zone)'::text),
+    ('gioia_private.reconcile_cutover_canary_run(uuid)'::text),
+    ('gioia_private.revoke_cutover_canary_grant(uuid)'::text)
+)
 select ok(
   not exists (
     select 1
@@ -43,12 +52,16 @@ select ok(
       and procedure.prosecdef
       and (
         owner.rolname <> 'gioia_mutator'
-        or not has_function_privilege('app_runtime', procedure.oid, 'EXECUTE')
+        or has_function_privilege('app_runtime', procedure.oid, 'EXECUTE')
+          <> not exists (
+            select 1
+            from operator_only
+            where operator_only.signature = procedure.oid::regprocedure::text
+          )
       )
   ),
-  'every security-definer function is a mutator-owned app_runtime entry point'
+  'security-definer functions are mutator-owned and split exactly between runtime and operator-only entry points'
 );
-
 select ok(
   not exists (
     select 1
@@ -62,7 +75,6 @@ select ok(
   ),
   'every private function pins its search path'
 );
-
 select ok(
   not exists (
     select 1
@@ -80,7 +92,6 @@ select ok(
   ),
   'PUBLIC and browser/API roles cannot execute private functions'
 );
-
 select results_eq(
   $actual$
     select procedure.proname::text collate "default"
@@ -92,22 +103,24 @@ select results_eq(
   $actual$,
   $expected$
     values
-      ('ack_email_dead_letter_alert_batch'::text), ('authorize_owner_session'::text),
+      ('ack_email_dead_letter_alert_batch'::text), ('authorize_cutover_write'::text),
+      ('authorize_owner_session'::text),
       ('begin_email_outbox_provider_attempt'::text), ('claim_email_dead_letter_alert_batch'::text),
       ('claim_email_outbox'::text), ('complete_email_outbox_failure'::text),
       ('complete_email_outbox_pre_provider_failure'::text), ('complete_email_outbox_success'::text),
       ('confirm_public_newsletter'::text), ('consume_public_abuse_bucket'::text),
       ('count_schedule_as_owner'::text), ('create_public_booking'::text),
-      ('export_schedule_as_owner'::text), ('get_public_availability'::text),
+      ('export_schedule_as_owner'::text), ('get_cutover_write_state'::text),
+      ('get_public_availability'::text),
       ('list_email_outbox_as_owner'::text), ('list_newsletter_subscribers_as_owner'::text),
       ('list_schedule_as_owner'::text), ('list_vacations_as_owner'::text),
       ('owner_cancel_schedule_entry'::text), ('owner_cancel_vacation'::text),
       ('owner_create_appointment'::text), ('owner_create_block'::text),
       ('owner_create_vacation'::text), ('owner_reschedule_appointment'::text),
       ('owner_reschedule_block'::text),
-      ('owner_set_appointment_status'::text),
+      ('owner_set_appointment_status'::text), ('owner_unsubscribe_subscriber'::text),
       ('owner_update_appointment_details'::text),
-      ('owner_update_block_details'::text),
+      ('owner_update_block_details'::text), ('owner_update_vacation'::text),
       ('process_verified_email_webhook'::text),
       ('purge_expired_public_abuse_buckets'::text),
       ('replay_pending_verified_email_webhooks'::text),
@@ -136,7 +149,6 @@ select is(
   4::bigint,
   'gioia_mutator can execute all internal command helpers'
 );
-
 select ok(
   has_function_privilege(
     'gioia_mutator', 'gioia_private.enforce_schedule_entry_transition()', 'EXECUTE'
@@ -159,7 +171,6 @@ select ok(
     ),
   'transition guards are executable only by their intended storage role'
 );
-
 select ok(
   pg_get_functiondef(
     'gioia_private.lock_schedule_dates(date[])'::regprocedure
@@ -169,7 +180,6 @@ select ok(
     ) ~* 'order by lock.local_date',
   'schedule lock rows are inserted and acquired in deterministic date order'
 );
-
 select lives_ok(
   $sql$
     with test_user as (
@@ -205,7 +215,6 @@ select lives_ok(
   $sql$,
   'synthetic occupied schedule fixture is accepted'
 );
-
 select lives_ok(
   $sql$
     insert into gioia_private.vacations (
@@ -220,14 +229,12 @@ select lives_ok(
 );
 do $$begin perform set_config('request.jwt.claim.session_id','85000000-0000-4000-8000-000000000001',true); end$$;
 set local role gioia_mutator;
-
 select lives_ok(
   $$select gioia_private.assert_enabled_owner(
     set_config('request.jwt.claim.sub', '80000000-0000-4000-8000-000000000001', true)::uuid
   )$$,
   'enabled owner authorization succeeds'
 );
-
 select throws_ok(
   $$select gioia_private.assert_enabled_owner(
     set_config('request.jwt.claim.sub', '80000000-0000-4000-8000-000000000099', true)::uuid
@@ -235,7 +242,6 @@ select throws_ok(
   'PT403', 'OWNER_AUTHORIZATION_REQUIRED',
   'unknown owner authorization fails closed'
 );
-
 select lives_ok(
   $$select gioia_private.lock_schedule_dates(array[
     '2035-08-22'::date, '2035-08-20'::date, '2035-08-10'::date,
@@ -243,7 +249,6 @@ select lives_ok(
   ])$$,
   'unsorted duplicate dates are locked safely'
 );
-
 select is(
   (
     select count(*) from gioia_private.schedule_day_locks
@@ -252,49 +257,39 @@ select is(
   4::bigint,
   'date locking creates one durable mutex row per distinct date'
 );
-
 select throws_ok(
   $$select gioia_private.lock_schedule_dates(array[]::date[])$$,
   'PT400', 'SCHEDULE_DATE_REQUIRED',
   'empty date-lock requests fail closed'
 );
-
 select lives_ok(
   $$select gioia_private.assert_schedule_date_open('2035-08-22')$$,
   'a locked date outside vacation is open'
 );
-
 select throws_ok(
   $$select gioia_private.assert_schedule_date_open('2035-08-20')$$,
   'PT409', 'DATE_CLOSED_FOR_VACATION',
   'an active vacation closes its inclusive start date'
 );
-
 select lives_ok(
   $$select gioia_private.assert_vacation_span_clear('2035-08-22', '2035-08-22')$$,
   'a locked unoccupied vacation span is clear'
 );
-
 select throws_ok(
   $$select gioia_private.assert_vacation_span_clear('2035-08-10', '2035-08-10')$$,
   'PT409', 'VACATION_CONFLICTS_WITH_SCHEDULE',
   'vacation creation rejects an occupied schedule date'
 );
-
 select throws_ok(
   $$select gioia_private.assert_vacation_span_clear('2035-08-11', '2035-08-10')$$,
   'PT400', 'VACATION_DATE_RANGE_INVALID',
   'vacation helper rejects a reversed date span'
 );
-
 select throws_ok(
   $$select gioia_private.assert_vacation_span_clear('2035-01-01', '2036-01-02')$$,
   'PT400', 'VACATION_DATE_LIMIT_EXCEEDED',
   'vacation helper enforces the maximum inclusive span'
 );
-
 reset role;
-
 select * from finish();
-
 rollback;

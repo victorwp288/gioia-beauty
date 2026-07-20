@@ -37,9 +37,9 @@ describe("owner Auth middleware", () => {
     else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalKey;
   });
 
-  it("refreshes only dashboard navigation in the Node runtime", () => {
+  it("refreshes only private owner navigation in the Node runtime", () => {
     expect(config).toEqual({
-      matcher: ["/dashboard/:path*"],
+      matcher: ["/dashboard/:path*", "/export/:path*"],
       runtime: "nodejs",
     });
   });

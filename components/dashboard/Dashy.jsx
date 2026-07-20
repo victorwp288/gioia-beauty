@@ -1,6 +1,6 @@
 "use client";
 import { Clock3, Database, Edit, Mail, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 
@@ -56,11 +56,8 @@ import {
   getTodayFormatted,
 } from "@/lib/utils/dateUtils";
 import { calculateEndTime } from "@/lib/utils/timeUtils";
-import {
-  deliveryFailed,
-  sendBookingEmailRequest,
-  sendCancellationEmailRequest,
-} from "@/lib/client/emailDelivery";
+import { getOwnerScheduleCount } from "@/lib/client/ownerApi.ts";
+import { salonDateFromLocalDate } from "@/lib/client/publicApi.ts";
 
 // Separate Components
 import SubscriberList from "../SubscriberList";
@@ -89,16 +86,11 @@ const Dashy = ({ user, authLoading }) => {
   const [formErrors, setFormErrors] = useState({});
 
   // Data loading state
-  const [showingAllData, setShowingAllData] = useState(false);
-  const [isLoadingAllData, setIsLoadingAllData] = useState(false);
   const [totalDatabaseCount, setTotalDatabaseCount] = useState(null);
   const [loadingTotalCount, setLoadingTotalCount] = useState(true);
 
   // Use global theme context
   const { darkMode, toggleDarkMode } = useTheme();
-
-  // Track initialization to prevent duplicate calls
-  const hasInitializedRef = useRef(false);
 
   // Get appointments using centralized context
   const {
@@ -109,11 +101,9 @@ const Dashy = ({ user, authLoading }) => {
     updateAppointment,
     deleteAppointment,
     fetchAppointments,
-    fetchAllAppointments,
   } = useAppointmentContext();
 
-  const { showConfirmation, notifyAsync, showError, showSuccess, showWarning } =
-    useNotification();
+  const { showConfirmation, notifyAsync, showError } = useNotification();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -157,57 +147,24 @@ const Dashy = ({ user, authLoading }) => {
   // DATA LOADING FUNCTIONS
   // ============================================================================
 
-  // Function to automatically get total database count
-  const fetchTotalCount = async () => {
+  const fetchMonthCount = async (month) => {
     try {
       setLoadingTotalCount(true);
-      const { dataManager } = await import("@/lib/firebase/dataManager");
-      const totalCount = await dataManager.getTotalAppointmentCount();
-      setTotalDatabaseCount(totalCount);
+      const from = new Date(month.getFullYear(), month.getMonth(), 1);
+      const to = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+      const result = await getOwnerScheduleCount({
+        fromDate: salonDateFromLocalDate(from),
+        toDate: salonDateFromLocalDate(to),
+        statuses: ["confirmed", "completed", "no_show", "active"],
+      });
+      setTotalDatabaseCount(result.total);
     } catch (error) {
-      console.error("Error getting total count:", error);
-      // Fallback to loaded count if total count fails
+      console.error("Dashboard month count failed", {
+        code: error?.code || "unknown",
+      });
       setTotalDatabaseCount(null);
     } finally {
       setLoadingTotalCount(false);
-    }
-  };
-
-  // Function to load older data (expand date range)
-  const loadExtendedData = async () => {
-    setIsLoadingAllData(true);
-    try {
-      console.log(
-        "📊 Dashboard: Loading extended date range (3 months back/forward)...",
-      );
-
-      // Expand to 3 months back and 3 months forward (much smaller than before)
-      const today = new Date();
-      const threeMonthsAgo = new Date(today);
-      threeMonthsAgo.setMonth(today.getMonth() - 3);
-      const threeMonthsForward = new Date(today);
-      threeMonthsForward.setMonth(today.getMonth() + 3);
-
-      console.log("📊 Dashboard: Extended range:", {
-        start: threeMonthsAgo.toISOString().split("T")[0],
-        end: threeMonthsForward.toISOString().split("T")[0],
-      });
-
-      await fetchAppointments({
-        dateRange: {
-          start: threeMonthsAgo.toISOString(),
-          end: threeMonthsForward.toISOString(),
-        },
-      });
-
-      setShowingAllData(true);
-
-      showSuccess("Intervallo esteso caricato (6 mesi totali).");
-    } catch (error) {
-      console.error("Error loading extended data:", error);
-      showError("Impossibile caricare i dati estesi degli appuntamenti");
-    } finally {
-      setIsLoadingAllData(false);
     }
   };
 
@@ -340,9 +297,11 @@ const Dashy = ({ user, authLoading }) => {
       note: "",
     });
     setBlockFormErrors({});
+    setSelectedAppointment(null);
   };
 
   const handleOpenBlockModal = () => {
+    setSelectedAppointment(null);
     setBlockFormData({
       selectedDate: formatDateForInput(selectedDate) || getTodayFormatted(),
       startTime: "",
@@ -456,11 +415,22 @@ const Dashy = ({ user, authLoading }) => {
         source: "admin_dashboard",
       };
 
-      await notifyAsync(() => createAppointment(blockAppointment), {
-        loading: "Creazione blocco orario...",
-        success: "Blocco orario creato con successo!",
-        error: "Impossibile creare il blocco orario",
-      });
+      const editingBlock = selectedAppointment?.isTimeBlock;
+      await notifyAsync(
+        () =>
+          editingBlock
+            ? updateAppointment(selectedAppointment.id, blockAppointment)
+            : createAppointment(blockAppointment),
+        {
+          loading: editingBlock
+            ? "Aggiornamento blocco orario..."
+            : "Creazione blocco orario...",
+          success: editingBlock
+            ? "Blocco orario aggiornato con successo!"
+            : "Blocco orario creato con successo!",
+          error: "Impossibile salvare il blocco orario",
+        },
+      );
 
       setSelectedDate(blockDate);
       setIsBlockModalOpen(false);
@@ -471,6 +441,20 @@ const Dashy = ({ user, authLoading }) => {
   };
 
   const handleEditAppointment = (appointment) => {
+    if (appointment.isTimeBlock) {
+      setSelectedAppointment(appointment);
+      setBlockFormData({
+        selectedDate:
+          formatDateForInput(appointment.selectedDate) || getTodayFormatted(),
+        startTime: appointment.startTime || "",
+        duration: String(appointment.duration || 120),
+        note: appointment.note || "",
+      });
+      setBlockFormErrors({});
+      setIsBlockModalOpen(true);
+      return;
+    }
+
     // Clear any previous errors
     setFormErrors({});
 
@@ -589,57 +573,6 @@ const Dashy = ({ user, authLoading }) => {
           success: "Appuntamento creato con successo!",
           error: "Impossibile creare l'appuntamento",
         });
-
-        // Send confirmation email for new appointments
-        try {
-          const emailData = {
-            email: appointmentData.email,
-            name: appointmentData.name,
-            startTime: appointmentData.startTime,
-            endTime: appointmentData.endTime,
-            duration: appointmentData.duration,
-            date: (() => {
-              try {
-                if (appointmentData.selectedDate instanceof Date) {
-                  return formatDate(appointmentData.selectedDate);
-                } else if (typeof appointmentData.selectedDate === "string") {
-                  const parsedDate = new Date(appointmentData.selectedDate);
-                  return isNaN(parsedDate.getTime())
-                    ? "Data non disponibile"
-                    : formatDate(parsedDate);
-                } else if (appointmentData.selectedDate?.toDate) {
-                  return formatDate(appointmentData.selectedDate.toDate());
-                } else if (appointmentData.selectedDate?.seconds) {
-                  return formatDate(
-                    new Date(appointmentData.selectedDate.seconds * 1000),
-                  );
-                } else {
-                  return "Data non disponibile";
-                }
-              } catch (error) {
-                console.error("Error formatting date for email:", error);
-                return "Data non disponibile";
-              }
-            })(),
-            appointmentType: appointmentData.appointmentType,
-          };
-
-          const idToken = await user.getIdToken();
-          const result = await sendBookingEmailRequest(emailData, { idToken });
-
-          if (!result.success) {
-            const failedRecipient = deliveryFailed(result, "customer")
-              ? "cliente"
-              : "amministratore";
-            showWarning(
-              `Appuntamento creato, ma l'email al ${failedRecipient} non è stata inviata.`,
-            );
-          }
-        } catch {
-          showError(
-            "Appuntamento creato, ma il servizio email non è disponibile.",
-          );
-        }
       }
 
       setIsAddModalOpen(false);
@@ -709,83 +642,33 @@ const Dashy = ({ user, authLoading }) => {
 
   const handleDeleteAppointment = async (appointment) => {
     const confirmDelete = await showConfirmation({
-      title: "Elimina appuntamento",
-      message: `Vuoi eliminare definitivamente l'appuntamento di ${appointment.name}?\n\nQuesta azione non puo' essere annullata.`,
-      confirmText: "Si, elimina",
+      title: appointment.isTimeBlock
+        ? "Annulla blocco orario"
+        : "Annulla appuntamento",
+      message: appointment.isTimeBlock
+        ? "Vuoi annullare questo blocco orario? Rimarrà nello storico operativo."
+        : `Vuoi annullare l'appuntamento di ${appointment.name}? Rimarrà nello storico e la notifica verrà gestita dal server.`,
+      confirmText: "Sì, annulla",
       cancelText: "No, mantieni",
       type: "warning",
       allowClose: false,
     });
 
     if (confirmDelete === "confirm") {
-      // Second confirmation for permanent deletion
-      const finalConfirm = await showConfirmation({
-        title: "Conferma eliminazione definitiva",
-        message: `Sei sicuro di voler eliminare definitivamente l'appuntamento di ${appointment.name}?\n\nQuesto comportera':\n• Rimozione dell'appuntamento dal database\n• Invio di una notifica di cancellazione al cliente\n• Azione irreversibile`,
-        confirmText: "Si, elimina definitivamente",
-        cancelText: "No, annulla",
-        type: "error",
-        allowClose: false,
-      });
-
-      if (finalConfirm === "confirm") {
-        let wasDeleted = false;
-        try {
-          await notifyAsync(() => deleteAppointment(appointment.id),
-            {
-              loading: "Eliminazione appuntamento...",
-              success: "Appuntamento eliminato con successo!",
-              error: "Impossibile eliminare l'appuntamento",
-            },
-          );
-          wasDeleted = true;
-        } catch (error) {
-          console.error("Error deleting appointment:", error);
-        }
-
-        if (wasDeleted && appointment.email?.trim()) {
-          try {
-            const appointmentDate = appointment.selectedDate || appointment.date;
-            let date = "Data non disponibile";
-            if (appointmentDate instanceof Date) {
-              date = formatDate(appointmentDate);
-            } else if (typeof appointmentDate === "string") {
-              const parsedDate = new Date(appointmentDate);
-              if (!isNaN(parsedDate.getTime())) date = formatDate(parsedDate);
-            } else if (appointmentDate?.toDate) {
-              date = formatDate(appointmentDate.toDate());
-            } else if (appointmentDate?.seconds) {
-              date = formatDate(new Date(appointmentDate.seconds * 1000));
-            }
-
-            const idToken = await user.getIdToken();
-            const result = await sendCancellationEmailRequest(
-              {
-                email: appointment.email,
-                name: appointment.name,
-                startTime: appointment.startTime,
-                endTime: appointment.endTime,
-                duration: appointment.duration,
-                date,
-              },
-              { idToken },
-            );
-
-            if (!result.success) {
-              showWarning(
-                "Appuntamento eliminato, ma l'email di cancellazione non è stata inviata.",
-              );
-            }
-          } catch {
-            showWarning(
-              "Appuntamento eliminato, ma il servizio email non è disponibile.",
-            );
-          }
-        }
+      try {
+        await notifyAsync(() => deleteAppointment(appointment.id), {
+          loading: "Annullamento in corso...",
+          success: appointment.isTimeBlock
+            ? "Blocco orario annullato."
+            : "Appuntamento annullato con successo.",
+          error: "Impossibile annullare la voce",
+        });
+      } catch (error) {
+        console.error("Schedule cancellation failed", {
+          code: error?.code || "unknown",
+        });
       }
-      // If finalConfirm === "cancel" or "close", do nothing (user cancelled deletion)
     }
-    // If confirmDelete === "cancel" or "close", do nothing (user cancelled deletion)
   };
 
   // Handle modal close with cleanup
@@ -834,73 +717,18 @@ const Dashy = ({ user, authLoading }) => {
           end: endOfMonth.toISOString(),
         },
       });
-
-      console.log("✅ Month navigation completed successfully");
+      await fetchMonthCount(newMonth);
     } catch (error) {
       console.error("❌ Error loading appointments for new month:", error);
       showError("Impossibile caricare gli appuntamenti del mese selezionato");
     }
   };
 
-  // ============================================================================
-  // DATA INITIALIZATION
-  // ============================================================================
-
-  // Fetch total count and appointments efficiently on mount
   useEffect(() => {
-    const initializeDashboard = async () => {
-      if (hasInitializedRef.current) {
-        console.log("📊 Dashboard: Already initialized, skipping...");
-        return;
-      }
-
-      try {
-        hasInitializedRef.current = true;
-        console.log("📊 Dashboard: Initializing dashboard...");
-
-        // Clean up past appointment data to optimize memory for future-only approach
-        const { cleanupPastAppointmentData } =
-          await import("@/lib/cache/appointmentCache");
-        cleanupPastAppointmentData();
-
-        // Just get the total count if needed
-        const { dataManager } = await import("@/lib/firebase/dataManager");
-        const { getCachedTotalCount } =
-          await import("@/lib/cache/appointmentCache");
-
-        const cachedTotalCount = getCachedTotalCount();
-
-        if (!cachedTotalCount) {
-          console.log("📡 Fetching total count from database...");
-          setLoadingTotalCount(true);
-          const totalCount = await dataManager.getTotalAppointmentCount();
-          setTotalDatabaseCount(totalCount);
-          setLoadingTotalCount(false);
-        } else {
-          console.log("✅ Using cached total count:", cachedTotalCount);
-          setTotalDatabaseCount(cachedTotalCount);
-          setLoadingTotalCount(false);
-        }
-
-        console.log("✅ Dashboard initialization completed");
-      } catch (error) {
-        console.error("❌ Dashboard: Error during initialization:", error);
-        hasInitializedRef.current = false; // Reset on error so we can retry
-        setLoadingTotalCount(false);
-      }
-    };
-
-    // Only initialize if we have a user (prevent initialization during auth loading)
     if (user && !authLoading) {
-      initializeDashboard();
+      void fetchMonthCount(new Date());
     }
-
-    // Cleanup function for React StrictMode
-    return () => {
-      // In development with StrictMode, this prevents the effect from running twice
-      // The ref persists across unmount/remount cycles
-    };
-  }, [user, authLoading]); // Add user and authLoading as dependencies
+  }, [user, authLoading]);
 
   // ============================================================================
   // RENDER HELPERS
@@ -977,7 +805,7 @@ const Dashy = ({ user, authLoading }) => {
               Questo mese: {appointments.length}
             </span>
             <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
-              Totale:{" "}
+              Totale mese:{" "}
               {loadingTotalCount
                 ? "..."
                 : (totalDatabaseCount ?? appointments.length)}

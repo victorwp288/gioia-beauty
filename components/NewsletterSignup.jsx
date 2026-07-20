@@ -1,26 +1,45 @@
 "use client";
-import React, { useState } from "react";
-import { collection, addDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import React, { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
+import {
+  newIdempotencyKey,
+  publicErrorMessage,
+  shouldRetainPublicIdempotencyKey,
+  subscribeToNewsletter,
+} from "@/lib/client/publicApi.ts";
 
 const NewsletterSignup = () => {
   const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const subscriptionAttemptRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
-      await addDoc(collection(db, "newsletter_subscribers"), {
-        email,
-        subscribed_at: new Date().toISOString(),
-      });
-      toast.success("Successfully subscribed to the newsletter!");
+      const normalizedEmail = email.trim().toLowerCase();
+      if (subscriptionAttemptRef.current?.email !== normalizedEmail) {
+        subscriptionAttemptRef.current = {
+          email: normalizedEmail,
+          idempotencyKey: newIdempotencyKey(),
+        };
+      }
+      await subscribeToNewsletter(
+        normalizedEmail,
+        subscriptionAttemptRef.current.idempotencyKey,
+      );
+      subscriptionAttemptRef.current = null;
+      toast.success("Controlla la tua email per confermare l’iscrizione.");
       setEmail("");
     } catch (error) {
-      console.error("Error subscribing to newsletter:", error);
-      toast.error("Failed to subscribe. Please try again.");
+      if (!shouldRetainPublicIdempotencyKey(error)) {
+        subscriptionAttemptRef.current = null;
+      }
+      toast.error(publicErrorMessage(error));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -50,8 +69,11 @@ const NewsletterSignup = () => {
           <Button
             className="text-primary inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:shadow disabled:pointer-events-none disabled:opacity-50 bg-white hover:bg-gray-100 h-10 px-4 py-2 mt-3"
             type="submit"
+            disabled={submitting}
           >
-            Iscriviti alla newsletter
+            {submitting
+              ? "Iscrizione in corso..."
+              : "Iscriviti alla newsletter"}
           </Button>
         </form>
       </div>
