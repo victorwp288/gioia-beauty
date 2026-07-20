@@ -35,6 +35,8 @@
     "db:test:auth-routes": "node scripts/test-local-owner-auth-routes.mjs",
     "db:test:concurrency": "node scripts/test-booking-concurrency.mjs",
     "db:test:migration-rehearsal": "GIOIA_RUN_LOCAL_MIGRATION_REHEARSAL=1 EMAIL_TRANSPORT=fake NEXT_PUBLIC_APP_ENV=test APP_ENV=test vitest run tests/integration/legacy-migration-local.test.ts",
+    "db:test:reverse-rehearsal": "GIOIA_RUN_LOCAL_MIGRATION_REHEARSAL=1 EMAIL_TRANSPORT=fake NEXT_PUBLIC_APP_ENV=test APP_ENV=test vitest run tests/integration/legacy-firestore-reverse-local.test.ts",
+    "db:test:phase5-recovery": "npm run db:reset && npm run db:test:migration-rehearsal && npm run db:test:reverse-rehearsal && APP_ENV=test NEXT_PUBLIC_APP_ENV=test EMAIL_TRANSPORT=fake node scripts/test-local-postgres-recovery.mjs",
     "db:test:greenfield": "node scripts/test-greenfield-project.mjs",
     "db:stop": "SUPABASE_TELEMETRY_DISABLED=1 supabase stop --project-id gioia-beauty-local",
     "db:clean": "SUPABASE_TELEMETRY_DISABLED=1 supabase stop --project-id gioia-beauty-local --no-backup",

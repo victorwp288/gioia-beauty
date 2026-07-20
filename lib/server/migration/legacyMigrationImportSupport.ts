@@ -67,14 +67,18 @@ function sourceDispositionTuple(record: SourceDispositionRecord): string {
   ]);
 }
 
+function compareCanonicalText(left: string, right: string): number {
+  return left === right ? 0 : left < right ? -1 : 1;
+}
+
 export function legacySourceManifestSha256(
   result: LegacyFirestoreTransformResult,
 ): string {
   const canonicalManifest = sourceDispositionRecords(result)
     .sort(
       (left, right) =>
-        left.sourceCollection.localeCompare(right.sourceCollection) ||
-        left.sourceRecordId.localeCompare(right.sourceRecordId),
+        compareCanonicalText(left.sourceCollection, right.sourceCollection) ||
+        compareCanonicalText(left.sourceRecordId, right.sourceRecordId),
     )
     .map(sourceDispositionTuple)
     .join("\n");

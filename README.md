@@ -69,6 +69,7 @@ npm run db:start
 npm run db:reset
 npm run db:seed:replay
 npm run db:test:migration-rehearsal
+npm run db:test:phase5-recovery
 npm run test:e2e:phase3
 npm run test:e2e:phase4
 ```
@@ -77,6 +78,13 @@ The migration rehearsal transforms a bounded synthetic legacy Firestore batch,
 imports it transactionally, proves exact replay/idempotency, reconciles its
 ledger/domain counts, and rejects a changed source checksum. It is Local-only
 and does not read Firebase.
+
+The Phase 5 recovery precursor resets Local, rehearses a deterministic
+multi-batch import/restart and overlap rollback, then creates a guarded logical
+dump and scratch clone. It compares redacted fingerprints, detects deliberate
+clone-only corruption, restores the identical archive again, and removes every
+scratch artifact. It does not satisfy the hosted TEST or production cutover
+gates.
 
 The Phase 4 browser slice adds public desktop/mobile visual baselines,
 keyboard and recovery acceptance, owner-session/idempotency flows, and the

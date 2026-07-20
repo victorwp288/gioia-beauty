@@ -190,23 +190,29 @@ export const LegacyFirestoreReverseInputSchema = z
         path: ["changes"],
       });
     }
-    const pendingSequences = [
-      ...new Set(pending.map((item) => item.sequenceId)),
-    ]
-      .filter((sequence) => sequence <= input.sourceHighWaterSequence)
-      .sort((left, right) => left - right);
-    const expectedPendingCount =
-      input.sourceHighWaterSequence - input.afterSequence;
-    const exhaustivelyCoversWindow =
-      pendingSequences.length === expectedPendingCount &&
-      pendingSequences.every(
-        (sequence, index) => sequence === input.afterSequence + index + 1,
-      );
-    if (input.sourceExhausted && !exhaustivelyCoversWindow) {
+    if (
+      input.changes.some(
+        (change, index) =>
+          index > 0 &&
+          change.sequenceId <= input.changes[index - 1]!.sequenceId,
+      )
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Reverse changes must have strictly increasing sequence IDs",
+        path: ["changes"],
+      });
+    }
+    const lastPendingSequence = pending.at(-1)?.sequenceId;
+    const reachesHighWater =
+      input.afterSequence === input.sourceHighWaterSequence
+        ? pending.length === 0
+        : lastPendingSequence === input.sourceHighWaterSequence;
+    if (input.sourceExhausted && !reachesHighWater) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "Exhausted reverse window does not cover its authoritative high-water",
+          "Exhausted reverse window does not reach its authoritative high-water",
         path: ["sourceExhausted"],
       });
     }

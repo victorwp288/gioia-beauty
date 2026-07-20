@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-20 — Rehearsed the Phase 5 Local logical-recovery precursor
+**Phase:** Phase 5 Local precursor only; every hosted TEST and Production checklist item remains open
+**Labels/environment:** [LOCAL] only; disposable synthetic Supabase/PostgreSQL on loopback 56321/56322; production Firebase, `main`, and hosted Supabase untouched
+**Data impact:** destructive Local resets; bounded synthetic import/replay; one frozen-state logical dump; one clone-only row deletion; two scratch restores; final Local volumes removed
+**Target:** Local `gioia-beauty-local` plus exact scratch database `gioia_phase5_restore_rehearsal`; committed ports restored to defaults
+**Expected reads/writes/rows:** import batches ≤100; 210 imported/ledger/change rows across four runs, 205-record three-batch restart replay, 2 schedule rows, 207 subscribers, 0 quarantine/active overlaps; reverse extraction ≤10,000 changes and fails closed on the 10,001st; scratch evidence uses counts/SHA-256 and sequence state only
+**Done:** Added manifest-bound deterministic multi-batch import/restart, repeatable-read reverse extraction from a fixed high-water, guarded PostgreSQL 17 custom dump/clone/recreate tooling, redacted recovery fingerprints, atomic overlap rollback, and one self-resetting `db:test:phase5-recovery` drill.
+**Verified/reconciled:** Local recovery passed with 60 migrations, 210 records, 2 schedule entries, 207 subscribers, zero overlaps, real gapped/repeated-version reverse extraction, detected clone corruption, exact same-archive sequence/state recovery, source reopened, scratch DB absent, and temporary role grant revoked; 165 Vitest files/2,034 tests, typecheck, lint, format, and production build pass. Independent review's locale, sequence-state, real-SQL, and partial-restart findings were fixed.
+**Production actions performed:** none; no Firebase/remote Supabase/Auth/provider/deployment/customer-data read or write
+**Backup/restore evidence:** Local custom archive 778,500 bytes, 1,180 TOC entries, SHA-256 `cba10a8cdfc421e19c5c5c72e5d887dc2ab5fdd87b1df4a34710a8f4623addf1`; identical archive restored twice with exact row, schema, migration, and sequence-state reconciliation before cleanup
+**Rollback/forward recovery:** revert this batch for code; rerun the self-resetting Local drill. Live Firebase remains authoritative and unchanged.
+**Next:** After Supabase repairs the Phase 2 pooler gate, complete that checkpoint and apply the exact candidate to hosted TEST; then obtain separate approval for bounded `[PROD-READ]` Firestore inventory/export and run the real-source TEST import/reconciliation/reverse-sink/managed-backup/pre- and post-reopen recovery suite before ticking Phase 5.
+**Gotchas:** The same-cluster Local database clone does not prove hosted backups/PITR, Auth/Kong recovery, the real Firebase shape/sink/rules, or post-reopen recovery. No Phase 5 checkbox was ticked.
+
 ## 2026-07-20 — Rehearsed Phase 4 legacy migration and browser acceptance locally
 **Phase:** Phase 4 Local migration/recovery and browser acceptance; hosted TEST, real-source inventory, and production candidate remain open
 **Labels/environment:** [LOCAL] only; disposable synthetic Supabase, system Chrome, fake email/challenge/alerts; production Firebase and `main` untouched

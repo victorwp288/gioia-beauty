@@ -213,12 +213,12 @@ describe("legacy Firestore reverse plan", () => {
         sourceExhausted: true,
       }),
     ).toThrow();
-    expect(() =>
+    expect(
       compileLegacyFirestoreReversePlan({
         ...input,
         changes: input.changes.filter((change) => change.sequenceId !== 3),
       }),
-    ).toThrow();
+    ).toMatchObject({ complete: true, throughSequence: 5 });
   });
 
   it("deletes stale unsubscribe fields when an existing legacy row resubscribes", () => {
