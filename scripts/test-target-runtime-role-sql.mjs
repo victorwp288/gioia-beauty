@@ -41,6 +41,16 @@ export const RUNTIME_ROLE_STATE_SQL = `
         from pg_catalog.unnest(coalesce(role.rolconfig, '{}')) as config(setting))
         = array['lock_timeout=3s','statement_timeout=10s']::text[]
       as attributes_are_safe,
+    (
+      select case
+        when role.rolcanlogin then
+          auth.rolpassword like 'SCRAM-SHA-256$%'
+          and role.rolvaliduntil = 'infinity'::timestamptz
+        else auth.rolpassword is null
+      end
+      from pg_catalog.pg_authid auth
+      where auth.oid = role.oid
+    ) as credential_is_safe,
     exists (
       select 1 from pg_catalog.pg_auth_members membership
       join pg_catalog.pg_roles granted on granted.oid = membership.roleid

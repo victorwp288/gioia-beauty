@@ -42,16 +42,17 @@ export async function withGreenfieldTestLock(
     1,
     { caCertificate, clientFactory, persistent: true },
   );
-  const worker = createTestTargetDatabaseClient(
-    config.getOperatorWorkerDatabaseUrl(),
-    21,
-    { caCertificate, clientFactory },
-  );
+  let worker;
   let lockClient;
   let locked = false;
   let operationError;
   let result;
   try {
+    worker = createTestTargetDatabaseClient(
+      config.getOperatorWorkerDatabaseUrl(),
+      21,
+      { caCertificate, clientFactory },
+    );
     lockClient = await lockPool.reserve();
     const [lock, ...extra] = await lockClient.unsafe(GLOBAL_LOCK_SQL);
     if (lock?.acquired !== true || extra.length !== 0) {
@@ -69,11 +70,13 @@ export async function withGreenfieldTestLock(
   }
 
   const cleanupErrors = [];
-  await attemptCleanup(
-    cleanupErrors,
-    "Greenfield TEST worker did not close",
-    () => endTestTargetDatabaseClient(worker),
-  );
+  if (worker) {
+    await attemptCleanup(
+      cleanupErrors,
+      "Greenfield TEST worker did not close",
+      () => endTestTargetDatabaseClient(worker),
+    );
+  }
   if (locked && lockClient) {
     await attemptCleanup(
       cleanupErrors,

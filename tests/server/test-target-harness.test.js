@@ -37,6 +37,7 @@ function safeRoleState(rolcanlogin = false) {
   return [
     {
       attributes_are_safe: true,
+      credential_is_safe: true,
       has_unsafe_membership: false,
       rolcanlogin,
     },
@@ -54,6 +55,27 @@ function safeWorkerResult(query, rolcanlogin = false) {
 }
 
 describe("greenfield TEST advisory lock", () => {
+  it("closes the lock pool when worker initialization fails", async () => {
+    const lockPool = {
+      reserve: vi.fn(),
+      end: vi.fn(async () => {}),
+    };
+    const initializationFailure = new Error("synthetic worker init failure");
+    const clientFactory = vi
+      .fn()
+      .mockReturnValueOnce(lockPool)
+      .mockImplementationOnce(() => {
+        throw initializationFailure;
+      });
+
+    await expect(
+      withGreenfieldTestLock(config(), vi.fn(), { clientFactory }),
+    ).rejects.toBe(initializationFailure);
+
+    expect(lockPool.reserve).not.toHaveBeenCalled();
+    expect(lockPool.end).toHaveBeenCalledWith({ timeout: 5 });
+  });
+
   it("fails immediately when another TEST runner holds the lock", async () => {
     const callback = vi.fn();
     const clientFactory = vi

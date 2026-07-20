@@ -6,6 +6,7 @@ Session journal for the refactor. **Newest entry on top.** Every working session
 
 ```markdown
 ## YYYY-MM-DD — <one-line session focus>
+
 **Phase:** <masterplan phase(s) touched>
 **Labels/environment:** <e.g. [LOCAL], local only>
 **Data impact:** <none | bounded read | additive write | update | soft delete | destructive>
@@ -23,6 +24,20 @@ Session journal for the refactor. **Newest entry on top.** Every working session
 Rules: keep entries under ~20 lines; insert the newest entry immediately below the divider; don't duplicate what the masterplan or git history already says; "Next" must be actionable without reading this whole file. Never rewrite old entries.
 
 ---
+
+## 2026-07-20 — Escalated the custom-role pooler fault and bounded recovery retries
+**Phase:** Phase 2 final staging acceptance gate; Phase 3 remains sequenced behind it
+**Labels/environment:** [LOCAL] operator hardening/tests plus bounded [TEST] dashboard, connection, role-state, log, and authenticated probe reads; one guarded TEST recovery lifecycle; one external support request
+**Data impact:** one `app_runtime` restore/authenticate/automatic-containment lifecycle; final `app_runtime` remains NOLOGIN/password-null with zero runtime sessions; no business/Auth/storage/customer rows
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm` in `eu-central-2`; live Firebase/site/`main`, Vercel Production, Resend, and customer data untouched
+**Expected reads/writes/rows:** two protected DSN metadata reads, one dashboard project/endpoint read, one advisory lock, one role credential update followed by containment, three bounded identity/state/log probes, one support request, and zero business/Auth/storage rows
+**Done:** Submitted a Normal-severity Supabase Database ticket proving the role-specific transaction-pooler fault; support access stayed disabled and no credential was sent. Confirmed the exact saved DSNs match the dashboard, `postgres` authenticates through the same port 6543, and the exact operator can evaluate the boolean `pg_authid` invariant. Replaced the broad 10-attempt loop with at most one fresh-client retry only for `28P01`, added boolean SCRAM/infinity/containment checks, contained already-LOGIN credentials on failed verification, and closed partial client initialization safely. No masterplan item was ticked.
+**Verified/reconciled:** exact head `eb87b9e` has green six-job CI run `29749567049`; focused runtime/lock suite passes 17/17, SQL static validation passes, and independent review's P1/P2 findings were addressed. Final TEST state is fail-closed with zero runtime sessions.
+**Production actions performed:** none; 0 Production reads/writes, deployment/config/provider action, email send, secret rotation, support-access grant, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST target only
+**Rollback/forward recovery:** revert this batch for code; support can ignore/close the request after repair. Do not retry-loop, reset secrets, bypass the transaction pooler, activate Preview DB routes, tick Phase 2, or create reserved migration 38 while the gate is open.
+**Next:** Commit/push this repair and require exact-head green CI. After Supabase repairs/reprovisions the custom-role transaction tenant or the provider cooldown is confirmed, run exactly one guarded recovery, require fresh `app_runtime` port-6543 authentication, then run `npm run db:test:greenfield`; tick Phase 2 only on final success JSON and zero residue, then begin the Phase 3 vertical batch.
+**Gotchas:** The shared transaction endpoint is healthy for `postgres`; failure is isolated to Supavisor custom-role auth-query/cache handling. The previous unclassified 10x250ms loop could exceed Supavisor credential-refresh limits and prolong its circuit breaker.
 
 ## 2026-07-20 — Revalidated the TEST gate; transaction-pooler recovery still failed closed
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 remains blocked

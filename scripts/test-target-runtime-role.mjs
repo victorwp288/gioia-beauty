@@ -17,9 +17,10 @@ import {
   RUNTIME_SESSION_TERMINATE_SQL,
 } from "./test-target-runtime-role-sql.mjs";
 
-const PREVIEW_AUTH_ATTEMPTS = 10;
-const PREVIEW_AUTH_RETRY_DELAY_MS = 250;
+const PREVIEW_AUTH_ATTEMPTS = 2;
+const PREVIEW_AUTH_RETRY_DELAY_MS = 1_000;
 const PREVIEW_AUTH_TIMEOUT_MS = 15_000;
+const INVALID_PASSWORD_CODE = "28P01";
 
 export {
   GREENFIELD_PREVIEW_ROLE_SQL,
@@ -38,8 +39,13 @@ function isSafeRuntimeRole(state, canLogin) {
   return (
     state.rolcanlogin === canLogin &&
     state.attributes_are_safe === true &&
+    state.credential_is_safe === true &&
     !state.has_unsafe_membership
   );
+}
+
+function isCredentialRefreshFailure(error) {
+  return error instanceof Error && error.code === INVALID_PASSWORD_CODE;
 }
 
 async function assertRuntimeRoleState(sql, canLogin, message) {
@@ -134,13 +140,15 @@ export async function verifyPreviewCredential(config, clientFactory) {
       throw authenticationError();
     }
 
-    let transientFailure = false;
+    let credentialRefreshFailure = false;
+    let authenticationFailure = false;
     let unauthorized = false;
     try {
       const [authorization, ...extra] = await authenticatePreviewClient(client);
       unauthorized = authorization?.authorized !== true || extra.length !== 0;
-    } catch {
-      transientFailure = true;
+    } catch (error) {
+      credentialRefreshFailure = isCredentialRefreshFailure(error);
+      authenticationFailure = true;
     }
 
     let failedClose = false;
@@ -149,7 +157,7 @@ export async function verifyPreviewCredential(config, clientFactory) {
     } catch {
       failedClose = true;
     }
-    if ((transientFailure || unauthorized) && failedClose) {
+    if ((authenticationFailure || unauthorized) && failedClose) {
       throw new AggregateError(
         [
           authenticationError(),
@@ -162,12 +170,14 @@ export async function verifyPreviewCredential(config, clientFactory) {
       throw new Error("Greenfield TEST verifier did not close");
     }
     if (unauthorized) throw authenticationError();
-    if (!transientFailure) return;
-    if (attempt < PREVIEW_AUTH_ATTEMPTS - 1) {
+    if (!authenticationFailure) return;
+    if (credentialRefreshFailure && attempt < PREVIEW_AUTH_ATTEMPTS - 1) {
       await new Promise((resolve) =>
         setTimeout(resolve, PREVIEW_AUTH_RETRY_DELAY_MS),
       );
+      continue;
     }
+    throw authenticationError();
   }
   throw authenticationError();
 }
@@ -206,6 +216,7 @@ async function ensurePreviewCredential(sql, config, clientFactory) {
   const state = await runtimeRoleState(sql);
   if (
     state.attributes_are_safe !== true ||
+    state.credential_is_safe !== true ||
     state.has_unsafe_membership ||
     typeof state.rolcanlogin !== "boolean"
   ) {
@@ -223,8 +234,20 @@ async function ensurePreviewCredential(sql, config, clientFactory) {
     throw stateError;
   }
   if (state.rolcanlogin) {
-    await verifyPreviewCredential(config, clientFactory);
-    return;
+    try {
+      await verifyPreviewCredential(config, clientFactory);
+      return;
+    } catch (verificationError) {
+      try {
+        await suspendRuntimeRole(sql);
+      } catch (containmentError) {
+        throw new AggregateError(
+          [verificationError, containmentError],
+          "Greenfield TEST active Preview verification and containment both failed",
+        );
+      }
+      throw verificationError;
+    }
   }
   await restorePreviewRuntimeRole(sql, config, clientFactory);
 }

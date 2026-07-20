@@ -28,11 +28,13 @@ function safeWorkerResult(
   query,
   rolcanlogin = false,
   attributesAreSafe = true,
+  credentialIsSafe = true,
 ) {
   if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
     return [
       {
         attributes_are_safe: attributesAreSafe,
+        credential_is_safe: credentialIsSafe,
         has_unsafe_membership: false,
         rolcanlogin,
       },
@@ -48,12 +50,15 @@ export function lifecycleHarness({
   initialLogin = true,
   authorizations = [true, true],
   attributesAreSafe = true,
+  credentialIsSafe = true,
+  restoredCredentialIsSafe = true,
   disableFailure = null,
   terminateFailureAfter = Number.POSITIVE_INFINITY,
   closeFailures = [],
   cleanupFailures = {},
 } = {}) {
   let roleCanLogin = initialLogin;
+  let roleCredentialIsSafe = credentialIsSafe;
   let terminateCount = 0;
   const events = [];
   const lockClient = {
@@ -71,6 +76,7 @@ export function lifecycleHarness({
         events.push("suspend");
         if (disableFailure) throw disableFailure;
         roleCanLogin = false;
+        roleCredentialIsSafe = true;
       }
       if (
         query === GREENFIELD_RUNTIME_ROLE_SQL.sessions[0] &&
@@ -78,7 +84,12 @@ export function lifecycleHarness({
       ) {
         throw new Error("synthetic termination failure");
       }
-      return safeWorkerResult(query, roleCanLogin, attributesAreSafe);
+      return safeWorkerResult(
+        query,
+        roleCanLogin,
+        attributesAreSafe,
+        roleCredentialIsSafe,
+      );
     }),
     begin: vi.fn(async (callback) =>
       callback({
@@ -86,6 +97,7 @@ export function lifecycleHarness({
           if (query === GREENFIELD_PREVIEW_ROLE_SQL.restore[1]) {
             events.push("restore");
             roleCanLogin = true;
+            roleCredentialIsSafe = restoredCredentialIsSafe;
           }
           return [];
         }),
