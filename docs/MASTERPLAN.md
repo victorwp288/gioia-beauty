@@ -238,6 +238,8 @@ Everything remains `[LOCAL]` or `[TEST]`.
 
 Firestore remains the untouched production authority. The new Supabase application is exercised only in Local/Preview/staging until Phase 5's approved migration window. This avoids building a disposable canonical Firestore server layer or performing two data transitions.
 
+**Local implementation checkpoint (2026-07-20, `18079b5`):** the public and owner client cutovers, root-provider/direct-client cleanup, and maintenance write-control foundation are implemented and verified against synthetic Local. The combined `[LOCAL] / [TEST]` items remain unchecked until hosted TEST, Preview traffic, visual/accessibility, snapshot-import, and maintenance E2E evidence exists. This checkpoint is not the production source freeze.
+
 - [ ] **`[LOCAL]` / `[TEST]`** Move public availability and booking UI behind the Supabase-backed server API while preserving pixel output and explicit failure states.
 - [ ] **`[LOCAL]` / `[TEST]`** Move dashboard appointments, blocks, vacations, newsletter, counts, and export behind authenticated server operations.
 - [ ] **`[LOCAL]` / `[TEST]`** Remove `AppointmentProvider` from the root layout and prove non-booking public page loads make zero database calls.

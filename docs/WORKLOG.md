@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-20 — Completed the Phase 4 Local application-cutover vertical
+**Phase:** Phase 4 Local implementation; hosted TEST/Preview acceptance and source freeze remain open
+**Labels/environment:** [LOCAL] only; synthetic Docker Supabase, fake email/challenge/alerts; production Firebase and `main` untouched
+**Data impact:** destructive reset plus bounded synthetic create/update/soft-cancel/unsubscribe writes in disposable Local; final stack/volumes removed
+**Target:** local `gioia-beauty-local` on temporary loopback 56321/56322; committed ports restored to 54321/54322
+**Expected reads/writes/rows:** 59 migrations; 25 local pgTAP files/414 assertions (24 remote-candidate files/406); public availability ≤96 slots; dashboard schedule/vacation ≤5 pages of 101 DB rows and 500 DTOs, subscribers 100/page, export ≤501 rows, bulk unsubscribe ≤20 sequential commands; every mutation adds one bounded cutover-state read and one exact authorization call
+**Done:** Commit `18079b5` moves public booking/newsletter and owner login/dashboard/export behind server APIs, removes the root provider and six dead Firebase hooks, adds versioned vacation update and subscriber soft-unsubscribe, and adds fail-closed freeze/reconcile/canary controls plus the manual-booking runbook. Lockfile SHA-256 is `65ee966df89fff30d0827c94cb6c1ae3606350c5d0f0326a82afa9b865cd8e7d`.
+**Verified/reconciled:** format, lint, typecheck, 154 files/1,952 Vitest tests, production build, clean 59-migration start/reset, 25 pgTAP files/414 assertions, DB lint/advisors, synthetic owner Auth, four concurrency races, and real HTTP booking E2E pass; runtime ACL and direct-client graph are exact. Gitleaks could not run locally because required 8.30.1 is absent.
+**Production actions performed:** none; no remote DB/Auth/config, deployment, Firebase/customer-data access, Vercel/Resend/provider action, email, `main` change, or support follow-up
+**Backup/restore evidence:** n/a; synthetic Local was removed without backup
+**Rollback/forward recovery:** revert `18079b5` for the Local candidate; live Firebase remains authoritative and unchanged. Do not activate Preview or treat this as a Production rollback/cutover artifact.
+**Next:** After Supabase repairs the Phase 2 transaction-pooler gate, complete the protected Phase 2 checkpoint, apply the exact 59-migration head to hosted TEST, then run Phase 3/4 snapshot import, visual/accessibility, owner/public/session/retry/freeze/canary/browser-traffic E2E before ticking Phase 4 or freezing a production source commit.
+**Gotchas:** The Local cutover is complete, but Phase 4 is not closed: every combined item still needs TEST evidence, and the two TEST-only items plus exact production-candidate freeze remain outstanding.
+
 ## 2026-07-20 — Completed the Phase 3 local server/reliability vertical
 **Phase:** Phase 3 Local implementation and acceptance; Phase 2 hosted-TEST gate unchanged
 **Labels/environment:** [LOCAL] only; synthetic Docker Supabase and fake email/challenge/alert adapters
