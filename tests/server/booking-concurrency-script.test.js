@@ -149,6 +149,11 @@ describe("booking concurrency target and safety", () => {
   it("accepts only the loopback local postgres URL", () => {
     const localUrl = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
     expect(parseLocalDatabaseUrl(localUrl)).toBe(localUrl);
+    const alternateLocalUrl =
+      "postgresql://postgres:postgres@127.0.0.1:56322/postgres";
+    expect(parseLocalDatabaseUrl(alternateLocalUrl, "56322")).toBe(
+      alternateLocalUrl,
+    );
     expect(() =>
       parseLocalDatabaseUrl(
         "postgresql://postgres:secret@db.example.test:5432/postgres",

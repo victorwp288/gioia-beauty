@@ -46,6 +46,15 @@ const SAFE_PREVIEW_ENV = {
   BOOKING_HMAC_SECRET: "synthetic-preview-booking-hmac-secret-000000000000",
   OWNER_SESSION_HMAC_SECRET:
     "synthetic-preview-owner-session-secret-000000000000",
+  PAGINATION_CURSOR_KEYRING_JSON: JSON.stringify({
+    activeKeyId: "preview_1",
+    keys: [
+      {
+        id: "preview_1",
+        secret: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      },
+    ],
+  }),
 };
 
 function success(replayed = false): OwnerCommandResult {

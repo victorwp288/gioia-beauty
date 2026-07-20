@@ -73,15 +73,49 @@ export const REVIEWED_MIGRATION_DIGESTS = Object.freeze({
     "eaabeef7714085c4f7de83c84e0d98aa00866457433bcaaf5cfb46146ecaa703",
   "20260710013427_add_owner_session_revocation_ledger.sql":
     "0b3963bb0eb3a612ee85d9f35ffdc3f8da5c9617b012e3c3f5e769b3cecccc00",
+  "20260720150001_phase3_newsletter_outbox_abuse_durability.sql":
+    "063bd71a227fc6f89321328c627ac99fd716ae63673d6a395cf128ca8cbd1c7d",
+  "20260720150035_phase3_owner_schedule_reads.sql":
+    "dc35087cc15da8d0bc3611fe011dcc0581cda633ae07dc008e3e3d632f2a15d7",
+  "20260720150036_phase3_owner_operational_reads.sql":
+    "74c2ef7e01add1bed91e695f1d3b55bbb6db315eb220d159e62ab3f5a820a4e7",
+  "20260720151757_phase3_durability_security.sql":
+    "b34f255f99b3c1e76fd4c535d1e4556e702178b7da647fb601120effed55a903",
+  "20260720151758_phase3_durability_triggers.sql":
+    "471c80ce0dcf1f7a2a105a47fbc27ca48c68b078f0a9658b7fa6370ebec80082",
+  "20260720151800_phase3_newsletter_subscribe.sql":
+    "35fad51fc1d337b6e386322aa8bde23e8ce3a519ab51f48f21e4f98c88514c6b",
+  "20260720151801_phase3_newsletter_actions.sql":
+    "eab744ff54edca1a5565705e6542dee1ca0790061011f4743afd54d3b3ae7c67",
+  "20260720151803_phase3_outbox_claim.sql":
+    "bd8477819b84218475676d8fa6d42ea96dba3c302072518e73947643c84821be",
+  "20260720151804_phase3_outbox_provider.sql":
+    "bcfcb4bcadf1801b90399067265d0a40506c8feedbaecab7712c6c5cb8d2da9d",
+  "20260720151806_phase3_alert_abuse.sql":
+    "d195c1c84ca456c645c92497c23138d0792566eef8af641388b766816915e3c4",
+  "20260720151807_phase3_runtime_acls.sql":
+    "1820197db3f11f8a3318627cd533b5d17b84b1634879cbd37d68149f3db33c83",
+  "20260720152718_phase3_outbox_newsletter_runtime_corrections.sql":
+    "d64efb241b7f82d3fd771547fb576c63982774844cc60479c2e6a377e793b4cb",
+  "20260720155400_phase3_local_operational_recovery.sql":
+    "5f59e5a1ea386feebcc76fede73ab29378ba73bbe889db922a2bced8c1912197",
+  "20260720155458_phase3_bind_consent_evidence_relationally.sql":
+    "2d827547d2a9a8fa21d1d2202b3f9b604d849bf462e9d2d7c7aa303e27f41f64",
+  "20260720162911_phase3_signing_key_verification_semantics.sql":
+    "613b9324d547b87afdddc492626a7b3cadf0a849fe2c41f2934c5018aa52096b",
+  "20260720163123_phase3_webhook_replay_lifecycle_v2.sql":
+    "491fe849d721b649fb26c5ef55b58f5e68ebe48ef61eb518eec206f85b600d7b",
+  "20260720163713_phase3_newsletter_issuance_horizon.sql":
+    "50566eee4d14dab5bc338413443f968aa75f43c8c327a3490402d1408aeedea9",
 });
 
 export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "000_0_pgtap_setup.test.sql":
     "0ae2198cbf1d3207f4f52aa19c64c685efdfad417600ea3f6f25c5f624618ed0",
   "000_schema_security.test.sql":
-    "4e21d530ff357c6d0ee91ecdb3bd71c61eb1e1ff23a0341ad8817de2600313e8",
+    "74a13c44f056fa57804ebee1295729ce4ccb5cff5cc7cd8d682d9d62cceecf89",
   "005_foreign_key_indexes.test.sql":
-    "4933a3cdfb831e9d549bf2be27fec5ab485cfe4327191b1d5dec88d139dde229",
+    "9dfac6e3500b1d72d3123d2f020eb1c57ab23ba77fd488e56ad70d39b85f14fc",
   "010_catalog_policy.test.sql":
     "a1bdb68ade54013a61d3aa3001ff3877745e42b436d9dd060019e549c911d20a",
   "020_schedule_constraints.test.sql":
@@ -93,19 +127,19 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "050_migration_ledger.test.sql":
     "dc20191b58f2297ba7b3db6606e326ec13530a828af108e29ac1a9d5fb5f2168",
   "060_internal_helpers.test.sql":
-    "8107a08fc005b5ae928c37980f8c1dae988a817781ff42fcc25e611e4b8474f4",
+    "55ddd6dc9b3aca4d2494cd4885584a93cf0dab80bc3432c9491c0690e11afbea",
   "065_command_staleness.test.sql":
     "264cadd9652d54c5f48db3612561deb4449fc59d91716014e06156c7f0e543e7",
   "070_command_boundaries.test.sql":
     "a3ceca621b1df3d4f7722d47a8c62f722e63d6b98c43d4da2ac3510a539af3ee",
   "075_runtime_function_acl.test.sql":
-    "add584b50e7ee5b3cf983652d658bf7a33167761af23eea66434224a74321421",
+    "b4d69777d92b3e50978d4303587821aa94ea8aa40d339720936015537deec37d",
   "080_subscriber_commands.test.sql":
-    "598ff8d01df00331a725f3f020d880f158fc6e07f636240c32917131e1e26a7d",
+    "94ffe773d2897063468883f98516716143ae0323110db32564d7c304b5d7cc03",
   "090_outbox_worker_commands.test.sql":
-    "3b922921fddd03aa880603b4a3e2b0d2cda9ac8cc93477890615fb54b3f1be72",
+    "bbd3eb3fe3bed42708ed3700f840d2812a9b8897d6bc6da86ec89c4db60ee10f",
   "100_verified_webhook_commands.test.sql":
-    "1c6ca323e3d3407922edc1e30d1f6089ef27f8e7adc25826d3cffb4ce90c489e",
+    "d95011cf8d468fa57b2302aa0b62242d8feb2f7c26076dd9331e3b675eb7924e",
   "110_owner_schedule_commands.test.sql":
     "a727016a657e8d889ae8ca5ef8a3b8c2bfb2644ca9805ee4e3faba45e3b26b98",
   "115_owner_schedule_edit_commands.test.sql":
@@ -118,4 +152,6 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
     "e09c31d10ffd653cfd715fee069dc168d911f14be6fd6a221d47ae33d098aed9",
   "130_owner_session_revocation.test.sql":
     "c230a5a26cd8c9029367afdb6acb4530602e1122e1481e8d25616091ee791eb5",
+  "135_consent_evidence_binding.test.sql":
+    "32bdbe18d76cfb97ca0d260651136b39787413be3962727ee5f4dff2d688bfcf",
 });

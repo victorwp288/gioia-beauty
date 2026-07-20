@@ -176,6 +176,9 @@ export const SignedUnsubscribeTokenSchema =
 export const PublicUnsubscribeCommandSchema = z
   .object({ token: NewsletterUnsubscribeTokenWireSchema })
   .strict();
+export const PublicNewsletterConfirmCommandSchema = z
+  .object({ token: NewsletterActionTokenWireSchema })
+  .strict();
 
 export const AdminSetSubscriberStatusCommandSchema = z
   .object({
@@ -193,6 +196,9 @@ export type PublicSubscribeCommand = z.infer<
 >;
 export type PublicUnsubscribeCommand = z.infer<
   typeof PublicUnsubscribeCommandSchema
+>;
+export type PublicNewsletterConfirmCommand = z.infer<
+  typeof PublicNewsletterConfirmCommandSchema
 >;
 export type AdminSetSubscriberStatusCommand = z.infer<
   typeof AdminSetSubscriberStatusCommandSchema

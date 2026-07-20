@@ -91,7 +91,7 @@ export function remotePgTapFiles(rootDirectory = process.cwd()) {
     if (!match) throw new Error("Greenfield TEST pgTAP plan is missing");
     return total + Number(match[1]);
   }, 0);
-  if (files.length !== 21 || assertions !== 342) {
+  if (files.length !== 22 || assertions !== 359) {
     throw new Error("Greenfield TEST pgTAP suite is not the reviewed set");
   }
   return { assertions, files };

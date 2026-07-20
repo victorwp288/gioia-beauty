@@ -59,6 +59,8 @@ export const NewsletterConfirmationRenderSnapshotV1Schema = z
     templateData: z
       .object({
         policyVersion: z.literal(NEWSLETTER_CONSENT_POLICY_VERSION),
+        consentArtifactVersion: z.string().regex(/^[a-z0-9][a-z0-9._-]{2,99}$/),
+        consentArtifactSha256: z.string().regex(/^[0-9a-f]{64}$/),
         action: NewsletterConfirmationActionSnapshotSchema,
       })
       .strict(),
@@ -70,6 +72,8 @@ export const NewsletterConfirmationRenderSnapshotV1Schema = z
     attemptCount: z.number().int().min(1).max(20),
     expectedVersion: PositiveVersionSchema,
     leaseExpiresAt: IsoInstantSchema,
+    firstProviderAttemptAt: IsoInstantSchema.nullable(),
+    providerRetryDeadlineAt: IsoInstantSchema.nullable(),
   })
   .strict();
 

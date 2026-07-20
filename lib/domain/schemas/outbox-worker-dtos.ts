@@ -27,6 +27,8 @@ const claimFields = {
   attemptCount: z.number().int().min(1).max(20),
   expectedVersion: PositiveVersionSchema,
   leaseExpiresAt: IsoInstantSchema,
+  firstProviderAttemptAt: IsoInstantSchema.nullable(),
+  providerRetryDeadlineAt: IsoInstantSchema.nullable(),
 };
 
 function scheduleClaim(
@@ -97,6 +99,38 @@ export const OutboxCompletionFailureResultSchema = z
     nextAttemptAt: IsoInstantSchema,
   })
   .strict();
+
+export const OutboxProviderAttemptResultSchema = z
+  .object({
+    outboxId: UuidSchema,
+    allowed: z.boolean(),
+    terminalReason: ErrorCodeSchema.nullable(),
+    providerIdempotencyKey: z
+      .string()
+      .min(8)
+      .max(255)
+      .regex(/^[A-Za-z0-9._:-]{8,255}$/)
+      .nullable(),
+    firstProviderAttemptAt: IsoInstantSchema.nullable(),
+    providerRetryDeadlineAt: IsoInstantSchema.nullable(),
+    currentVersion: PositiveVersionSchema,
+  })
+  .strict()
+  .superRefine((result, context) => {
+    const complete =
+      result.providerIdempotencyKey !== null &&
+      result.firstProviderAttemptAt !== null &&
+      result.providerRetryDeadlineAt !== null;
+    if (
+      result.allowed !== complete ||
+      result.allowed === (result.terminalReason !== null)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provider attempt disposition is inconsistent",
+      });
+    }
+  });
 
 export const VerifiedWebhookResultSchema = z
   .object({

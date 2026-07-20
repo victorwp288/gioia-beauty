@@ -53,7 +53,11 @@ const ACCEPTANCE_UNCERTAIN_PROVIDER_CODES = new Set([
 interface WorkerDependencies {
   repository: Pick<
     EmailOutboxRepository,
-    "claim" | "completeFailure" | "completeSuccess"
+    | "beginProviderAttempt"
+    | "claim"
+    | "completeFailure"
+    | "completePreProviderFailure"
+    | "completeSuccess"
   >;
   provider: EmailProvider;
   renderers: OutboxEmailRendererCatalog;
@@ -63,18 +67,30 @@ const BATCH_SIZE = 5;
 const CONCURRENCY = 5;
 const LEASE_SECONDS = 120;
 const ClaimBatchSchema = z
-  .array(OutboxClaimItemSchema)
-  .max(BATCH_SIZE)
-  .superRefine((items, context) => {
+  .object({
+    selectedCount: z.number().int().min(0).max(BATCH_SIZE),
+    budgetReached: z.boolean(),
+    claimDeadLettered: z.number().int().min(0).max(BATCH_SIZE),
+    claims: z.array(OutboxClaimItemSchema).max(BATCH_SIZE),
+  })
+  .strict()
+  .superRefine((batch, context) => {
+    const items = batch.claims;
     if (new Set(items.map((item) => item.outboxId)).size !== items.length) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Claimed outbox rows must be unique",
       });
     }
+    if (items.length + batch.claimDeadLettered !== batch.selectedCount) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Claim dispositions must be conserved",
+      });
+    }
   });
 
-function requireClaimBatch(value: unknown): OutboxClaimItem[] {
+function requireClaimBatch(value: unknown): z.infer<typeof ClaimBatchSchema> {
   const parsed = ClaimBatchSchema.safeParse(value);
   if (!parsed.success) throw new Error("Unexpected outbox claim batch");
   return parsed.data;
@@ -87,11 +103,12 @@ function completionMatches(
     currentVersion: number;
   },
   item: OutboxClaimItem,
+  expectedVersion: number,
 ): boolean {
   return (
     completion.outboxId === item.outboxId &&
     completion.attemptCount === item.attemptCount &&
-    completion.currentVersion === item.expectedVersion + 1
+    completion.currentVersion === expectedVersion + 1
   );
 }
 
@@ -102,13 +119,14 @@ async function persistFailure(
   errorCode: string,
   retryable: boolean,
   signal: AbortSignal,
+  expectedVersion = item.expectedVersion,
 ): Promise<WorkerOutcome> {
   if (signal.aborted) return "completion_uncertain";
   try {
     const result = await settleBeforeAbort(
       repository.completeFailure({
         outboxId: item.outboxId,
-        expectedVersion: item.expectedVersion,
+        expectedVersion,
         workerId,
         errorCode,
         retryable,
@@ -117,7 +135,8 @@ async function persistFailure(
     );
     if (result.status === "aborted") return "completion_uncertain";
     const completion = result.value;
-    if (!completionMatches(completion, item)) return "completion_uncertain";
+    if (!completionMatches(completion, item, expectedVersion))
+      return "completion_uncertain";
     return completion.deliveryStatus === "failed"
       ? "retry_scheduled"
       : "delivery_dead_lettered";
@@ -141,21 +160,53 @@ async function processClaim(
     message = render(parsedItem);
   } catch (error) {
     const operational = isOutboxRendererOperationalError(error);
-    const outcome = await persistFailure(
-      dependencies.repository,
-      workerId,
-      item,
-      operational ? "OUTBOX_RENDERER_UNAVAILABLE" : "OUTBOX_TEMPLATE_INVALID",
-      operational,
-      settlementSignal,
-    );
-    if (!operational) return outcome;
-    if (outcome === "retry_scheduled") return "renderer_retry_scheduled";
-    if (outcome === "delivery_dead_lettered") {
-      return "renderer_delivery_dead_lettered";
+    try {
+      const completion =
+        await dependencies.repository.completePreProviderFailure({
+          outboxId: item.outboxId,
+          expectedVersion: item.expectedVersion,
+          workerId,
+          errorCode: operational
+            ? "OUTBOX_RENDERER_UNAVAILABLE"
+            : "OUTBOX_TEMPLATE_INVALID",
+          retryable: operational,
+        });
+      if (!completionMatches(completion, item, item.expectedVersion)) {
+        return operational
+          ? "renderer_completion_uncertain"
+          : "completion_uncertain";
+      }
+      if (operational && completion.deliveryStatus === "failed") {
+        return "renderer_retry_scheduled";
+      }
+      return completion.deliveryStatus === "dead_letter"
+        ? operational
+          ? "renderer_delivery_dead_lettered"
+          : "delivery_dead_lettered"
+        : "completion_uncertain";
+    } catch {
+      return operational
+        ? "renderer_completion_uncertain"
+        : "completion_uncertain";
     }
-    return "renderer_completion_uncertain";
   }
+
+  let providerAttempt: Awaited<
+    ReturnType<WorkerDependencies["repository"]["beginProviderAttempt"]>
+  >;
+  try {
+    providerAttempt = await dependencies.repository.beginProviderAttempt({
+      outboxId: item.outboxId,
+      expectedVersion: item.expectedVersion,
+      workerId,
+    });
+  } catch {
+    return "completion_uncertain";
+  }
+  if (providerAttempt.outboxId !== item.outboxId) return "completion_uncertain";
+  if (!providerAttempt.allowed) return "delivery_dead_lettered";
+  if (!providerAttempt.providerIdempotencyKey) return "completion_uncertain";
+  const providerVersion = providerAttempt.currentVersion;
 
   let providerResult: unknown;
   if (providerSignal.aborted) {
@@ -166,12 +217,13 @@ async function processClaim(
       "PROVIDER_TIMEOUT",
       true,
       settlementSignal,
+      providerVersion,
     );
   }
   try {
     const result = await settleBeforeAbort(
       dependencies.provider.send(message, {
-        idempotencyKey: item.providerIdempotencyKey,
+        idempotencyKey: providerAttempt.providerIdempotencyKey,
         signal: providerSignal,
       }),
       providerSignal,
@@ -205,6 +257,7 @@ async function processClaim(
       result.errorCode,
       result.retryable,
       settlementSignal,
+      providerVersion,
     );
   }
 
@@ -213,7 +266,7 @@ async function processClaim(
     const completed = await settleBeforeAbort(
       dependencies.repository.completeSuccess({
         outboxId: item.outboxId,
-        expectedVersion: item.expectedVersion,
+        expectedVersion: providerVersion,
         workerId,
         providerMessageId: result.providerMessageId,
       }),
@@ -221,7 +274,7 @@ async function processClaim(
     );
     if (completed.status === "aborted") return "completion_uncertain";
     const completion = completed.value;
-    return completionMatches(completion, item)
+    return completionMatches(completion, item, providerVersion)
       ? "sent"
       : "completion_uncertain";
   } catch {
@@ -274,6 +327,7 @@ export function createOutboxWorker(dependencies: WorkerDependencies) {
       const summary: WorkerSummary = {
         claimCycles: 0,
         claimed: 0,
+        claimDeadLettered: 0,
         sent: 0,
         retryScheduled: 0,
         deliveryDeadLettered: 0,
@@ -297,10 +351,12 @@ export function createOutboxWorker(dependencies: WorkerDependencies) {
         if (claimed.status === "aborted") {
           throw new Error("Outbox worker claim deadline reached");
         }
-        const claims = requireClaimBatch(claimed.value);
+        const batch = requireClaimBatch(claimed.value);
+        const claims = batch.claims;
         summary.claimCycles = 1;
-        summary.claimed = claims.length;
-        summary.budgetReached = claims.length === BATCH_SIZE;
+        summary.claimed = batch.selectedCount;
+        summary.claimDeadLettered = batch.claimDeadLettered;
+        summary.budgetReached = batch.budgetReached;
         const outcomes = await mapWithConcurrency(claims, CONCURRENCY, (item) =>
           processClaim(
             dependencies,

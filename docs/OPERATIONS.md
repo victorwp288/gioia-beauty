@@ -18,6 +18,32 @@ cutover.
 
 Contact details belong in the protected operator environment and provider accounts, never in git. One person may fill multiple roles, but the release checklist names the active people and confirms account recovery before cutover.
 
+## Current local observability boundary
+
+Every current API method is wrapped by one static, server-only route label. With
+the exact `OBSERVABILITY_TRANSPORT=console` local transport, the runtime emits
+only bounded fixed-shape JSON lines containing: schema version, timestamp,
+event code, route label, HTTP method, generated request ID, status/outcome, and
+duration. Thrown failures and handled 5xx responses emit the same fixed
+`unexpected_error` surrogate context; original exceptions, request objects,
+headers, cookies, bodies, URLs, customer fields, database rows, and provider
+payloads are never accepted by that boundary. Sink failure cannot change route
+behavior.
+
+This is application instrumentation, not an activated monitoring service:
+
+- the provider capture sink is `null`;
+- no Sentry SDK or target is installed;
+- non-empty Sentry environment variables remain rejected;
+- no remote retention, alert delivery, aggregation, or escalation has been
+  proven; and
+- privacy operational evidence remains in its protected artifact lifecycle and
+  is not a structured-log event source.
+
+Sentry activation, provider retention/deletion evidence, alert receiver
+configuration, synthetic test-fire, and owner escalation remain separate TEST
+and provider-configuration gates in [PROCESSORS.md](./PROCESSORS.md).
+
 ## Recovery objectives
 
 | System/state                                            |                          Target RPO | Target RTO | Status                                                       |
@@ -137,11 +163,16 @@ lookup and is not imported by any production source.
   a prerequisite: every later outbox migration still requires candidate-head
   TEST proof before a future readiness-contract version may pass.
 
-Future success requires a reviewed contract-version change and verifier-backed
-proof producers. Merely editing the report, supplying structural input, or
-recording an unauthenticated digest is not activation authority. Cron route,
-schedule, provider/database composition, and newsletter renderer registration
-remain absent.
+Future remote success requires a reviewed contract-version change and
+verifier-backed proof producers. The Local/Test-only Cron composition uses fake
+email and alert receivers and claims at most 25 eligible stored
+`PROVIDER_MESSAGE_NOT_FOUND` events. Recovery attempts persist an exact
+1-minute, 5-minute, 15-minute, then 1-hour backoff; the fifth failed replay is
+terminally disposed as `WEBHOOK_REPLAY_EXHAUSTED`, so poison oldest rows cannot
+starve later eligible work. Each invocation also durably acknowledges at most
+25 dead-letter events after fake acceptance and purges at most 1,000 expired
+abuse buckets. It fails closed outside Local/Test and is not remote activation
+evidence; no Vercel schedule or remote alert/provider configuration exists.
 
 ## Migration stop conditions
 

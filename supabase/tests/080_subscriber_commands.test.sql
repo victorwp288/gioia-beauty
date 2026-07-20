@@ -109,6 +109,14 @@ begin
     'gioia.test_subscriber_id',
     (select id::text from gioia_private.newsletter_subscribers), true
   );
+  perform set_config('gioia.test_confirm_token', token.token_id::text, true),
+    set_config('gioia.test_confirm_version', token.subscriber_version::text, true),
+    set_config('gioia.test_confirm_token_version', token.token_version::text, true),
+    set_config('gioia.test_confirm_issued', token.issued_at::text, true),
+    set_config('gioia.test_confirm_expires', token.expires_at::text, true),
+    set_config('gioia.test_confirm_key', token.signing_key_id, true)
+  from gioia_private.newsletter_action_tokens as token
+  where token.purpose = 'newsletter_confirm';
 end
 $setup$;
 
@@ -119,6 +127,12 @@ select results_eq(
     select command.http_status, command.result ->> 'code'
     from gioia_private.confirm_public_newsletter(
       current_setting('gioia.test_subscriber_id')::uuid,
+      current_setting('gioia.test_confirm_version')::integer,
+      current_setting('gioia.test_confirm_token')::uuid,
+      current_setting('gioia.test_confirm_token_version')::integer,
+      current_setting('gioia.test_confirm_issued')::timestamptz,
+      current_setting('gioia.test_confirm_expires')::timestamptz,
+      current_setting('gioia.test_confirm_key'),
       decode(repeat('31', 32), 'hex'), 'confirm:test:0001',
       decode(repeat('41', 32), 'hex')
     ) as command
@@ -127,11 +141,32 @@ select results_eq(
   'verified confirmation activates through a non-enumerating boundary'
 );
 
+reset role;
+do $unsubscribe_token$
+begin
+  perform set_config('gioia.test_unsubscribe_token', token.token_id::text, true),
+    set_config('gioia.test_unsubscribe_version', token.subscriber_version::text, true),
+    set_config('gioia.test_unsubscribe_token_version', token.token_version::text, true),
+    set_config('gioia.test_unsubscribe_issued', token.issued_at::text, true),
+    set_config('gioia.test_unsubscribe_expires', token.expires_at::text, true),
+    set_config('gioia.test_unsubscribe_key', token.signing_key_id, true)
+  from gioia_private.newsletter_action_tokens as token
+  where token.purpose = 'newsletter_unsubscribe';
+end
+$unsubscribe_token$;
+set local role app_runtime;
+
 select results_eq(
   $actual$
     select command.http_status, command.result ->> 'code'
     from gioia_private.unsubscribe_public_newsletter(
       current_setting('gioia.test_subscriber_id')::uuid,
+      current_setting('gioia.test_unsubscribe_version')::integer,
+      current_setting('gioia.test_unsubscribe_token')::uuid,
+      current_setting('gioia.test_unsubscribe_token_version')::integer,
+      current_setting('gioia.test_unsubscribe_issued')::timestamptz,
+      current_setting('gioia.test_unsubscribe_expires')::timestamptz,
+      current_setting('gioia.test_unsubscribe_key'),
       decode(repeat('32', 32), 'hex'), 'unsubscribe:test:0001',
       decode(repeat('42', 32), 'hex')
     ) as command
@@ -145,6 +180,8 @@ select results_eq(
     select command.http_status, command.result ->> 'code'
     from gioia_private.unsubscribe_public_newsletter(
       '49999999-0000-4000-8000-000000000099',
+      1, '49999999-0000-4000-8000-000000000098', 1,
+      '2035-01-01T00:00:00Z', '2035-01-02T00:00:00Z', 'local_1',
       decode(repeat('33', 32), 'hex'), 'unsubscribe:test:0002',
       decode(repeat('43', 32), 'hex')
     ) as command
@@ -183,6 +220,8 @@ do $commands$
 begin
   perform * from gioia_private.unsubscribe_public_newsletter(
     current_setting('gioia.test_subscriber_id')::uuid,
+    1, '49999999-0000-4000-8000-000000000097', 1,
+    '2035-01-01T00:00:00Z', '2035-01-02T00:00:00Z', 'local_1',
     decode(repeat('34', 32), 'hex'), 'unsubscribe:test:0003',
     decode(repeat('44', 32), 'hex')
   );
@@ -198,9 +237,9 @@ select results_eq(
     from gioia_private.email_outbox order by aggregate_version$$,
   $$values
     ('dead_letter'::text, 1::smallint, 'AGGREGATE_STATE_STALE'::text),
-    ('dead_letter'::text, 1::smallint, 'AGGREGATE_STATE_STALE'::text)
+    ('sending'::text, 1::smallint, null::text)
   $$,
-  'unsubscribe-before-claim dead-letters every stale confirmation snapshot'
+  'an unverified unsubscribe cannot invalidate the current confirmation snapshot'
 );
 
 select ok(

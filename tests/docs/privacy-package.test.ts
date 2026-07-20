@@ -3,10 +3,7 @@ import { dirname, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  GREENFIELD_BASELINE_VERSIONS,
-  GREENFIELD_TARGET_VERSIONS,
-} from "../../scripts/test-target-migrations.mjs";
+import { GREENFIELD_TARGET_VERSIONS } from "../../scripts/test-target-migrations.mjs";
 
 const privacy = readFileSync(resolve("docs/PRIVACY-OPERATIONS.md"), "utf8");
 const processors = readFileSync(resolve("docs/PROCESSORS.md"), "utf8");
@@ -128,13 +125,18 @@ describe("privacy package launch gates", () => {
     );
 
     expect(acceptance).not.toMatch(/^- \[[xX]\]/m);
-    expect(privacy).toContain("migration 38 newsletter consent-cycle");
     expect(privacy).toContain(
-      `at ${GREENFIELD_BASELINE_VERSIONS.length} migrations while the repository has ${GREENFIELD_TARGET_VERSIONS.length}`,
+      `current source manifest contains ${GREENFIELD_TARGET_VERSIONS.length} migrations`,
     );
+    expect(privacy).toContain("Phase 3 migrations 38–54");
+    expect(privacy).toContain("have not been applied");
     expect(privacy).toContain(
-      `through the existing ${GREENFIELD_TARGET_VERSIONS.length} migrations`,
+      "The Phase 2 TEST checkpoint also remains unresolved",
     );
+    expect(privacy).toMatch(
+      /only after the applicable\s+owner, legal, and provider decisions/,
+    );
+    expect(privacy).not.toContain("already-reserved **migration 38");
     expect(privacy).toContain("privacy checklist item remains unchecked");
     expect(masterplan).toContain(
       "- [ ] **`[LOCAL]` / `[TEST]`** Complete the pre-cutover privacy package:",

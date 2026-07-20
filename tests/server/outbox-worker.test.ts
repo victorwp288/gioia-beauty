@@ -52,6 +52,8 @@ function claim(index = 1, overrides: Record<string, unknown> = {}) {
     attemptCount: 1,
     expectedVersion: 2,
     leaseExpiresAt: "2035-02-05T10:02:00.000Z",
+    firstProviderAttemptAt: null,
+    providerRetryDeadlineAt: null,
     ...overrides,
   });
 }
@@ -80,7 +82,25 @@ function deferred<T>() {
 
 function setup(claimBatches: ReturnType<typeof claim>[][]) {
   const claimItems = vi.fn();
-  for (const batch of claimBatches) claimItems.mockResolvedValueOnce(batch);
+  for (const batch of claimBatches) {
+    claimItems.mockResolvedValueOnce({
+      selectedCount: batch.length,
+      budgetReached: batch.length === 5,
+      claimDeadLettered: 0,
+      claims: batch,
+    });
+  }
+  const beginProviderAttempt = vi.fn(async (input) => ({
+    outboxId: input.outboxId,
+    allowed: true,
+    terminalReason: null,
+    providerIdempotencyKey: claimBatches
+      .flat()
+      .find((item) => item.outboxId === input.outboxId)!.providerIdempotencyKey,
+    firstProviderAttemptAt: "2035-02-05T10:00:00.000Z",
+    providerRetryDeadlineAt: "2035-02-06T10:00:00.000Z",
+    currentVersion: input.expectedVersion + 1,
+  }));
   const completeSuccess = vi.fn(async (input) => successfulCompletion(input));
   const completeFailure = vi.fn(async (input) => ({
     outboxId: input.outboxId,
@@ -91,11 +111,28 @@ function setup(claimBatches: ReturnType<typeof claim>[][]) {
     currentVersion: input.expectedVersion + 1,
     nextAttemptAt: "2035-02-05T10:05:00.000Z",
   }));
+  const completePreProviderFailure = vi.fn(async (input) => ({
+    outboxId: input.outboxId,
+    deliveryStatus: input.retryable
+      ? ("failed" as const)
+      : ("dead_letter" as const),
+    attemptCount: 1,
+    currentVersion: input.expectedVersion + 1,
+    nextAttemptAt: "2035-02-05T10:05:00.000Z",
+  }));
   return {
-    repository: { claim: claimItems, completeSuccess, completeFailure },
+    repository: {
+      claim: claimItems,
+      beginProviderAttempt,
+      completeSuccess,
+      completeFailure,
+      completePreProviderFailure,
+    },
     claimItems,
+    beginProviderAttempt,
     completeSuccess,
     completeFailure,
+    completePreProviderFailure,
   };
 }
 
@@ -121,6 +158,7 @@ describe("bounded outbox worker", () => {
     await expect(runWorker(worker)).resolves.toEqual({
       claimCycles: 1,
       claimed: 2,
+      claimDeadLettered: 0,
       sent: 2,
       retryScheduled: 0,
       deliveryDeadLettered: 0,
@@ -149,14 +187,14 @@ describe("bounded outbox worker", () => {
         outboxId: claim(1).outboxId,
         deliveryStatus: "failed",
         attemptCount: 1,
-        currentVersion: 3,
+        currentVersion: 4,
         nextAttemptAt: "2035-02-05T10:05:00.000Z",
       })
       .mockResolvedValueOnce({
         outboxId: claim(2).outboxId,
         deliveryStatus: "dead_letter",
         attemptCount: 1,
-        currentVersion: 3,
+        currentVersion: 4,
         nextAttemptAt: "2035-02-05T10:00:00.000Z",
       });
     const provider = {
@@ -288,7 +326,19 @@ describe("bounded outbox worker", () => {
       aggregateKind: "subscriber",
       recipientKind: "subscriber",
       templateKind: "newsletter_confirmation",
-      templateData: { policyVersion: "newsletter-consent-v1" },
+      templateData: {
+        policyVersion: "newsletter-consent-v1",
+        consentArtifactVersion: "newsletter-consent-v1.it-1",
+        consentArtifactSha256: "a".repeat(64),
+        action: {
+          version: 1,
+          purpose: "newsletter_confirm",
+          tokenId: "50000000-0000-4000-8000-000000000001",
+          issuedAt: "2035-02-05T10:00:00.000Z",
+          expiresAt: "2035-02-06T10:00:00.000Z",
+          signingKeyId: "local_1",
+        },
+      },
       providerIdempotencyKey:
         "subscriber:20000000-0000-4000-8000-000000000001:v2:confirmation",
     });
@@ -335,8 +385,8 @@ describe("bounded outbox worker", () => {
     });
     expect(send).not.toHaveBeenCalled();
     expect(fixture.completeSuccess).not.toHaveBeenCalled();
-    expect(fixture.completeFailure).toHaveBeenCalledOnce();
-    expect(fixture.completeFailure).toHaveBeenCalledWith({
+    expect(fixture.completePreProviderFailure).toHaveBeenCalledOnce();
+    expect(fixture.completePreProviderFailure).toHaveBeenCalledWith({
       outboxId: claim(1).outboxId,
       expectedVersion: claim(1).expectedVersion,
       workerId: WORKER_ID,
@@ -348,7 +398,7 @@ describe("bounded outbox worker", () => {
   it("surfaces an exhausted operational renderer fault as terminal", async () => {
     const exhausted = claim(1, { attemptCount: 5 });
     const fixture = setup([[exhausted]]);
-    fixture.completeFailure.mockResolvedValueOnce({
+    fixture.completePreProviderFailure.mockResolvedValueOnce({
       outboxId: exhausted.outboxId,
       deliveryStatus: "dead_letter",
       attemptCount: 5,
@@ -378,7 +428,7 @@ describe("bounded outbox worker", () => {
     });
     expect(send).not.toHaveBeenCalled();
     expect(fixture.completeSuccess).not.toHaveBeenCalled();
-    expect(fixture.completeFailure).toHaveBeenCalledOnce();
+    expect(fixture.completePreProviderFailure).toHaveBeenCalledOnce();
   });
 
   it("keeps unbranded renderer failures permanently template-invalid", async () => {
@@ -403,20 +453,22 @@ describe("bounded outbox worker", () => {
       rendererOperationalFaults: 0,
     });
     expect(send).not.toHaveBeenCalled();
-    expect(fixture.completeFailure).toHaveBeenCalledWith(
+    expect(fixture.completePreProviderFailure).toHaveBeenCalledWith(
       expect.objectContaining({
         errorCode: "OUTBOX_TEMPLATE_INVALID",
         retryable: false,
       }),
     );
-    expect(JSON.stringify(fixture.completeFailure.mock.calls)).not.toContain(
-      privateValue,
-    );
+    expect(
+      JSON.stringify(fixture.completePreProviderFailure.mock.calls),
+    ).not.toContain(privateValue);
   });
 
   it("reports an unproven operational-fault completion as both uncertain and operational", async () => {
     const fixture = setup([[claim(1)]]);
-    fixture.completeFailure.mockRejectedValueOnce(new Error("private outage"));
+    fixture.completePreProviderFailure.mockRejectedValueOnce(
+      new Error("private outage"),
+    );
     const provider = createFakeEmailProvider();
     const send = vi.spyOn(provider, "send");
     const worker = createOutboxWorker({
@@ -437,7 +489,7 @@ describe("bounded outbox worker", () => {
       rendererOperationalFaults: 1,
     });
     expect(send).not.toHaveBeenCalled();
-    expect(fixture.completeFailure).toHaveBeenCalledOnce();
+    expect(fixture.completePreProviderFailure).toHaveBeenCalledOnce();
     expect(fixture.completeSuccess).not.toHaveBeenCalled();
   });
 
@@ -482,6 +534,7 @@ describe("bounded outbox worker", () => {
     await expect(runWorker(worker)).resolves.toEqual({
       claimCycles: 1,
       claimed: 5,
+      claimDeadLettered: 0,
       sent: 1,
       retryScheduled: 2,
       deliveryDeadLettered: 1,
@@ -491,9 +544,13 @@ describe("bounded outbox worker", () => {
     });
     expect(provider.send).toHaveBeenCalledTimes(3);
     expect(fixture.completeSuccess).toHaveBeenCalledOnce();
-    expect(fixture.completeFailure).toHaveBeenCalledTimes(3);
+    expect(fixture.completeFailure).toHaveBeenCalledOnce();
+    expect(fixture.completePreProviderFailure).toHaveBeenCalledTimes(2);
     expect(
-      fixture.completeFailure.mock.calls.map(([input]) => ({
+      [
+        ...fixture.completePreProviderFailure.mock.calls,
+        ...fixture.completeFailure.mock.calls,
+      ].map(([input]) => ({
         outboxId: input.outboxId,
         errorCode: input.errorCode,
         retryable: input.retryable,

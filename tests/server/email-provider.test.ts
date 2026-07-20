@@ -178,18 +178,24 @@ describe("Resend API provider", () => {
     });
   });
 
-  it("rejects missing credentials and unknown transports before delivery", () => {
+  it("selects only configured transports before delivery", async () => {
     expect(() =>
       createResendEmailProvider({ apiKey: "synthetic-invalid" }),
     ).toThrow(EmailProviderConfigurationError);
     expect(() => createEmailProvider({ EMAIL_TRANSPORT: "disabled" })).toThrow(
       EmailProviderConfigurationError,
     );
-    expect(() =>
-      createEmailProvider({
-        EMAIL_TRANSPORT: "resend",
-        RESEND_API_KEY: apiKey,
-      }),
-    ).toThrow(EmailProviderConfigurationError);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(response({ id: "provider-selected" }));
+    const provider = createEmailProvider({
+      EMAIL_TRANSPORT: "resend",
+      RESEND_API_KEY: apiKey,
+    });
+    await expect(provider.send(message, { idempotencyKey })).resolves.toEqual({
+      ok: true,
+      providerMessageId: "provider-selected",
+    });
+    expect(fetchSpy).toHaveBeenCalledOnce();
   });
 });

@@ -1,19 +1,16 @@
 begin; grant app_runtime to postgres;
 grant usage on schema extensions to app_runtime;
 set local search_path = extensions, public, pg_catalog;
-
 select plan(17);
-
 select ok(
   pg_get_functiondef(
     'gioia_private.claim_email_outbox(text,smallint,smallint)'::regprocedure
-  ) ~* 'for update skip locked'
+  ) ~* 'for update of candidate skip locked'
     and pg_get_functiondef(
       'gioia_private.claim_email_outbox(text,smallint,smallint)'::regprocedure
     ) ~* 'limit p_batch_size',
   'claim uses a bounded SKIP LOCKED candidate set'
 );
-
 do $setup$
 begin
   insert into gioia_private.schedule_entries (
@@ -26,7 +23,6 @@ begin
     30, 5, 'manicure', 'manicure-30-min', 'Manicure', 'Manicure',
     'Cliente Worker', 'worker-client@example.test'
   );
-
   insert into gioia_private.email_outbox (
     aggregate_kind, aggregate_id, aggregate_version, recipient_kind,
     recipient_address, template_kind, template_data, idempotency_key
@@ -41,9 +37,7 @@ begin
   from generate_series(1, 26) as batch(batch_number);
 end
 $setup$;
-
 set local role app_runtime;
-
 select throws_ok(
   $$select * from gioia_private.claim_email_outbox(
     'worker:invalid', 26::smallint, 120::smallint
@@ -51,7 +45,6 @@ select throws_ok(
   'PT400', 'OUTBOX_BATCH_INVALID',
   'claim rejects batches larger than 25'
 );
-
 select results_eq(
   $$select count(*) from gioia_private.claim_email_outbox(
     'worker:batch', 25::smallint, 120::smallint
@@ -59,16 +52,13 @@ select results_eq(
   $$values (25::bigint)$$,
   'one claim returns at most 25 messages'
 );
-
 reset role;
-
 select results_eq(
   $$select status, count(*) from gioia_private.email_outbox
     group by status order by status$$,
   $$values ('pending'::text, 1::bigint), ('sending'::text, 25::bigint)$$,
   'claim mutates exactly the bounded batch'
 );
-
 select ok(
   not exists (
     select 1 from gioia_private.email_outbox
@@ -78,7 +68,6 @@ select ok(
   ),
   'claimed rows have monotonic attempts, versions, and bounded leases'
 );
-
 do $capture$
 begin
   perform set_config(
@@ -88,9 +77,7 @@ begin
   );
 end
 $capture$;
-
 set local role app_runtime;
-
 select throws_ok(
   $$select * from gioia_private.complete_email_outbox_success(
     current_setting('gioia.test_success_outbox')::uuid,
@@ -99,19 +86,21 @@ select throws_ok(
   'PT409', 'OUTBOX_CLAIM_STALE',
   'a different worker cannot complete another lease'
 );
-
 select results_eq(
-  $$select delivery_status, attempt_count, current_version
-    from gioia_private.complete_email_outbox_success(
-      current_setting('gioia.test_success_outbox')::uuid,
-      2, 'worker:batch', 'msg_worker_success'
-    )$$,
-  $$values ('sent'::text, 1::smallint, 3)$$,
+  $$with attempt as (
+      select * from gioia_private.begin_email_outbox_provider_attempt(
+        current_setting('gioia.test_success_outbox')::uuid, 2, 'worker:batch'
+      )
+    ) select completion.delivery_status, completion.attempt_count,
+      completion.current_version
+    from attempt cross join lateral gioia_private.complete_email_outbox_success(
+      attempt.outbox_id, attempt.current_version, 'worker:batch',
+      'msg_worker_success'
+    ) as completion$$,
+  $$values ('sent'::text, 1::smallint, 4)$$,
   'the owning worker can persist provider success once'
 );
-
 reset role;
-
 select results_eq(
   $$select status, provider_message_id, locked_by is null
     from gioia_private.email_outbox
@@ -119,13 +108,13 @@ select results_eq(
   $$values ('sent'::text, 'msg_worker_success'::text, true)$$,
   'success clears lease state and preserves provider identity'
 );
-
 do $failure_setup$
 begin
   insert into gioia_private.email_outbox (
     id, aggregate_kind, aggregate_id, aggregate_version, recipient_kind,
     recipient_address, template_kind, template_data, idempotency_key,
-    status, attempt_count, locked_at, locked_by, lease_expires_at
+    status, attempt_count, locked_at, locked_by, lease_expires_at,
+    first_provider_attempt_at, provider_retry_deadline_at
   ) values
   (
     '92000000-0000-4000-8000-000000000001', 'schedule_entry',
@@ -135,7 +124,8 @@ begin
       "start_minutes":600,"service_duration_minutes":30,
       "service_name":"Manicure","variant_name":"Manicure"}'::jsonb,
     'worker:failure:0001', 'sending', 1,
-    statement_timestamp(), 'worker:failure', statement_timestamp() + interval '2 minutes'
+    statement_timestamp(), 'worker:failure', statement_timestamp() + interval '2 minutes',
+    statement_timestamp(), statement_timestamp() + interval '24 hours'
   ),
   (
     '92000000-0000-4000-8000-000000000002', 'schedule_entry',
@@ -145,13 +135,12 @@ begin
       "start_minutes":600,"service_duration_minutes":30,
       "service_name":"Manicure","variant_name":"Manicure"}'::jsonb,
     'worker:failure:0002', 'sending', 5,
-    statement_timestamp(), 'worker:ceiling', statement_timestamp() + interval '2 minutes'
+    statement_timestamp(), 'worker:ceiling', statement_timestamp() + interval '2 minutes',
+    statement_timestamp(), statement_timestamp() + interval '24 hours'
   );
 end
 $failure_setup$;
-
 set local role app_runtime;
-
 select results_eq(
   $$select delivery_status, attempt_count, current_version
     from gioia_private.complete_email_outbox_failure(
@@ -161,9 +150,7 @@ select results_eq(
   $$values ('failed'::text, 1::smallint, 2)$$,
   'retryable failure schedules a later attempt'
 );
-
 reset role;
-
 select ok(
   exists (
     select 1 from gioia_private.email_outbox
@@ -184,7 +171,6 @@ select results_eq(
   $$values ('dead_letter'::text, 5::smallint)$$,
   'attempt five is dead-lettered even for a retryable failure'
 );
-
 select throws_ok(
   $$select * from gioia_private.retry_email_outbox_as_owner(
     set_config('request.jwt.claim.sub', '99999999-0000-4000-8000-000000000099', true)::uuid, 'retry:test:denied',
@@ -236,7 +222,6 @@ select results_eq(
   'owner retry is idempotent'
 );
 reset role;
-
 select results_eq(
   $$select status, attempt_count, version
     from gioia_private.email_outbox
@@ -244,7 +229,6 @@ select results_eq(
   $$values ('failed'::text, 5::smallint, 3)$$,
   'owner retry preserves monotonic attempts and advances version'
 );
-
 do $leases$
 begin
   insert into gioia_private.email_outbox (
@@ -276,7 +260,6 @@ begin
   );
 end
 $leases$;
-
 set local role app_runtime;
 select results_eq(
   $$select attempt_count, expected_version
@@ -287,14 +270,12 @@ select results_eq(
   'an expired lease is safely reclaimed with a new attempt and version'
 );
 reset role;
-
 select results_eq(
   $$select status, attempt_count, last_error_code
     from gioia_private.email_outbox
     where id = '94000000-0000-4000-8000-000000000002'$$,
-  $$values ('dead_letter'::text, 5::smallint, 'LEASE_EXPIRED'::text)$$,
+  $$values ('dead_letter'::text, 5::smallint, 'LEASE_ATTEMPTS_EXHAUSTED'::text)$$,
   'an expired ceiling attempt is dead-lettered instead of reclaimed'
 );
-
 select * from finish();
 rollback;

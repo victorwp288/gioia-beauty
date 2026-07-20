@@ -1,46 +1,48 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
 const target = new URL(baseURL);
 
-if (!new Set(["127.0.0.1", "localhost", "[::1]"]).has(target.hostname)) {
+if (
+  target.protocol !== "http:" ||
+  !new Set(["127.0.0.1", "localhost"]).has(target.hostname) ||
+  !target.port ||
+  target.username ||
+  target.password ||
+  !["", "/"].includes(target.pathname) ||
+  target.search ||
+  target.hash
+) {
   throw new Error(
-    "Playwright is local-only until the serialized TEST target is explicitly added.",
+    "Playwright is loopback-only until the serialized TEST target is explicitly added.",
   );
 }
 
 export default defineConfig({
   testDir: "./tests/e2e",
   outputDir: "test-results",
+  globalSetup: "./tests/e2e/phase3-global-setup.ts",
+  globalTeardown: "./tests/e2e/phase3-global-teardown.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: 0,
+  workers: 1,
   reporter: process.env.CI
     ? [["github"], ["html", { open: "never" }]]
     : [["list"], ["html", { open: "never" }]],
   use: {
     baseURL,
-    locale: "it-IT",
-    timezoneId: "Europe/Rome",
     trace: "retain-on-failure",
-    screenshot: "only-on-failure",
-    video: "retain-on-failure",
   },
   projects: [
     {
-      name: "desktop-chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
-    {
-      name: "mobile-chromium",
-      use: { ...devices["Pixel 7"] },
+      name: "phase3-api",
+      testMatch: /phase3-.*\.spec\.ts/,
     },
   ],
   webServer: {
-    command:
-      "APP_ENV=test EMAIL_TRANSPORT=fake npm run dev -- --hostname 127.0.0.1 --port 3100",
-    url: baseURL,
+    command: "node scripts/start-local-phase3-e2e-server.mjs",
+    url: new URL("/api/health", baseURL).href,
     reuseExistingServer: false,
     timeout: 120_000,
   },

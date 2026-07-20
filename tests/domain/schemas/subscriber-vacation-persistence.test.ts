@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AdminSubscriberDtoSchema,
+  PublicNewsletterConfirmCommandSchema,
   PublicSubscribeCommandSchema,
   PublicUnsubscribeCommandSchema,
   SubscriberPersistenceSchema,
@@ -68,6 +69,13 @@ describe("subscriber boundaries", () => {
     );
     expect(
       PublicUnsubscribeCommandSchema.safeParse({ email: "owner@example.com" })
+        .success,
+    ).toBe(false);
+    expect(
+      PublicNewsletterConfirmCommandSchema.safeParse({ token }).success,
+    ).toBe(true);
+    expect(
+      PublicNewsletterConfirmCommandSchema.safeParse({ token: ` ${token}` })
         .success,
     ).toBe(false);
   });

@@ -156,7 +156,7 @@ describe("inert outbox activation readiness v1", () => {
     );
   });
 
-  it("stays server-only, inert, and absent from every production graph", () => {
+  it("stays inert while allowing only fail-closed Local/Test activation", () => {
     const root = process.cwd();
     const modulePath = resolve(
       root,
@@ -213,8 +213,29 @@ describe("inert outbox activation readiness v1", () => {
           "createOutboxWorker",
         ].some((identifier) => text.includes(identifier));
       });
-    expect(activationSources).toEqual([]);
-    expect(sourceFiles(resolve(root, "app/api/cron/outbox"))).toEqual([]);
+    const localTestRuntimePath = resolve(
+      root,
+      "lib/server/email/localTestOutboxRuntime.ts",
+    );
+    const cronRoutePath = resolve(root, "app/api/cron/outbox/route.ts");
+    expect(activationSources.sort()).toEqual(
+      [cronRoutePath, localTestRuntimePath].sort(),
+    );
+    expect(sourceFiles(resolve(root, "app/api/cron/outbox"))).toEqual([
+      cronRoutePath,
+    ]);
+
+    const localTestRuntime = readFileSync(localTestRuntimePath, "utf8");
+    expect(localTestRuntime).toContain(
+      '!["local", "test"].includes(validation.appEnv ?? "")',
+    );
+    expect(localTestRuntime).toContain('env.EMAIL_TRANSPORT !== "fake"');
+    expect(localTestRuntime).toContain("createFakeEmailProvider()");
+    expect(localTestRuntime).not.toContain("createEmailProvider(");
+
+    const cronRoute = readFileSync(cronRoutePath, "utf8");
+    expect(cronRoute).toContain("createLocalTestOutboxRuntime()");
+    expect(cronRoute).toContain('apiErrorResponse(503, "SERVICE_UNAVAILABLE")');
     expect(existsSync(resolve(root, "vercel.json"))).toBe(false);
 
     const packageSource = readFileSync(resolve(root, "package.json"), "utf8");

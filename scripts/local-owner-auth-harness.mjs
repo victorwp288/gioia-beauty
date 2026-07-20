@@ -3,6 +3,8 @@ import net from "node:net";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { localSupabasePorts } from "./local-supabase-ports.mjs";
+
 export { CookieJar } from "./owner-auth-route-scenario.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -30,12 +32,12 @@ function localUrl(value, port, label) {
   return url;
 }
 
-function localDatabaseUrl(value) {
+function localDatabaseUrl(value, expectedPort) {
   const url = new URL(String(value ?? ""));
   if (
     !["postgres:", "postgresql:"].includes(url.protocol) ||
     !LOCAL_HOSTS.has(url.hostname) ||
-    url.port !== "54322" ||
+    url.port !== expectedPort ||
     url.username !== "postgres" ||
     url.pathname !== "/postgres"
   ) {
@@ -56,28 +58,34 @@ function publicKey(value) {
   return value;
 }
 
-export function parseLocalRouteStatus(status) {
+export function parseLocalRouteStatus(
+  status,
+  expectedPorts = localSupabasePorts({}),
+) {
   if (!status || typeof status !== "object" || Array.isArray(status)) {
     throw new Error("Supabase status must be an object");
   }
   return {
-    apiUrl: localUrl(status.API_URL, "54321", "local API URL"),
-    databaseUrl: localDatabaseUrl(status.DB_URL),
+    apiUrl: localUrl(status.API_URL, expectedPorts.api, "local API URL"),
+    databaseUrl: localDatabaseUrl(status.DB_URL, expectedPorts.database),
     publishableKey: publicKey(status.PUBLISHABLE_KEY ?? status.ANON_KEY),
   };
 }
 
-export async function getLocalRouteStatus() {
+export async function getLocalRouteStatus(environment = process.env) {
   const { stdout } = await execFileAsync(
     supabaseBinary,
     ["status", "-o", "json"],
     {
-      env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "1" },
+      env: { ...environment, SUPABASE_TELEMETRY_DISABLED: "1" },
       maxBuffer: 1024 * 1024,
       timeout: 30_000,
     },
   );
-  return parseLocalRouteStatus(JSON.parse(stdout));
+  return parseLocalRouteStatus(
+    JSON.parse(stdout),
+    localSupabasePorts(environment),
+  );
 }
 
 async function availablePort() {

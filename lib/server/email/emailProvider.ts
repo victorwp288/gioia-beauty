@@ -241,5 +241,8 @@ export function createEmailProvider(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): EmailProvider {
   if (env.EMAIL_TRANSPORT === "fake") return createFakeEmailProvider();
+  if (env.EMAIL_TRANSPORT === "resend") {
+    return createResendEmailProvider({ apiKey: env.RESEND_API_KEY });
+  }
   throw new EmailProviderConfigurationError();
 }

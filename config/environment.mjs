@@ -221,6 +221,84 @@ function validateOwnerSessionSecurity(appEnv, env, errors) {
   }
 }
 
+function validPaginationCursorKeyring(value) {
+  if (
+    typeof value !== "string" ||
+    value.trim() !== value ||
+    value.includes("\0") ||
+    Buffer.byteLength(value, "utf8") > 4 * 1024
+  ) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed) ||
+      !/^[A-Za-z0-9_]{1,16}$/.test(parsed.activeKeyId) ||
+      !Array.isArray(parsed.keys) ||
+      parsed.keys.length < 1 ||
+      parsed.keys.length > 3 ||
+      Object.keys(parsed).sort().join(",") !== "activeKeyId,keys"
+    ) {
+      return false;
+    }
+    const identifiers = new Set();
+    for (const key of parsed.keys) {
+      if (
+        !key ||
+        typeof key !== "object" ||
+        Array.isArray(key) ||
+        Object.keys(key).sort().join(",") !== "id,secret" ||
+        !/^[A-Za-z0-9_]{1,16}$/.test(key.id) ||
+        !/^[A-Za-z0-9_-]{43}$/.test(key.secret) ||
+        identifiers.has(key.id)
+      ) {
+        return false;
+      }
+      const secret = Buffer.from(key.secret, "base64url");
+      if (secret.length !== 32 || secret.toString("base64url") !== key.secret) {
+        return false;
+      }
+      identifiers.add(key.id);
+    }
+    return identifiers.has(parsed.activeKeyId);
+  } catch {
+    return false;
+  }
+}
+
+function validatePaginationCursorSecurity(appEnv, env, errors) {
+  const configuration = env.PAGINATION_CURSOR_KEYRING_JSON;
+  if (configuration === undefined) {
+    if (appEnv !== "local" && appEnv !== "test") {
+      errors.push(`${appEnv} requires PAGINATION_CURSOR_KEYRING_JSON`);
+    }
+    return;
+  }
+  if (!validPaginationCursorKeyring(configuration)) {
+    errors.push("PAGINATION_CURSOR_KEYRING_JSON is invalid");
+  }
+}
+
+function validateLocalHumanChallenge(appEnv, env, errors) {
+  const token = env.PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN;
+  if (token === undefined) return;
+  if (appEnv !== "local" && appEnv !== "test") {
+    errors.push(`PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN is forbidden in ${appEnv}`);
+    return;
+  }
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    errors.push("PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN is invalid");
+    return;
+  }
+  const bytes = Buffer.from(token, "base64url");
+  if (bytes.length !== 32 || bytes.toString("base64url") !== token) {
+    errors.push("PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN is invalid");
+  }
+}
+
 function validateProductionEmail(env, errors) {
   if (env.EMAIL_TRANSPORT !== "resend") {
     errors.push("Production requires EMAIL_TRANSPORT=resend");
@@ -392,6 +470,8 @@ export function validateEnvironment(env, { command = "application" } = {}) {
   validateObservability(env, errors);
   validateBookingSecurity(appEnv, env, errors);
   validateOwnerSessionSecurity(appEnv, env, errors);
+  validatePaginationCursorSecurity(appEnv, env, errors);
+  validateLocalHumanChallenge(appEnv, env, errors);
   validateVercelScope(appEnv, env, errors);
 
   if (command === "test" && appEnv !== "test") {

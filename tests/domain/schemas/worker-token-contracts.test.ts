@@ -97,6 +97,8 @@ describe("outbox worker DTOs", () => {
     attemptCount: 1,
     expectedVersion: 2,
     leaseExpiresAt: "2026-07-09T10:02:00.000Z",
+    firstProviderAttemptAt: null,
+    providerRetryDeadlineAt: null,
   };
 
   it("accepts exact claim/template correlations and completion states", () => {

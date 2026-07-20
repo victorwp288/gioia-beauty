@@ -31,6 +31,12 @@ export interface OwnerScheduleCountReadRequest {
 
 const issuedRequests = new WeakSet<object>();
 
+export function assertOwnerScheduleCountReadRequest(
+  request: Readonly<OwnerScheduleCountReadRequest>,
+): void {
+  if (!issuedRequests.has(request)) throw new OwnerScheduleReadContractError();
+}
+
 export function createOwnerScheduleCountReadRequest(
   queryInput: unknown,
 ): Readonly<OwnerScheduleCountReadRequest> {
@@ -62,7 +68,7 @@ export function createOwnerScheduleCountResponse(
   request: Readonly<OwnerScheduleCountReadRequest>,
   groupsInput: unknown,
 ) {
-  if (!issuedRequests.has(request)) throw new OwnerScheduleReadContractError();
+  assertOwnerScheduleCountReadRequest(request);
   const groups = exactDenseArray(groupsInput, 0, 6);
   if (!groups) throw new OwnerScheduleReadContractError();
   const byKind = { appointment: 0, block: 0 };

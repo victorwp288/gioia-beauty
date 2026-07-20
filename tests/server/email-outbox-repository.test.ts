@@ -14,13 +14,19 @@ const WORKER_ID = "cron:30000000-0000-4000-8000-000000000001";
 
 function claimRow(overrides: Record<string, unknown> = {}) {
   return {
+    selection_ordinal: 1,
+    selected_count: 1,
+    candidate_limit_reached: false,
     outbox_id: OUTBOX_ID,
+    disposition: "send",
+    terminal_reason: null,
     aggregate_kind: "schedule_entry",
     aggregate_id: AGGREGATE_ID,
     aggregate_version: 2,
     recipient_kind: "customer",
     recipient_address: "client@example.test",
     template_kind: "booking_customer",
+    template_version: 1,
     template_data: {
       client_name: "Cliente Test",
       local_date: "2035-02-05",
@@ -33,6 +39,8 @@ function claimRow(overrides: Record<string, unknown> = {}) {
     attempt_count: 1,
     expected_version: 2,
     lease_expires_at: new Date("2035-02-05T10:02:00.000Z"),
+    first_provider_attempt_at: null,
+    provider_retry_deadline_at: null,
     ...overrides,
   };
 }
@@ -62,29 +70,36 @@ describe("email outbox repository claim", () => {
         batchSize: 5,
         leaseSeconds: 120,
       }),
-    ).resolves.toEqual([
-      {
-        outboxId: OUTBOX_ID,
-        aggregateKind: "schedule_entry",
-        aggregateId: AGGREGATE_ID,
-        aggregateVersion: 2,
-        recipientKind: "customer",
-        recipientAddress: "client@example.test",
-        templateKind: "booking_customer",
-        templateData: {
-          clientName: "Cliente Test",
-          localDate: "2035-02-05",
-          startMinutes: 600,
-          serviceDurationMinutes: 60,
-          serviceName: "Massaggio",
-          variantName: "Relax 60 minuti",
+    ).resolves.toEqual({
+      selectedCount: 1,
+      budgetReached: false,
+      claimDeadLettered: 0,
+      claims: [
+        {
+          outboxId: OUTBOX_ID,
+          aggregateKind: "schedule_entry",
+          aggregateId: AGGREGATE_ID,
+          aggregateVersion: 2,
+          recipientKind: "customer",
+          recipientAddress: "client@example.test",
+          templateKind: "booking_customer",
+          templateData: {
+            clientName: "Cliente Test",
+            localDate: "2035-02-05",
+            startMinutes: 600,
+            serviceDurationMinutes: 60,
+            serviceName: "Massaggio",
+            variantName: "Relax 60 minuti",
+          },
+          providerIdempotencyKey: `schedule:${AGGREGATE_ID}:v2:customer`,
+          attemptCount: 1,
+          expectedVersion: 2,
+          leaseExpiresAt: "2035-02-05T10:02:00.000Z",
+          firstProviderAttemptAt: null,
+          providerRetryDeadlineAt: null,
         },
-        providerIdempotencyKey: `schedule:${AGGREGATE_ID}:v2:customer`,
-        attemptCount: 1,
-        expectedVersion: 2,
-        leaseExpiresAt: "2035-02-05T10:02:00.000Z",
-      },
-    ]);
+      ],
+    });
 
     expect(fixture.transaction).toHaveBeenCalledOnce();
     expect(fixture.unsafe).toHaveBeenCalledOnce();
@@ -96,6 +111,8 @@ describe("email outbox repository claim", () => {
 
   it("maps reschedule and newsletter snapshots without dropping fields", async () => {
     const reschedule = claimRow({
+      selection_ordinal: 1,
+      selected_count: 2,
       template_kind: "reschedule_owner",
       recipient_kind: "owner",
       recipient_address: "owner@example.test",
@@ -106,11 +123,25 @@ describe("email outbox repository claim", () => {
       },
     });
     const newsletter = claimRow({
+      selection_ordinal: 2,
+      selected_count: 2,
       outbox_id: "40000000-0000-4000-8000-000000000001",
       aggregate_kind: "subscriber",
       recipient_kind: "subscriber",
       template_kind: "newsletter_confirmation",
-      template_data: { policy_version: "newsletter-consent-v1" },
+      template_data: {
+        policyVersion: "newsletter-consent-v1",
+        consentArtifactVersion: "newsletter-consent-v1.it-1",
+        consentArtifactSha256: "a".repeat(64),
+        action: {
+          version: 1,
+          purpose: "newsletter_confirm",
+          tokenId: "50000000-0000-4000-8000-000000000001",
+          issuedAt: "2035-02-05T10:00:00.000Z",
+          expiresAt: "2035-02-06T10:00:00.000Z",
+          signingKeyId: "local_1",
+        },
+      },
       provider_idempotency_key:
         "subscriber:40000000-0000-4000-8000-000000000001:v1:confirmation",
       lease_expires_at: "2035-02-05T10:02:00+00:00",
@@ -123,12 +154,15 @@ describe("email outbox repository claim", () => {
       leaseSeconds: 120,
     });
 
-    expect(result[0]?.templateData).toMatchObject({
+    expect(result.claims[0]?.templateData).toMatchObject({
       oldLocalDate: "2035-02-04",
       oldStartMinutes: 540,
     });
-    expect(result[1]?.templateData).toEqual({
+    expect(result.claims[1]?.templateData).toEqual({
       policyVersion: "newsletter-consent-v1",
+      consentArtifactVersion: "newsletter-consent-v1.it-1",
+      consentArtifactSha256: "a".repeat(64),
+      action: expect.objectContaining({ purpose: "newsletter_confirm" }),
     });
   });
 

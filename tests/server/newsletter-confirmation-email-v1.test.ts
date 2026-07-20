@@ -35,6 +35,8 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     templateKind: "newsletter_confirmation",
     templateData: {
       policyVersion: NEWSLETTER_CONSENT_POLICY_VERSION,
+      consentArtifactVersion: "newsletter-consent-v1.it-1",
+      consentArtifactSha256: "a".repeat(64),
       action: {
         version: 1,
         purpose: CLAIMS.purpose,
@@ -48,6 +50,8 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     attemptCount: 1,
     expectedVersion: 2,
     leaseExpiresAt: "2026-07-09T12:02:00.000Z",
+    firstProviderAttemptAt: null,
+    providerRetryDeadlineAt: null,
     ...overrides,
   };
 }

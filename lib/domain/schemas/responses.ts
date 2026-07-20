@@ -61,6 +61,10 @@ export const PublicAcceptedResponseSchema = z
   })
   .strict();
 
+export const PublicNonEnumeratingAcceptedResponseSchema = z
+  .object({ code: z.literal("REQUEST_ACCEPTED") })
+  .strict();
+
 export const ApiErrorResponseSchema = z
   .object({
     code: ErrorCodeSchema,
@@ -142,4 +146,7 @@ export type PublicAvailabilityResponse = z.infer<
 export type CommandResultResponse = z.infer<typeof CommandResultResponseSchema>;
 export type PublicAcceptedResponse = z.infer<
   typeof PublicAcceptedResponseSchema
+>;
+export type PublicNonEnumeratingAcceptedResponse = z.infer<
+  typeof PublicNonEnumeratingAcceptedResponseSchema
 >;

@@ -25,7 +25,7 @@ function fixture(overrides: Partial<RouteObserverOptions> = {}) {
 }
 
 describe("route metrics observer", () => {
-  it.each([200, 400, 409, 429, 503])(
+  it.each([200, 400, 409, 429])(
     "records exactly one completion for returned status %i without an error capture",
     async (status) => {
       const { options, routeCompleted, captureUnexpected } = fixture();
@@ -42,6 +42,31 @@ describe("route metrics observer", () => {
         durationMs: 0,
       });
       expect(captureUnexpected).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([500, 503, 599])(
+    "captures one fixed surrogate context for returned status %i",
+    async (status) => {
+      const { options, routeCompleted, captureUnexpected } = fixture();
+      const response = new Response(null, { status });
+      const observed = observeRoute(options, async () => response);
+
+      await expect(observed()).resolves.toBe(response);
+      expect(captureUnexpected).toHaveBeenCalledOnce();
+      expect(captureUnexpected).toHaveBeenCalledWith({
+        route: "public.booking",
+        method: "POST",
+        requestId: REQUEST_ID,
+      });
+      expect(routeCompleted).toHaveBeenCalledOnce();
+      expect(routeCompleted).toHaveBeenCalledWith({
+        route: "public.booking",
+        method: "POST",
+        requestId: REQUEST_ID,
+        status,
+        durationMs: 0,
+      });
     },
   );
 

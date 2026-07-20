@@ -222,6 +222,37 @@ Specifically:
    approved. A database scrub does not erase an already-created export,
    provider message, log, support copy, or backup.
 
+### Local executable contract foundation
+
+The repository now has provider-free, non-mutating contracts in
+[`lib/server/privacy/`](../lib/server/privacy/) for the parts of the workflow
+that do not require an owner, legal, provider, or Production decision:
+
+- `privacyDecisionRegistry.ts` accepts only the complete ordered
+  `RET-01`–`RET-17`/`RET-HOLD` manifest. Pending decisions carry no invented
+  value or evidence. A decided row binds only to a protected-artifact digest
+  and canonical decision instant. A complete `APPROVED` shape can pass the
+  structural plan gate, but a digest does not prove authentic approval and the
+  generated plan explicitly carries `authority: none`.
+- `privacyWorkflow.ts` compiles fixed access, erasure-dry-run, and erasure-apply
+  plans for the exact Local or authorized TEST identifiers. It enforces the
+  selector, page, row, and plaintext bounds above and fails closed on unknown
+  fields, ambiguous identity, quarantine, holds, future bookings, active email
+  or webhook state, provider reconciliation, restore-replay gaps, and pending
+  policy decisions. No Production target is registered.
+- `privacyOperationalEvidence.ts` derives one bounded, fixed-shape operational
+  artifact from an issued plan. It excludes the protected case ID, selectors,
+  subject values, payloads, paths, tokens, and free-form errors. It is still a
+  classified protected artifact under the rules below, not permission to emit
+  it to console, CI, Sentry, a ticket, or another provider.
+
+These contracts perform no database, Auth, filesystem, network, provider,
+export, scrub, delete, or restore operation. They do not replace the missing
+privacy tables/functions/operator, owner decisions, identity procedure,
+encrypted package lifecycle, provider evidence, TEST rehearsal, or Production
+approval. Caller booleans and structurally valid decision rows are not execution
+authority. No acceptance item is completed by this local foundation.
+
 ### Sensitive-note interim rule and owner decision
 
 Until Victor explicitly decides the allowed purpose/content and legal review:
@@ -380,20 +411,28 @@ succeeded. The full restore and deployment gates in
 ## Migration ordering
 
 This document creates no migration and reserves no Production action.
-[ENVIRONMENTS.md](./ENVIRONMENTS.md) records that the authorized TEST project is
-at 35 migrations while the repository has 37, and the guarded two-cycle exact
-TEST checkpoint has not run. Ordering is therefore:
+The current source manifest contains 54 migrations. Phase 3 migrations 38–54
+exist in source and may have Local/CI evidence, but they have not been applied
+and accepted by the protected hosted-TEST checkpoint. Their presence is not
+remote schema evidence. The Phase 2 TEST checkpoint also remains unresolved:
+the required final durable `app_runtime` transaction-pooler authentication and
+success/zero-residue evidence have not completed.
 
-1. obtain the protected exact TEST operator input and prove both clean cycles
-   through the existing 37 migrations;
-2. land/rehearse the already-reserved **migration 38 newsletter consent-cycle
-   and action-token persistence work first**; and
-3. only after that contract is accepted, add new privacy hold/request/event,
-   scrub/purge, and restore-replay migrations with the next migration identity.
+Ordering is therefore:
 
-Do not renumber migration 38, edit an applied migration, merge privacy and
-newsletter semantics into one opaque change, or run privacy SQL ad hoc through
-a provider dashboard.
+1. preserve the unresolved Phase 2 checkpoint and fail-closed TEST runtime
+   state; do not infer Phase 2 or hosted-TEST acceptance from local migrations;
+2. review the exact Phase 3 candidate-head migration manifest and run its
+   protected hosted-TEST apply/rebuild, security, concurrency, and reconciliation
+   gates only after the TEST connection blocker is repaired and the named
+   preflight is satisfied; and
+3. add privacy hold/request/event, scrub/purge, and restore-replay migrations
+   only with the next available migration identity and only after the applicable
+   owner, legal, and provider decisions below are approved.
+
+Do not renumber or edit an existing migration, treat a local/CI pass as a remote
+apply, merge privacy semantics into an opaque existing change, or run privacy
+SQL ad hoc through a provider dashboard.
 
 ## Acceptance checklist
 

@@ -187,7 +187,7 @@ describe("GET /api/availability", () => {
       ok: false,
       status: 429,
       code: "RATE_LIMITED",
-      retryAfterSeconds: 3_601,
+      retryAfterSeconds: 86_401,
     },
     {
       ok: false,

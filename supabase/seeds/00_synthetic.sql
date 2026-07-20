@@ -121,3 +121,26 @@ end
 $seed$;
 
 commit;
+
+begin;
+
+insert into gioia_private.newsletter_consent_artifacts (
+  artifact_version, policy_version, locale, form_copy, confirmation_copy,
+  privacy_notice_url, content_sha256, effective_at
+) values (
+  'newsletter-consent-v1.it-1', 'newsletter-consent-v1', 'it-IT',
+  'Synthetic local newsletter consent fixture.',
+  'Synthetic local newsletter confirmation fixture.',
+  'https://www.gioiabeauty.net/policy', decode(repeat('a1', 32), 'hex'),
+  '2026-01-01 00:00:00+00'
+) on conflict (artifact_version) do nothing;
+
+insert into gioia_private.newsletter_action_signing_keys (
+  key_id, issue_enabled, verify_until, created_at
+) values (
+  'local_1', true, '2099-01-01 00:00:00+00', '2026-01-01 00:00:00+00'
+) on conflict (key_id) do update set
+  issue_enabled = excluded.issue_enabled,
+  verify_until = excluded.verify_until;
+
+commit;

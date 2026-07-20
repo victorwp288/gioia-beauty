@@ -47,6 +47,8 @@ function scheduleClaim(
     attemptCount: 1,
     expectedVersion: 2,
     leaseExpiresAt: "2035-02-05T10:02:00.000Z",
+    firstProviderAttemptAt: null,
+    providerRetryDeadlineAt: null,
   });
 }
 
@@ -112,11 +114,25 @@ describe("immutable outbox schedule template v1", () => {
       recipientKind: "subscriber",
       recipientAddress: "subscriber@example.test",
       templateKind: "newsletter_confirmation",
-      templateData: { policyVersion: "newsletter-consent-v1" },
+      templateData: {
+        policyVersion: "newsletter-consent-v1",
+        consentArtifactVersion: "newsletter-consent-v1",
+        consentArtifactSha256: "a".repeat(64),
+        action: {
+          version: 1,
+          purpose: "newsletter_confirm",
+          tokenId: "30000000-0000-4000-8000-000000000001",
+          issuedAt: "2035-02-05T10:00:00.000Z",
+          expiresAt: "2035-02-06T10:00:00.000Z",
+          signingKeyId: "newsletter_1",
+        },
+      },
       providerIdempotencyKey: `subscriber:${AGGREGATE_ID}:v1:confirmation`,
       attemptCount: 1,
       expectedVersion: 2,
       leaseExpiresAt: "2035-02-05T10:02:00.000Z",
+      firstProviderAttemptAt: null,
+      providerRetryDeadlineAt: null,
     });
 
     expect(() => renderOutboxEmailV1(newsletter)).toThrow(

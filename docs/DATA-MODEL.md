@@ -286,7 +286,18 @@ signature_verified boolean not null true
 received_at         timestamptz not null
 processed_at        timestamptz null
 processing_error_code text null
+replay_attempt_count smallint not null       -- 0..5 recovery attempts
+replay_last_attempt_at timestamptz null
+replay_next_attempt_at timestamptz null      -- only nonterminal eligible work
+replay_terminal_at   timestamptz null
+replay_terminal_code text null               -- WEBHOOK_REPLAY_EXHAUSTED
 ```
+
+Stored `PROVIDER_MESSAGE_NOT_FOUND` events are retried in bounded eligible-time
+order with row locks and `SKIP LOCKED`. A failed replay persists 1-minute,
+5-minute, 15-minute, then 1-hour backoff; the fifth failure becomes terminal.
+Processed rows clear future eligibility while retaining attempt timestamps for
+operational evidence.
 
 ### `domain_change_log`
 

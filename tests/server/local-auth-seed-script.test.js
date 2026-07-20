@@ -66,6 +66,16 @@ describe("local synthetic Auth seed smoke test", () => {
         ANON_KEY: "local.legacy.jwt.fixture",
       }).publishableKey,
     ).toBe("local.legacy.jwt.fixture");
+
+    expect(
+      parseLocalAuthStatus(
+        {
+          API_URL: "http://127.0.0.1:56321",
+          PUBLISHABLE_KEY: "sb_publishable_local_fixture_key",
+        },
+        "56321",
+      ).apiUrl.port,
+    ).toBe("56321");
   });
 
   it("rejects remote, malformed, or keyless status output", () => {

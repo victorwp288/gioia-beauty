@@ -30,7 +30,7 @@
     "db:migrations": "SUPABASE_TELEMETRY_DISABLED=1 supabase migration list --local",
     "db:lint": "SUPABASE_TELEMETRY_DISABLED=1 supabase db lint --local --schema gioia_private --level warning --fail-on warning",
     "db:advisors": "SUPABASE_TELEMETRY_DISABLED=1 supabase db advisors --local --type all --level warn --fail-on warn",
-    "db:test": "SUPABASE_TELEMETRY_DISABLED=1 supabase test db --local supabase/tests",
+    "db:test": "node scripts/test-local-pgtap.mjs",
     "db:test:seed-auth": "node scripts/test-local-auth-seed.mjs",
     "db:test:auth-routes": "node scripts/test-local-owner-auth-routes.mjs",
     "db:test:concurrency": "node scripts/test-booking-concurrency.mjs",
@@ -40,7 +40,8 @@
     "test": "EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-fake} NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-test} APP_ENV=${APP_ENV:-test} vitest run",
     "test:watch": "EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-fake} NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-test} APP_ENV=${APP_ENV:-test} vitest",
     "test:booking:timezones": "TZ=America/New_York EMAIL_TRANSPORT=fake NEXT_PUBLIC_APP_ENV=test APP_ENV=test vitest run tests/domain/booking && TZ=Asia/Tokyo EMAIL_TRANSPORT=fake NEXT_PUBLIC_APP_ENV=test APP_ENV=test vitest run tests/domain/booking",
-    "test:e2e": "EMAIL_TRANSPORT=fake NEXT_PUBLIC_APP_ENV=test APP_ENV=test playwright test",
+    "test:e2e": "npm run test:e2e:phase3",
+    "test:e2e:phase3": "playwright test --project=phase3-api",
     "test:e2e:install": "playwright install --with-deps chromium",
     "security:secrets": "./scripts/check-secrets.sh",
     "security:dependencies": "npm audit --omit=dev --audit-level=high"

@@ -24,6 +24,19 @@ describe("local owner Auth route harness", () => {
     ).toThrow("unsafe local API URL");
   });
 
+  it("accepts explicit non-default loopback ports without relaxing the host", () => {
+    const parsed = parseLocalRouteStatus(
+      {
+        API_URL: "http://localhost:56321",
+        DB_URL: "postgresql://postgres:postgres@127.0.0.1:56322/postgres",
+        PUBLISHABLE_KEY: "synthetic-local-publishable-key",
+      },
+      { api: "56321", database: "56322" },
+    );
+    expect(parsed.apiUrl.port).toBe("56321");
+    expect(parsed.databaseUrl).toContain("127.0.0.1:56322/postgres");
+  });
+
   it("tracks set and expired cookies without exposing values", () => {
     const jar = new CookieJar();
     jar.apply(

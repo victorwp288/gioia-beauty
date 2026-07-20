@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { extname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -25,26 +25,6 @@ const HANDLER_NAMES = [
   "ownerOutboxReadHandler",
   "ownerVacationSubscriberReadHandler",
 ] as const;
-const MODULE_NAMES = [...CONTRACT_NAMES, ...HANDLER_NAMES] as const;
-
-function sourceFiles(path: string): string[] {
-  return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
-    const target = resolve(path, entry.name);
-    if (entry.isDirectory()) return sourceFiles(target);
-    return [
-      ".js",
-      ".jsx",
-      ".json",
-      ".mjs",
-      ".ts",
-      ".tsx",
-      ".yaml",
-      ".yml",
-    ].includes(extname(target))
-      ? [target]
-      : [];
-  });
-}
 
 describe("owner schedule read contract source boundary", () => {
   it.each(CONTRACT_NAMES)(
@@ -89,57 +69,46 @@ describe("owner schedule read contract source boundary", () => {
     }
   });
 
-  it("has no production importer, route, UI activation, script, or workflow", () => {
-    const modulePaths = new Set([
-      ...CONTRACT_NAMES.map((name) =>
-        resolve(ROOT, `lib/server/database/${name}.ts`),
-      ),
-      ...HANDLER_NAMES.map((name) => resolve(ROOT, `lib/server/${name}.ts`)),
-    ]);
-    const productionDirectories = [
-      ".github",
-      "app",
-      "components",
-      "config",
-      "context",
-      "data",
-      "hooks",
-      "lib",
-      "pages",
-      "scripts",
-      "src",
-    ]
-      .map((path) => resolve(ROOT, path))
-      .filter(existsSync);
-    const rootSources = readdirSync(ROOT, { withFileTypes: true })
-      .filter(
-        (entry) =>
-          entry.isFile() &&
-          [".js", ".json", ".mjs", ".ts", ".yaml", ".yml"].includes(
-            extname(entry.name),
-          ),
-      )
-      .map((entry) => resolve(ROOT, entry.name));
-    const productionSources = [
-      ...productionDirectories.flatMap(sourceFiles),
-      ...rootSources,
-    ].filter((path) => !modulePaths.has(path));
-
-    expect(
-      productionSources.filter((path) => {
-        const source = readFileSync(path, "utf8");
-        return MODULE_NAMES.some((name) => source.includes(name));
-      }),
-    ).toEqual([]);
-    for (const extension of ["js", "jsx", "ts", "tsx"]) {
-      expect(
-        existsSync(resolve(ROOT, `app/api/admin/schedule/route.${extension}`)),
-      ).toBe(false);
-      expect(
-        existsSync(
-          resolve(ROOT, `app/api/admin/schedule/count/route.${extension}`),
-        ),
-      ).toBe(false);
-    }
-  });
+  it.each([
+    [
+      "app/api/admin/schedule/route.ts",
+      "ownerScheduleReadRepository",
+      "createOwnerScheduleListGetHandler",
+    ],
+    [
+      "app/api/admin/schedule/count/route.ts",
+      "ownerScheduleReadRepository",
+      "createOwnerScheduleCountGetHandler",
+    ],
+    [
+      "app/api/admin/schedule/export/route.ts",
+      "ownerScheduleReadRepository",
+      "createOwnerScheduleExportGetHandler",
+    ],
+    [
+      "app/api/admin/vacations/route.ts",
+      "ownerOperationsReadRepository",
+      "createOwnerVacationListGetHandler",
+    ],
+    [
+      "app/api/admin/subscribers/route.ts",
+      "ownerOperationsReadRepository",
+      "createOwnerSubscriberListGetHandler",
+    ],
+    [
+      "app/api/admin/outbox/route.ts",
+      "ownerOperationsReadRepository",
+      "createOwnerOutboxListGetHandler",
+    ],
+  ])(
+    "activates %s through its bounded server repository",
+    (path, repository, factory) => {
+      const source = readFileSync(resolve(ROOT, path), "utf8");
+      expect(source.startsWith('import "server-only";')).toBe(true);
+      expect(source).toContain(repository);
+      expect(source).toContain(factory);
+      expect(source).toContain("createNextOwnerReadContext");
+      expect(source).toContain("observeServerRoute");
+    },
+  );
 });

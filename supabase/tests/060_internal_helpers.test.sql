@@ -1,8 +1,6 @@
 begin;
 grant gioia_mutator to postgres;
-
 set local search_path = extensions, public, pg_catalog;
-
 select plan(23);
 select is(
   (
@@ -18,7 +16,6 @@ select is(
   4::bigint,
   'all four internal authorization and schedule helpers exist'
 );
-
 select is(
   (
     select count(*)
@@ -95,24 +92,25 @@ select results_eq(
   $actual$,
   $expected$
     values
-      ('authorize_owner_session'::text),
-      ('claim_email_outbox'::text),
-      ('complete_email_outbox_failure'::text),
-      ('complete_email_outbox_success'::text),
-      ('confirm_public_newsletter'::text),
-      ('create_public_booking'::text),
-      ('get_public_availability'::text),
-      ('owner_cancel_schedule_entry'::text),
-      ('owner_cancel_vacation'::text),
-      ('owner_create_appointment'::text),
-      ('owner_create_block'::text),
-      ('owner_create_vacation'::text),
-      ('owner_reschedule_appointment'::text),
+      ('ack_email_dead_letter_alert_batch'::text), ('authorize_owner_session'::text),
+      ('begin_email_outbox_provider_attempt'::text), ('claim_email_dead_letter_alert_batch'::text),
+      ('claim_email_outbox'::text), ('complete_email_outbox_failure'::text),
+      ('complete_email_outbox_pre_provider_failure'::text), ('complete_email_outbox_success'::text),
+      ('confirm_public_newsletter'::text), ('consume_public_abuse_bucket'::text),
+      ('count_schedule_as_owner'::text), ('create_public_booking'::text),
+      ('export_schedule_as_owner'::text), ('get_public_availability'::text),
+      ('list_email_outbox_as_owner'::text), ('list_newsletter_subscribers_as_owner'::text),
+      ('list_schedule_as_owner'::text), ('list_vacations_as_owner'::text),
+      ('owner_cancel_schedule_entry'::text), ('owner_cancel_vacation'::text),
+      ('owner_create_appointment'::text), ('owner_create_block'::text),
+      ('owner_create_vacation'::text), ('owner_reschedule_appointment'::text),
       ('owner_reschedule_block'::text),
       ('owner_set_appointment_status'::text),
       ('owner_update_appointment_details'::text),
       ('owner_update_block_details'::text),
       ('process_verified_email_webhook'::text),
+      ('purge_expired_public_abuse_buckets'::text),
+      ('replay_pending_verified_email_webhooks'::text),
       ('retry_email_outbox_as_owner'::text),
       ('revoke_owner_session'::text),
       ('start_owner_session'::text),
@@ -150,6 +148,8 @@ select ok(
       'gioia_mutator',
       'gioia_private.enforce_email_webhook_event_transition()', 'EXECUTE'
     )
+    and has_function_privilege('gioia_mutator',
+      'gioia_private.enforce_newsletter_consent_cycle_binding()', 'EXECUTE')
     and has_function_privilege(
       'gioia_migrator', 'gioia_private.enforce_migration_run_transition()', 'EXECUTE'
     )

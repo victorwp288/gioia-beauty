@@ -18,6 +18,7 @@ export const OutboxWorkerSummarySchema = z
   .object({
     claimCycles: z.number().int().min(0).max(1),
     claimed: z.number().int().min(0).max(5),
+    claimDeadLettered: z.number().int().min(0).max(5),
     sent: z.number().int().min(0).max(5),
     retryScheduled: z.number().int().min(0).max(5),
     deliveryDeadLettered: z.number().int().min(0).max(5),
@@ -32,11 +33,17 @@ export const OutboxWorkerSummarySchema = z
         summary.retryScheduled +
         summary.deliveryDeadLettered +
         summary.completionUncertain !==
-      summary.claimed
+      summary.claimed - summary.claimDeadLettered
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Every claimed item requires one terminal worker outcome",
+      });
+    }
+    if (summary.claimDeadLettered > summary.claimed) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Claim dead letters cannot exceed selected rows",
       });
     }
     if (

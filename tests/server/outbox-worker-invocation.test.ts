@@ -17,6 +17,7 @@ const URL = "https://example.test/api/cron/outbox";
 const SUMMARY = Object.freeze({
   claimCycles: 1,
   claimed: 2,
+  claimDeadLettered: 0,
   sent: 2,
   retryScheduled: 0,
   deliveryDeadLettered: 0,
@@ -475,7 +476,7 @@ describe("inert authenticated outbox worker invocation", () => {
     ]);
   });
 
-  it("contains no activation, environment, provider, database, or route sink", () => {
+  it("keeps invocation authentication independent from runtime composition", () => {
     const root = process.cwd();
     const source = [
       "lib/server/email/outboxWorkerInvocation.ts",
@@ -495,7 +496,7 @@ describe("inert authenticated outbox worker invocation", () => {
       expect(source).not.toContain(forbidden);
     }
     expect(existsSync(resolve(root, "app/api/cron/outbox/route.ts"))).toBe(
-      false,
+      true,
     );
     expect(existsSync(resolve(root, "vercel.json"))).toBe(false);
   });

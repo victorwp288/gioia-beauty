@@ -2,11 +2,15 @@ import { z } from "zod";
 
 import {
   DurationMinutesSchema,
+  IsoInstantSchema,
   PersonNameSchema,
+  PositiveVersionSchema,
   SalonDateSchema,
   StartMinutesSchema,
+  UuidSchema,
 } from "./primitives.ts";
 import { ConsentPolicyVersionSchema } from "./subscribers.ts";
+import { isNewsletterActionTokenKeyId } from "./subscriber-tokens.ts";
 
 export const OutboxRecipientKindSchema = z.enum([
   "customer",
@@ -45,7 +49,21 @@ export const RescheduleOutboxTemplateDataSchema = z
   .strict();
 
 export const NewsletterConfirmationTemplateDataSchema = z
-  .object({ policyVersion: ConsentPolicyVersionSchema })
+  .object({
+    policyVersion: ConsentPolicyVersionSchema,
+    consentArtifactVersion: z.string().regex(/^[a-z0-9][a-z0-9._-]{2,99}$/),
+    consentArtifactSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    action: z
+      .object({
+        version: z.literal(1),
+        purpose: z.literal("newsletter_confirm"),
+        tokenId: UuidSchema,
+        issuedAt: IsoInstantSchema,
+        expiresAt: IsoInstantSchema,
+        signingKeyId: z.string().refine(isNewsletterActionTokenKeyId),
+      })
+      .strict(),
+  })
   .strict();
 
 export type ScheduleOutboxTemplateData = z.infer<

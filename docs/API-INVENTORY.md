@@ -19,8 +19,14 @@ explicit-export manifest. Keep the markers exact and unique.
 <!-- api-route {"method":"POST","path":"/api/admin/blocks"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/blocks/details"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/blocks/reschedule"} -->
+<!-- api-route {"method":"GET","path":"/api/admin/outbox"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/outbox/retry"} -->
+<!-- api-route {"method":"GET","path":"/api/admin/schedule"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/schedule/cancel"} -->
+<!-- api-route {"method":"GET","path":"/api/admin/schedule/count"} -->
+<!-- api-route {"method":"GET","path":"/api/admin/schedule/export"} -->
+<!-- api-route {"method":"GET","path":"/api/admin/subscribers"} -->
+<!-- api-route {"method":"GET","path":"/api/admin/vacations"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/vacations"} -->
 <!-- api-route {"method":"POST","path":"/api/admin/vacations/cancel"} -->
 <!-- api-route {"method":"POST","path":"/api/auth/login"} -->
@@ -29,7 +35,11 @@ explicit-export manifest. Keep the markers exact and unique.
 <!-- api-route {"method":"GET","path":"/api/availability"} -->
 <!-- api-route {"method":"POST","path":"/api/bookings"} -->
 <!-- api-route {"method":"POST","path":"/api/cancel"} -->
+<!-- api-route {"method":"GET","path":"/api/cron/outbox"} -->
 <!-- api-route {"method":"GET","path":"/api/health"} -->
+<!-- api-route {"method":"POST","path":"/api/newsletter/confirm"} -->
+<!-- api-route {"method":"POST","path":"/api/newsletter/subscribe"} -->
+<!-- api-route {"method":"POST","path":"/api/newsletter/unsubscribe"} -->
 <!-- api-route {"method":"POST","path":"/api/send"} -->
 <!-- api-route {"method":"POST","path":"/api/webhooks/resend"} -->
 <!-- api-inventory-active:end -->
@@ -43,27 +53,29 @@ Local/TEST with representative data before assigning a cost budget.
 
 ## Public and provider routes
 
-| Route                       | Input and authorization                                                                                                                                                                     | Response / PII                                                                              | Rate and cache                                               | Maximum effect                                                                                                                                                                                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health`           | Public process-liveness probe; request body/query are ignored                                                                                                                               | Constant `{ "status": "ok" }`; no environment, build, dependency, request, or customer data | No app limiter; no-store and noindex                         | 0 DB/Auth/provider/network calls; 0 rows or writes                                                                                                                                                                                                          |
-| `GET /api/availability`     | Public; query ≤1 KiB with exactly one `date`, `serviceId`, and `variantId`; duplicates and unknowns rejected before the abuse guard                                                         | Date/catalog IDs plus ≤96 ordered slot integers or fixed guard error; no PII                | Stateless Local/Test guard; remote disabled; no-store        | Structural reject: 0 guard/DB. Guard reject: 1 local check/0 DB. Allowed: 1 guard + 1 DB transaction/function, ≤96 result rows, 0 writes/Auth/provider calls                                                                                                |
-| `POST /api/bookings`        | Public; canonical supplied Origin must match; no query; canonical lowercase UUID idempotency header ≤128 B; JSON media/framing headers before the guard; raw fatal-UTF-8 strict body ≤8 KiB | Booking code, resource UUID, replay flag or fixed guard error; contact PII is never echoed  | Stateless Local/Test guard; remote disabled; no-store        | Pre-guard reject: 0 guard/body/DB. Guard reject: 1 local check/0 body/DB. Post-guard body reject: 1 guard/0 DB. Allowed: 1 guard + 1 DB transaction/function/1 result row; success 6 rows/7 mutations; replay 0; handled failure 1 row/2 mutations; 0 sends |
-| `POST /api/webhooks/resend` | Resend only; no query; raw fatal-UTF-8 JSON ≤32 KiB; identity encoding; bounded Svix headers; HMAC verification and ±300 s freshness                                                        | Request UUID, code, replay flag; no payload, signature, recipient, subject, or provider ID  | Provider retry plus database event-ID/digest fence; no-store | Current runtime is disabled: 0 effects. If separately approved/enabled: 1 DB transaction/function, SQL ≤2 rows and app accepts exactly 1; fresh bounce/complaint ≤4 distinct rows/5 mutations; processed replay writes 0; 0 Auth/provider outbound calls    |
+| Route                              | Input and authorization                                                                                                                                                                     | Response / PII                                                                              | Rate and cache                                               | Maximum effect                                                                                                                                                                                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`                  | Public process-liveness probe; request body/query are ignored                                                                                                                               | Constant `{ "status": "ok" }`; no environment, build, dependency, request, or customer data | No app limiter; no-store and noindex                         | 0 DB/Auth/provider/network calls; 0 rows or writes                                                                                                                                                                                                       |
+| `GET /api/availability`            | Public; query ≤1 KiB with exactly one `date`, `serviceId`, and `variantId`; duplicates and unknowns rejected before the abuse guard                                                         | Date/catalog IDs plus ≤96 ordered slot integers or fixed guard error; no PII                | Durable Local/Test network bucket; remote disabled; no-store | Structural reject: 0 DB. Guard reject: 1 abuse transaction. Allowed: 1 abuse transaction + 1 availability transaction/function, ≤96 result rows, and 1 bounded abuse-bucket mutation; 0 Auth/provider calls                                              |
+| `POST /api/bookings`               | Public; canonical supplied Origin must match; no query; canonical lowercase UUID idempotency header ≤128 B; JSON media/framing headers before the guard; raw fatal-UTF-8 strict body ≤8 KiB | Booking code, resource UUID, replay flag or fixed guard error; contact PII is never echoed  | Durable Local/Test network+account buckets; remote disabled  | Pre-guard reject: 0 DB. Valid request: 2 abuse transactions + 1 booking transaction; each abuse call mutates 1 bounded bucket. Booking success remains 6 rows/7 mutations; replay 0; handled failure 1 row/2 mutations; 0 sends                          |
+| `GET /api/cron/outbox`             | Exact path/query plus canonical 32-byte bearer; Local/Test configuration only; remote environments fail closed                                                                              | Batch summary and request UUID; no message body, recipient, or provider identifier          | One invocation; no-store and noindex                         | Remote/config/auth reject: 0 DB/provider calls. Local/Test success: ≤5 outbox claims, ≤25 eligible stored-webhook recovery attempts with persisted backoff/terminal disposition, ≤25 dead-letter alert events with one durable ack, and ≤1,000 expired abuse buckets purged; fake email/alert receivers only |
+| `POST /api/newsletter/subscribe`   | Exact same-origin request, unique idempotency key, JSON framing/body ≤4 KiB, canonical email, consent, and abuse guard                                                                      | Fixed non-enumerating `202 REQUEST_ACCEPTED`; email is never echoed                         | Durable Local/Test network+account buckets; remote disabled  | Valid request: 2 abuse transactions + 1 subscriber transaction/function; SQL ≤2 command rows accepted exactly 1. Account-scope rejection stays fixed 202 and skips the command; 0 synchronous provider sends                                             |
+| `POST /api/newsletter/confirm`     | Exact same-origin request, double-submit CSRF, unique idempotency key, body ≤4 KiB, and signed expiring action token                                                                        | Fixed non-enumerating `202 REQUEST_ACCEPTED`; subscriber/token data is never echoed         | Durable Local/Test network+token buckets; remote disabled    | Invalid token: 1 network-abuse transaction and 0 subscriber commands. Valid token: 2 abuse transactions + 1 action transaction/function; token-scope rejection stays fixed 202; 0 synchronous provider sends                                             |
+| `POST /api/newsletter/unsubscribe` | Same strict request, CSRF, idempotency, body, signed-token, and abuse boundary as confirm                                                                                                   | Fixed non-enumerating `202 REQUEST_ACCEPTED`; clears action CSRF cookie                     | Durable Local/Test network+token buckets; remote disabled    | Invalid token: 1 network-abuse transaction and 0 subscriber commands. Valid token: 2 abuse transactions + 1 action transaction/function; token-scope rejection stays fixed 202; 0 synchronous provider sends                                             |
+| `POST /api/webhooks/resend`        | Resend only; no query; raw fatal-UTF-8 JSON ≤32 KiB; identity encoding; bounded Svix headers; HMAC verification and ±300 s freshness                                                        | Request UUID, code, replay flag; no payload, signature, recipient, subject, or provider ID  | Provider retry plus database event-ID/digest fence; no-store | Current runtime is disabled: 0 effects. If separately approved/enabled: 1 DB transaction/function, SQL ≤2 rows and app accepts exactly 1; fresh bounce/complaint ≤4 distinct rows/5 mutations; processed replay writes 0; 0 Auth/provider outbound calls |
 
 `GET /api/health` proves only that the Next.js process answers; it is not
 database, Auth, provider, migration, queue, restore, or cutover readiness
 evidence.
 
-Availability and booking now require one strict abuse-guard decision after
-cheap structural validation and before database work. The committed guard is
-an O(1), stateless Local/Test fake that returns only a 32-byte HMAC principal
-scope; it receives a cloned headers-only metadata object and cannot access the
-booking body. It is not a rate limiter. Valid Preview, Production, operator,
-invalid, thrown, and malformed-guard paths return fixed `503
-SERVICE_UNAVAILABLE` before database work. The normalized seam can represent
-fixed `403` challenge and bounded `429 Retry-After` denials, but a real
-distributed limiter/challenge adapter remains a separately reviewed
-migration/provider gate.
+Local/Test public routes use atomic fixed-window database buckets scoped by a
+domain-separated HMAC of network, normalized account, or authenticated token.
+Each request performs at most one O(1) fake human-verification check and one or
+two bounded bucket transactions; verified challenges bypass only the configured
+challenge threshold, never the hard limit. The guard receives cloned headers,
+not request bodies. Preview, Production, operator, invalid, thrown, and
+malformed paths return fixed `503 SERVICE_UNAVAILABLE` before public business
+data work. A real remote challenge provider remains a separately reviewed gate.
 
 The webhook remains unreachable because no Production Supabase target is
 registered. Provider endpoint registration is separate `[PROD-CONFIG]` work.
@@ -119,6 +131,28 @@ domain-change row. Day-lock rows are real persistent effects and are included.
 | `POST /api/admin/vacations`               | start/end date spanning ≤366 inclusive dates, optional/null reason                            | `VACATION_CREATED` + ID                 | Up to 366 day locks; vacation + domain change; command insert+complete: **369 rows/370 mutations**                                                                     |
 | `POST /api/admin/vacations/cancel`        | `vacationId`, `expectedVersion` 1..2,147,483,647                                              | `VACATION_CANCELLED` + same ID          | Up to 366 day locks; vacation update + domain change; command insert+complete: **369 rows/370 mutations**                                                              |
 
+## Owner bounded reads
+
+All owner reads require fresh Supabase `getSession` + `getUser`, the HMAC-bound
+session, a current enabled-owner/session authorization check, and a second
+authorization check inside the same database transaction as the read. Responses
+are private/no-store and exact-decoded. Signed cursors bind scope, filters, page
+size, position, issue time, and expiry; they contain no PII beyond the minimal
+keyset position required by the query.
+
+| Route                            | Query contract                                                                                   | Maximum returned result                                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/admin/schedule`        | Required date range of at most 32 inclusive dates; optional kind/status; signed ascending keyset | 1 function call and at most 101 rows; emits at most 100 appointment/block DTOs                                          |
+| `GET /api/admin/schedule/count`  | Same bounded date range and optional kind/status; no cursor                                      | 1 function call and at most 7 rows; accepts at most 6 nonzero kind/status groups and derives the total                  |
+| `GET /api/admin/schedule/export` | Date range of at most 366 inclusive dates; CSV only; optional notes; signed ascending keyset     | 1 function call and at most 501 rows; emits at most 500 CSV rows/16 MiB plus an optional continuation cursor            |
+| `GET /api/admin/vacations`       | Required date range of at most 366 inclusive dates; overlap semantics; signed ascending keyset   | 1 function call and at most 101 rows; emits at most 100 vacation DTOs                                                   |
+| `GET /api/admin/subscribers`     | Optional unique status filters; signed newest-first `(created_at,id)` keyset                     | 1 function call and at most 101 rows; emits at most 100 subscriber DTOs                                                 |
+| `GET /api/admin/outbox`          | Optional unique status filters; signed newest-first `(created_at,id)` keyset                     | 1 function call and at most 101 rows; emits at most 100 PII-minimized delivery-state DTOs; template bodies are excluded |
+
+Physical scans remain measurement-dependent and require matching indexes plus
+Local/TEST `EXPLAIN` evidence. A continuation page is not a snapshot: concurrent
+mutations can move rows between pages, so clients must refresh after writes.
+
 ## Owner email outbox command
 
 `POST /api/admin/outbox/retry` uses the same fresh owner, HMAC binding,
@@ -166,10 +200,9 @@ forbidden.
 
 ## Known hardening gaps
 
-- The modern public guard is an activation stop and Local/Test seam, not a
-  durable distributed limiter or verified human challenge. Remote public API
-  activation remains blocked pending the post-checkpoint database adapter or a
-  separately approved edge/provider control.
+- The modern public guard has durable Local/Test fixed-window enforcement and a
+  synthetic challenge seam. Remote public API activation remains blocked until
+  a separately approved real challenge/provider adapter is configured.
 - Owner commands and Auth have no durable application-level abuse limiter.
   Idempotency and upstream Auth 429 are not rate limits.
 - Legacy mail still relies on a trusted-proxy/process-local limiter and will be

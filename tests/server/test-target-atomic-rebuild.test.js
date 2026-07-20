@@ -53,8 +53,8 @@ describe("greenfield TEST atomic migration plan", () => {
     const plan = planGreenfieldAtomicRebuild();
     const migrations = plan.getMigrations();
 
-    expect(plan.migrationCount).toBe(37);
-    expect(migrations).toHaveLength(37);
+    expect(plan.migrationCount).toBe(54);
+    expect(migrations).toHaveLength(54);
     expect(Object.keys(plan)).toEqual(["migrationCount", "files"]);
     expect(Object.keys(migrations[0])).toEqual(["file", "name", "version"]);
     for (const [index, migration] of migrations.entries()) {
@@ -85,7 +85,7 @@ describe("greenfield TEST atomic migration plan", () => {
     expect(injected.rebuild).toHaveBeenCalledOnce();
     expect(injected.assertClean).toHaveBeenCalledOnce();
     expect(sql.state.committed).toBe(true);
-    expect(sql.unsafe).toHaveBeenCalledTimes(75);
+    expect(sql.unsafe).toHaveBeenCalledTimes(109);
     const migrations = plan.getMigrations();
     expect(sql.unsafe.mock.calls[0]).toEqual([migrations[0].getBody()]);
     expect(sql.unsafe.mock.calls[1]).toEqual([
@@ -97,10 +97,10 @@ describe("greenfield TEST atomic migration plan", () => {
   it.each([
     ["after-teardown", -1],
     ["after-migration", 0],
-    ["after-migration", 35],
-    ["after-history", 36],
-    ["before-final-check", 37],
-    ["after-final-check", 37],
+    ["after-migration", 52],
+    ["after-history", 53],
+    ["before-final-check", 54],
+    ["after-final-check", 54],
   ])("does not commit fault injection at %s/%i", async (stage, index) => {
     const failure = new Error(`synthetic ${stage}`);
     const fault = vi.fn(async (actualStage, actualIndex) => {

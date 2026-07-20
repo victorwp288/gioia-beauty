@@ -174,7 +174,12 @@ export function observeRoute<Arguments extends readonly unknown[]>(
 
     const returned = (response: Response): Response => {
       const status = safelyReadStatus(response);
-      if (status !== null) complete(status);
+      if (status !== null) {
+        if (status >= 500 && context) {
+          safelyInvokeSink(runtime.captureUnexpected, [context]);
+        }
+        complete(status);
+      }
       return response;
     };
 

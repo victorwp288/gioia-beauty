@@ -26,6 +26,15 @@ function previewEnvironment(overrides = {}) {
     BOOKING_HMAC_SECRET: "synthetic-preview-booking-hmac-secret-000000000000",
     OWNER_SESSION_HMAC_SECRET:
       "synthetic-preview-owner-session-secret-000000000000",
+    PAGINATION_CURSOR_KEYRING_JSON: JSON.stringify({
+      activeKeyId: "preview_1",
+      keys: [
+        {
+          id: "preview_1",
+          secret: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        },
+      ],
+    }),
     ...overrides,
   };
 }
@@ -203,6 +212,49 @@ describe("environment isolation", () => {
     expect(validate(short).errors).toContain(
       "OWNER_SESSION_HMAC_SECRET must contain at least 32 bytes",
     );
+  });
+
+  it("requires an exact server-only pagination cursor keyring remotely", () => {
+    const missing = previewEnvironment({
+      PAGINATION_CURSOR_KEYRING_JSON: undefined,
+    });
+    const malformed = previewEnvironment({
+      PAGINATION_CURSOR_KEYRING_JSON: JSON.stringify({
+        activeKeyId: "preview_1",
+        keys: [{ id: "preview_1", secret: "too-short" }],
+      }),
+    });
+
+    expect(validate(missing).errors).toContain(
+      "preview requires PAGINATION_CURSOR_KEYRING_JSON",
+    );
+    expect(validate(malformed).errors).toContain(
+      "PAGINATION_CURSOR_KEYRING_JSON is invalid",
+    );
+  });
+
+  it("allows only a canonical Local/Test human-challenge fake token", () => {
+    const token = "A".repeat(43);
+    expect(
+      validate({
+        APP_ENV: "test",
+        NEXT_PUBLIC_APP_ENV: "test",
+        EMAIL_TRANSPORT: "fake",
+        PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN: token,
+      }).ok,
+    ).toBe(true);
+    expect(
+      validate({
+        APP_ENV: "test",
+        NEXT_PUBLIC_APP_ENV: "test",
+        EMAIL_TRANSPORT: "fake",
+        PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN: "not-canonical",
+      }).errors,
+    ).toContain("PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN is invalid");
+    expect(
+      validate(previewEnvironment({ PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN: token }))
+        .errors,
+    ).toContain("PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN is forbidden in preview");
   });
 
   it("allows Preview only with the registered greenfield Supabase ref", () => {

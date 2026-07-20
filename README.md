@@ -58,6 +58,25 @@ npm run db:clean
 
 These commands are local-only and unlinked. They recreate the private business schema from committed migrations and the deterministic synthetic seed; application mail remains fake and Auth mail is captured by the local mail-testing service.
 
+The Phase 3 API E2E suite is also local-only. It starts Next against the already
+running loopback Supabase stack, uses fake application email, and reaches the
+application only through `/api/health`, `/api/availability`, and
+`/api/bookings`. It never opens the legacy public UI. Reset and replay the
+synthetic seed explicitly before running it:
+
+```bash
+npm run db:start
+npm run db:reset
+npm run db:seed:replay
+npm run test:e2e:phase3
+```
+
+`db:reset` destroys and recreates local synthetic data. The E2E command refuses
+remote URLs, linked Supabase projects, protected operator inputs, provider
+credentials, Preview, and Production. Do not run it until the current Phase 3
+migrations and route batch is coherent. Remote TEST acceptance remains a
+separate serialized gate.
+
 Do not run `npm run dev` simply as a smoke test. Start the application only when the named Local/Test backing services and synthetic fixtures are ready, then verify the affected flow in that environment.
 
 ## Branch and release model

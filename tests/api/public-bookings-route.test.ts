@@ -138,6 +138,15 @@ describe("POST /api/bookings", () => {
       { headers: expect.any(Headers) },
       "public_booking",
     );
+    expect(abuse.check).toHaveBeenCalledWith(
+      { headers: expect.any(Headers) },
+      "public_booking",
+      {
+        kind: "account",
+        value: "cliente@example.test",
+        humanVerified: false,
+      },
+    );
     expect(abuse.check.mock.calls[0]?.[0]).not.toHaveProperty("body");
   });
 
@@ -183,7 +192,7 @@ describe("POST /api/bookings", () => {
     expect(createBooking).toHaveBeenCalledOnce();
   });
 
-  it("runs the guard after cheap framing and before reading the body", async () => {
+  it("runs network then account guards around bounded body parsing", async () => {
     const events: string[] = [];
     const abuse = createAbuseGuard();
     abuse.check.mockImplementation(async () => {
@@ -212,7 +221,29 @@ describe("POST /api/bookings", () => {
     });
 
     expect((await handler(request)).status).toBe(201);
-    expect(events).toEqual(["guard", "body", "database"]);
+    expect(events).toEqual(["guard", "body", "guard", "database"]);
+  });
+
+  it("stops before booking persistence when the normalized account scope is limited", async () => {
+    const abuse = createAbuseGuard();
+    abuse.check
+      .mockResolvedValueOnce({
+        ok: true,
+        principalScopeHash: Buffer.from(PRINCIPAL_SCOPE_HASH),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        code: "RATE_LIMITED",
+        retryAfterSeconds: 120,
+      });
+    const { handler, createBooking } = createHandler(undefined, abuse);
+
+    const response = await handler(bookingRequest());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("120");
+    expect(createBooking).not.toHaveBeenCalled();
   });
 
   it("runs one guard check before rejecting an invalid JSON body", async () => {

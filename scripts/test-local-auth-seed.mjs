@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { localSupabasePorts } from "./local-supabase-ports.mjs";
+
 const execFileAsync = promisify(execFile);
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 // Public local-only fixture credential. Never reuse it outside disposable Local/CI.
@@ -34,7 +36,10 @@ function requiredString(value, field) {
   return value;
 }
 
-export function parseLocalAuthStatus(status) {
+export function parseLocalAuthStatus(
+  status,
+  expectedApiPort = localSupabasePorts({}).api,
+) {
   if (status === null || typeof status !== "object" || Array.isArray(status)) {
     throw new Error("Supabase status must be an object");
   }
@@ -43,7 +48,7 @@ export function parseLocalAuthStatus(status) {
   if (
     apiUrl.protocol !== "http:" ||
     !LOCAL_HOSTS.has(apiUrl.hostname) ||
-    apiUrl.port !== "54321" ||
+    apiUrl.port !== expectedApiPort ||
     !["", "/"].includes(apiUrl.pathname) ||
     apiUrl.search !== "" ||
     apiUrl.hash !== ""
@@ -117,17 +122,20 @@ async function verifyPublicSignupDisabled(apiUrl, publishableKey) {
   }
 }
 
-async function getLocalAuthStatus() {
+async function getLocalAuthStatus(environment = process.env) {
   const { stdout } = await execFileAsync(
     supabaseBinary,
     ["status", "-o", "json"],
     {
-      env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "1" },
+      env: { ...environment, SUPABASE_TELEMETRY_DISABLED: "1" },
       maxBuffer: 1024 * 1024,
       timeout: 30_000,
     },
   );
-  return parseLocalAuthStatus(JSON.parse(stdout));
+  return parseLocalAuthStatus(
+    JSON.parse(stdout),
+    localSupabasePorts(environment).api,
+  );
 }
 
 async function verifySeededOwnerLogin() {

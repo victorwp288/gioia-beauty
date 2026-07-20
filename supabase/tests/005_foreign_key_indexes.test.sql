@@ -2,7 +2,7 @@ begin;
 
 set local search_path = extensions, public, pg_catalog;
 
-select plan(9);
+select plan(13);
 
 with expected(
   index_name,
@@ -11,6 +11,12 @@ with expected(
   predicate
 ) as (
   values
+    (
+      'email_outbox_newsletter_action_identity_idx',
+      'email_outbox',
+      array['newsletter_action_token_id', 'aggregate_id', 'aggregate_version']::text[],
+      'newsletter_action_token_id IS NOT NULL'
+    ),
     (
       'domain_change_log_actor_user_idx',
       'domain_change_log',
@@ -36,6 +42,27 @@ with expected(
       'migration_quarantine',
       array['resolution_run_id']::text[],
       'resolution_run_id IS NOT NULL'
+    ),
+    (
+      'newsletter_consent_cycles_artifact_evidence_idx',
+      'newsletter_consent_cycles',
+      array['artifact_version', 'policy_version', 'artifact_sha256']::text[],
+      null::text
+    ),
+    (
+      'newsletter_consent_events_action_identity_idx',
+      'newsletter_consent_events',
+      array[
+        'action_token_id', 'consent_cycle_id', 'subscriber_id',
+        'subscriber_version'
+      ]::text[],
+      'action_token_id IS NOT NULL'
+    ),
+    (
+      'newsletter_consent_events_cycle_identity_idx',
+      'newsletter_consent_events',
+      array['consent_cycle_id', 'subscriber_id', 'subscriber_version']::text[],
+      null::text
     ),
     (
       'owner_sessions_user_id_idx',

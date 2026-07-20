@@ -39,13 +39,23 @@ function subscribeInput() {
   };
 }
 
-function actionInput() {
+function actionInput(method: "confirm" | "unsubscribe" = "confirm") {
   return {
     principalScopeHash: Buffer.alloc(32, 0x31),
     requestFingerprint: Buffer.alloc(32, 0x41),
-    command: {
+    idempotencyKey: IDEMPOTENCY_KEY.toUpperCase(),
+    signingKeyId: "local_1",
+    claims: {
+      version: 1 as const,
+      purpose:
+        method === "confirm"
+          ? ("newsletter_confirm" as const)
+          : ("newsletter_unsubscribe" as const),
+      tokenId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       subscriberId: SUBSCRIBER_ID.toUpperCase(),
-      idempotencyKey: IDEMPOTENCY_KEY.toUpperCase(),
+      subscriberVersion: 7,
+      issuedAt: "2035-02-05T10:00:00.000Z",
+      expiresAt: "2035-02-06T10:00:00.000Z",
     },
   };
 }
@@ -91,7 +101,8 @@ function expectedQuery(method: Method) {
       method === "confirm"
         ? "confirm_public_newsletter"
         : "unsubscribe_public_newsletter",
-    signature: "$1::uuid, $2::bytea, $3::text, $4::bytea",
+    signature:
+      "$1::uuid, $2::integer, $3::uuid, $4::integer, $5::timestamptz, $6::timestamptz, $7::text, $8::bytea, $9::text, $10::bytea",
   };
 }
 
@@ -122,7 +133,8 @@ describe("public subscriber repository", () => {
           replayed,
         ),
       ]);
-      const input = method === "subscribe" ? subscribeInput() : actionInput();
+      const input =
+        method === "subscribe" ? subscribeInput() : actionInput(method);
 
       await expect(execute(fixture.repository, method, input)).resolves.toEqual(
         { httpStatus, code, replayed },
@@ -160,16 +172,20 @@ describe("public subscriber repository", () => {
         const action = input as ReturnType<typeof actionInput>;
         expect(parameters).toEqual([
           SUBSCRIBER_ID,
+          7,
+          "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          1,
+          "2035-02-05T10:00:00.000Z",
+          "2035-02-06T10:00:00.000Z",
+          "local_1",
           action.principalScopeHash,
           IDEMPOTENCY_KEY,
           action.requestFingerprint,
         ]);
-        expect(parameters?.[1]).not.toBe(action.principalScopeHash);
-        expect(parameters?.[3]).not.toBe(action.requestFingerprint);
-        expect(action.command.subscriberId).toBe(SUBSCRIBER_ID.toUpperCase());
-        expect(action.command.idempotencyKey).toBe(
-          IDEMPOTENCY_KEY.toUpperCase(),
-        );
+        expect(parameters?.[7]).not.toBe(action.principalScopeHash);
+        expect(parameters?.[9]).not.toBe(action.requestFingerprint);
+        expect(action.claims.subscriberId).toBe(SUBSCRIBER_ID.toUpperCase());
+        expect(action.idempotencyKey).toBe(IDEMPOTENCY_KEY.toUpperCase());
       }
     },
   );
@@ -247,7 +263,8 @@ describe("public subscriber repository", () => {
     ["confirm", [{ ...row(), replayed: "false" }]],
   ] as const)("rejects malformed $0 rows %#", async (method, rows) => {
     const fixture = setup(rows as unknown as Array<Record<string, unknown>>);
-    const input = method === "subscribe" ? subscribeInput() : actionInput();
+    const input =
+      method === "subscribe" ? subscribeInput() : actionInput(method);
 
     const error = await execute(fixture.repository, method, input).catch(
       (caught) => caught,
@@ -301,28 +318,28 @@ describe("public subscriber repository", () => {
       "confirm",
       {
         ...actionInput(),
-        command: { ...actionInput().command, subscriberId: "invalid" },
+        claims: { ...actionInput().claims, subscriberId: "invalid" },
       },
     ],
     [
       "unsubscribe",
       {
         ...actionInput(),
-        command: { ...actionInput().command, idempotencyKey: "invalid" },
+        idempotencyKey: "invalid",
       },
     ],
     [
       "confirm",
       {
         ...actionInput(),
-        command: { ...actionInput().command, email: EMAIL },
+        claims: { ...actionInput().claims, email: EMAIL },
       },
     ],
     [
       "unsubscribe",
       {
         ...actionInput(),
-        command: { ...actionInput().command, token: "a.b.c" },
+        claims: { ...actionInput().claims, token: "a.b.c" },
       },
     ],
     ["confirm", { ...actionInput(), extra: true }],

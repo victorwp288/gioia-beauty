@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-20 — Completed the Phase 3 local server/reliability vertical
+**Phase:** Phase 3 Local implementation and acceptance; Phase 2 hosted-TEST gate unchanged
+**Labels/environment:** [LOCAL] only; synthetic Docker Supabase and fake email/challenge/alert adapters
+**Data impact:** destructive resets and bounded writes only in disposable synthetic Local; final stack/volumes removed with zero runtime-role, booking, or command residue
+**Target:** local `gioia-beauty-local` used temporary loopback 56321/56322 to avoid an unrelated stack; committed config restored to 54321/54322
+**Expected reads/writes/rows:** 54 migrations; 23 local pgTAP files/367 assertions; E2E 12 parallel booking commands with exactly one accepted; all other route/database actions bounded by documented limits
+**Done:** Added bounded owner reads/routes, newsletter double-opt-in/actions, durable abuse buckets with network/account/token scopes and Local/Test challenge seam, conserved outbox/provider fencing, dead-letter claim/ack, bounded webhook replay, consent-evidence relational binding, privacy workflow/evidence contracts, and local API E2E. Repinned the exact greenfield migration/pgTAP manifest. No masterplan box was ticked because each Phase 3 item still requires hosted TEST evidence or an external activation/decision.
+**Verified/reconciled:** format, lint, typecheck, 144 files/1,876 Vitest tests, clean 54-migration start/reset/seed, 23 pgTAP files/367 assertions, DB lint/advisors, owner Auth routes, four concurrency races, Phase 3 HTTP E2E, and production build pass. Independent review's signing-key and webhook-starvation findings were fixed with referenced-key verification, a 31-day issuance horizon, and persisted bounded replay backoff/terminal state.
+**Production actions performed:** none; no remote DB/Auth/config, Vercel/Resend/Sentry/provider action, deployment, email, customer-data read/write, or support follow-up
+**Backup/restore evidence:** n/a; synthetic Local only
+**Rollback/forward recovery:** revert this coherent batch for code; Local stack was removed without backup. Remote TEST and Preview remain fail-closed and unchanged.
+**Next:** After Supabase repairs the Phase 2 transaction-pooler gate, run the protected Phase 2 recovery/checkpoint first; then apply the exact 54-migration candidate to hosted TEST and run Phase 3 API/auth/rate-limit/email/idempotency/concurrency/E2E acceptance before ticking any Phase 2/3 box or activating Preview/Cron/providers.
+**Gotchas:** Phase 3 closure still needs owner/legal `RET-01`–`RET-17`/`RET-HOLD`, Italian policy/consent wording, processor/DPA evidence, approved TEST Sentry/CAPTCHA/alert/provider targets, and hosted TEST proof.
+
 ## 2026-07-20 — Escalated the custom-role pooler fault and bounded recovery retries
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 remains sequenced behind it
 **Labels/environment:** [LOCAL] operator hardening/tests plus bounded [TEST] dashboard, connection, role-state, log, and authenticated probe reads; one guarded TEST recovery lifecycle; one external support request

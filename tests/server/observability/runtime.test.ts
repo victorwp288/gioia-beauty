@@ -129,6 +129,26 @@ describe("server observability runtime", () => {
     expect(output).toContain('"event":"route_completed"');
   });
 
+  it("records a fixed unexpected-error event for a handled 5xx response", async () => {
+    setTransport("console");
+    const write = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    const response = new Response(null, { status: 503 });
+    const observed = observeServerRoute(
+      "public.booking",
+      "POST",
+      async () => response,
+    );
+
+    await expect(observed()).resolves.toBe(response);
+    expect(write).toHaveBeenCalledTimes(2);
+    const output = write.mock.calls.map(([line]) => String(line)).join("");
+    expect(output).toContain('"event":"unexpected_error"');
+    expect(output).toContain('"event":"route_completed"');
+    expect(output).toContain('"status":503');
+  });
+
   it("preserves successful behavior when stdout throws", async () => {
     setTransport("console");
     vi.spyOn(process.stdout, "write").mockImplementation(() => {

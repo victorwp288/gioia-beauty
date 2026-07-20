@@ -245,6 +245,20 @@ export function createPublicBookingPostHandler({
       return apiErrorResponse(bodyResult.status, bodyResult.code, requestId);
     }
 
+    const accountAbuseDecision = await evaluatePublicAbuseGuard(
+      abuseGuard,
+      request,
+      "public_booking",
+      {
+        kind: "account",
+        value: bodyResult.body.clientEmail,
+        humanVerified: abuseDecision.humanVerified,
+      },
+    );
+    if (!accountAbuseDecision.ok) {
+      return publicAbuseRejectionResponse(accountAbuseDecision, requestId);
+    }
+
     const command = PublicBookingCommandSchema.parse({
       ...bodyResult.body,
       idempotencyKey: idempotencyResult.data,

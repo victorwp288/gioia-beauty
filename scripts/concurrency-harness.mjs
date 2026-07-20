@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import postgres from "postgres";
 
 import { REQUEST_COUNT } from "./concurrency-queries.mjs";
+import { localSupabasePorts } from "./local-supabase-ports.mjs";
 
 const execFileAsync = promisify(execFile);
 const BARRIER_TIMEOUT_MS = 10_000;
@@ -49,13 +50,16 @@ const RUNTIME_TIMEOUT_SQL =
   "select set_config('statement_timeout', '8000', true), " +
   "set_config('lock_timeout', '3000', true)";
 
-export function parseLocalDatabaseUrl(value) {
+export function parseLocalDatabaseUrl(
+  value,
+  expectedPort = localSupabasePorts({}).database,
+) {
   try {
     const url = new URL(value);
     if (
       !["postgres:", "postgresql:"].includes(url.protocol) ||
       url.hostname !== "127.0.0.1" ||
-      url.port !== "54322" ||
+      url.port !== expectedPort ||
       url.username !== "postgres" ||
       !url.password ||
       url.pathname !== "/postgres" ||
@@ -76,7 +80,10 @@ async function getLocalDatabaseUrl() {
     ["status", "-o", "json"],
     databaseCommandOptions,
   );
-  return parseLocalDatabaseUrl(JSON.parse(stdout).DB_URL);
+  return parseLocalDatabaseUrl(
+    JSON.parse(stdout).DB_URL,
+    localSupabasePorts().database,
+  );
 }
 
 export function parseBarrierWaiterCount(row, expected, maximum = expected) {

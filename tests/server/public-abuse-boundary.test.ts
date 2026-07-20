@@ -4,6 +4,8 @@ vi.mock("server-only", () => ({}));
 
 import { validateEnvironment } from "@/config/environment.mjs";
 import {
+  createDatabasePublicAbuseGuard,
+  createLocalTestHumanChallengeVerifier,
   createPublicAbuseGuard,
   evaluatePublicAbuseGuard,
   publicAbuseGuard,
@@ -15,6 +17,7 @@ import { requestPrincipalScopeHash } from "@/lib/server/bookingSecurity.ts";
 
 const REQUEST_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const PROJECT_REF = "lxvsspniipcotimbsfqm";
+const HUMAN_TOKEN = Buffer.alloc(32, 0x4a).toString("base64url");
 
 function isolatedEnvironment(
   appEnv: "local" | "test" = "test",
@@ -39,6 +42,15 @@ function previewEnvironment() {
     EMAIL_WEBHOOK_ENABLED: "false",
     BOOKING_HMAC_SECRET: "b".repeat(32),
     OWNER_SESSION_HMAC_SECRET: "c".repeat(32),
+    PAGINATION_CURSOR_KEYRING_JSON: JSON.stringify({
+      activeKeyId: "preview_1",
+      keys: [
+        {
+          id: "preview_1",
+          secret: Buffer.alloc(32, 9).toString("base64url"),
+        },
+      ],
+    }),
     SUPABASE_PROJECT_REF: PROJECT_REF,
     NEXT_PUBLIC_SUPABASE_URL: `https://${PROJECT_REF}.supabase.co`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: `sb_publishable_${"p".repeat(24)}`,
@@ -189,6 +201,12 @@ describe("public abuse boundary", () => {
       code: "RATE_LIMITED",
       retryAfterSeconds: 60,
     },
+    {
+      ok: false,
+      status: 429,
+      code: "RATE_LIMITED",
+      retryAfterSeconds: 86_400,
+    },
     { ok: false, status: 503, code: "SERVICE_UNAVAILABLE" },
   ] as const)("normalizes the fixed rejection decision %#", async (raw) => {
     const guard: PublicAbuseGuard = { check: vi.fn(async () => raw) };
@@ -237,7 +255,7 @@ describe("public abuse boundary", () => {
       ok: false,
       status: 429,
       code: "RATE_LIMITED",
-      retryAfterSeconds: 3_601,
+      retryAfterSeconds: 86_401,
     },
     {
       ok: false,
@@ -271,6 +289,161 @@ describe("public abuse boundary", () => {
       status: 503,
       code: "SERVICE_UNAVAILABLE",
     });
+  });
+
+  it("uses only an explicit Local/Test fake challenge token and fails closed otherwise", async () => {
+    const env = isolatedEnvironment("test", {
+      PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN: HUMAN_TOKEN,
+    });
+    const verifier = createLocalTestHumanChallengeVerifier(env);
+
+    await expect(
+      verifier.verify(
+        {
+          headers: new Headers({
+            "x-gioia-human-challenge": HUMAN_TOKEN,
+          }),
+        },
+        "public_booking",
+      ),
+    ).resolves.toEqual({ verified: true });
+    await expect(
+      verifier.verify(
+        {
+          headers: new Headers({
+            "x-gioia-human-challenge": Buffer.alloc(32, 0x4b).toString(
+              "base64url",
+            ),
+          }),
+        },
+        "public_booking",
+      ),
+    ).resolves.toEqual({ verified: false });
+    await expect(
+      verifier.verify(
+        {
+          headers: new Headers({
+            "x-gioia-human-challenge": `${HUMAN_TOKEN.slice(0, -1)}B`,
+          }),
+        },
+        "public_booking",
+      ),
+    ).resolves.toEqual({ verified: false });
+    await expect(
+      createLocalTestHumanChallengeVerifier({
+        ...previewEnvironment(),
+        PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN: HUMAN_TOKEN,
+      }).verify(
+        { headers: new Headers({ "x-gioia-human-challenge": HUMAN_TOKEN }) },
+        "public_booking",
+      ),
+    ).resolves.toEqual({ verified: false });
+  });
+
+  it("consumes bounded network and normalized account scopes with challenge evidence", async () => {
+    const consume = vi.fn(async (_input: unknown) => ({
+      decision: "allowed" as const,
+      allowed: true,
+      remaining: 1,
+      retryAfterSeconds: 0,
+      humanVerificationRequired: false,
+    }));
+    const env = isolatedEnvironment("test", {
+      PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN: HUMAN_TOKEN,
+    });
+    const verify = vi.fn(async () => ({ verified: true }));
+    const guard = createDatabasePublicAbuseGuard({ consume }, env, { verify });
+    const metadata = {
+      headers: new Headers({
+        "x-forwarded-for": "192.0.2.10",
+        "x-gioia-human-challenge": HUMAN_TOKEN,
+      }),
+    };
+
+    const network = await guard.check(metadata, "public_booking");
+    expect(network).toMatchObject({ ok: true, humanVerified: true });
+    await expect(
+      guard.check(metadata, "public_booking", {
+        kind: "account",
+        value: "reader@example.test",
+        humanVerified:
+          typeof network === "object" &&
+          network !== null &&
+          "humanVerified" in network &&
+          network.humanVerified === true,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(consume).toHaveBeenNthCalledWith(1, {
+      action: "public_booking",
+      scopeKind: "network",
+      scopeHash: expect.any(Buffer),
+      humanVerified: true,
+    });
+    expect(consume).toHaveBeenNthCalledWith(2, {
+      action: "public_booking",
+      scopeKind: "account",
+      scopeHash: expect.any(Buffer),
+      humanVerified: true,
+    });
+    expect(
+      (consume.mock.calls[0]![0] as { scopeHash: Buffer }).scopeHash,
+    ).not.toEqual(
+      (consume.mock.calls[1]![0] as { scopeHash: Buffer }).scopeHash,
+    );
+    expect(verify).toHaveBeenCalledOnce();
+  });
+
+  it("hashes a valid maximum-length normalized account independently of network-source limits", async () => {
+    const consume = vi.fn(async (_input: unknown) => ({
+      decision: "allowed" as const,
+      allowed: true,
+      remaining: 1,
+      retryAfterSeconds: 0,
+      humanVerificationRequired: false,
+    }));
+    const guard = createDatabasePublicAbuseGuard(
+      { consume },
+      isolatedEnvironment("test"),
+    );
+    const email = `${"a".repeat(307)}@example.test`;
+
+    await expect(
+      guard.check({ headers: new Headers() }, "public_booking", {
+        kind: "account",
+        value: email,
+        humanVerified: false,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(Buffer.byteLength(email)).toBe(320);
+    expect(consume).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an action/scope mismatch before database consumption", async () => {
+    const consume = vi.fn(async (_input: unknown) => ({
+      decision: "allowed" as const,
+      allowed: true,
+      remaining: 1,
+      retryAfterSeconds: 0,
+      humanVerificationRequired: false,
+    }));
+    const guard = createDatabasePublicAbuseGuard(
+      { consume },
+      isolatedEnvironment("test"),
+    );
+
+    await expect(
+      guard.check({ headers: new Headers() }, "public_newsletter_confirm", {
+        kind: "account",
+        value: "reader@example.test",
+        humanVerified: false,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      code: "SERVICE_UNAVAILABLE",
+    });
+    expect(consume).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -4,8 +4,12 @@ import { z } from "zod";
 
 import {
   IdempotencyKeySchema,
+  IsoInstantSchema,
+  NewsletterActionPurposeSchema,
+  PositiveVersionSchema,
   PublicSubscribeCommandSchema,
   UuidSchema,
+  isNewsletterActionTokenKeyId,
 } from "@/lib/domain/schemas/index.ts";
 
 import { createRuntimeDatabase, type RuntimeDatabase } from "./runtime.ts";
@@ -29,17 +33,24 @@ const SubscribeInputSchema = z
   })
   .strict();
 
-const SubscriberActionCommandSchema = z
+const SubscriberActionClaimsSchema = z
   .object({
+    version: z.literal(1),
+    purpose: NewsletterActionPurposeSchema,
+    tokenId: UuidSchema,
     subscriberId: UuidSchema,
-    idempotencyKey: IdempotencyKeySchema,
+    subscriberVersion: PositiveVersionSchema,
+    issuedAt: IsoInstantSchema,
+    expiresAt: IsoInstantSchema,
   })
   .strict();
 
 const SubscriberActionInputSchema = z
   .object({
     ...commandContextFields,
-    command: SubscriberActionCommandSchema,
+    idempotencyKey: IdempotencyKeySchema,
+    claims: SubscriberActionClaimsSchema,
+    signingKeyId: z.string().refine(isNewsletterActionTokenKeyId),
   })
   .strict();
 
@@ -62,7 +73,8 @@ const SUBSCRIBE_QUERY = `
 const CONFIRM_QUERY = `
   select command.http_status, command.result, command.replayed
   from gioia_private.confirm_public_newsletter(
-    $1::uuid, $2::bytea, $3::text, $4::bytea
+    $1::uuid, $2::integer, $3::uuid, $4::integer, $5::timestamptz,
+    $6::timestamptz, $7::text, $8::bytea, $9::text, $10::bytea
   ) as command
   limit 2
 `;
@@ -70,7 +82,8 @@ const CONFIRM_QUERY = `
 const UNSUBSCRIBE_QUERY = `
   select command.http_status, command.result, command.replayed
   from gioia_private.unsubscribe_public_newsletter(
-    $1::uuid, $2::bytea, $3::text, $4::bytea
+    $1::uuid, $2::integer, $3::uuid, $4::integer, $5::timestamptz,
+    $6::timestamptz, $7::text, $8::bytea, $9::text, $10::bytea
   ) as command
   limit 2
 `;
@@ -155,13 +168,22 @@ export function createPublicSubscriberRepository(
 
     async confirm(input) {
       const parsed = SubscriberActionInputSchema.parse(input);
+      if (parsed.claims.purpose !== "newsletter_confirm") {
+        throw unexpectedResult();
+      }
       const result = await execute(
         database,
         CONFIRM_QUERY,
         [
-          parsed.command.subscriberId,
+          parsed.claims.subscriberId,
+          parsed.claims.subscriberVersion,
+          parsed.claims.tokenId,
+          parsed.claims.version,
+          parsed.claims.issuedAt,
+          parsed.claims.expiresAt,
+          parsed.signingKeyId,
           parsed.principalScopeHash,
-          parsed.command.idempotencyKey,
+          parsed.idempotencyKey,
           parsed.requestFingerprint,
         ],
         false,
@@ -172,13 +194,22 @@ export function createPublicSubscriberRepository(
 
     async unsubscribe(input) {
       const parsed = SubscriberActionInputSchema.parse(input);
+      if (parsed.claims.purpose !== "newsletter_unsubscribe") {
+        throw unexpectedResult();
+      }
       const result = await execute(
         database,
         UNSUBSCRIBE_QUERY,
         [
-          parsed.command.subscriberId,
+          parsed.claims.subscriberId,
+          parsed.claims.subscriberVersion,
+          parsed.claims.tokenId,
+          parsed.claims.version,
+          parsed.claims.issuedAt,
+          parsed.claims.expiresAt,
+          parsed.signingKeyId,
           parsed.principalScopeHash,
-          parsed.command.idempotencyKey,
+          parsed.idempotencyKey,
           parsed.requestFingerprint,
         ],
         false,

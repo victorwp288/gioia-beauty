@@ -272,12 +272,17 @@ describe("inert newsletter confirmation renderer v1", () => {
     );
   });
 
-  it("has no production import or activation path", () => {
+  it("activates only through the fail-closed Local/Test runtime", () => {
     const root = process.cwd();
     const modulePath = resolve(
       root,
       "lib/server/email/newsletterConfirmationEmailV1.ts",
     );
+    const localTestRuntimePath = resolve(
+      root,
+      "lib/server/email/localTestOutboxRuntime.ts",
+    );
+    const cronRoutePath = resolve(root, "app/api/cron/outbox/route.ts");
     const productionSources = [
       ...PRODUCTION_DIRECTORIES.flatMap((path) =>
         sourceFiles(resolve(root, path)),
@@ -285,14 +290,24 @@ describe("inert newsletter confirmation renderer v1", () => {
       ...rootSourceFiles(root),
     ].filter((path) => path !== modulePath);
 
-    expect(
-      productionSources.filter((path) =>
-        readFileSync(path, "utf8").includes(MODULE_NAME),
-      ),
-    ).toEqual([]);
-    expect(existsSync(resolve(root, "app/newsletter/confirm"))).toBe(false);
-    expect(existsSync(resolve(root, "app/api/cron/outbox/route.ts"))).toBe(
-      false,
+    const importers = productionSources
+      .filter((path) => readFileSync(path, "utf8").includes(MODULE_NAME))
+      .sort();
+    expect(importers).toEqual([localTestRuntimePath]);
+
+    const localTestRuntime = readFileSync(localTestRuntimePath, "utf8");
+    expect(localTestRuntime).toContain(
+      '!["local", "test"].includes(validation.appEnv ?? "")',
+    );
+    expect(localTestRuntime).toContain('env.EMAIL_TRANSPORT !== "fake"');
+    expect(localTestRuntime).toContain("createFakeEmailProvider()");
+    expect(localTestRuntime).not.toContain("createEmailProvider(");
+
+    const cronRoute = readFileSync(cronRoutePath, "utf8");
+    expect(cronRoute).toContain("createLocalTestOutboxRuntime()");
+    expect(cronRoute).toContain('apiErrorResponse(503, "SERVICE_UNAVAILABLE")');
+    expect(existsSync(resolve(root, "app/newsletter/confirm/route.ts"))).toBe(
+      true,
     );
     expect(existsSync(resolve(root, "vercel.json"))).toBe(false);
   });
