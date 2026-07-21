@@ -48,7 +48,7 @@ function validEnvironment(overrides = {}) {
       `postgresql://postgres.${TEST_TARGET_REF}:` +
       `${OPERATOR_PASSWORD}@${POOLER_HOST}:5432/postgres?sslmode=verify-full`,
     GIOIA_TEST_PREVIEW_DATABASE_URL:
-      `postgresql://app_runtime.${TEST_TARGET_REF}:` +
+      `postgresql://app_runtime_login.${TEST_TARGET_REF}:` +
       `${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE_KEY,
     NEXT_PUBLIC_SUPABASE_URL: TEST_TARGET_API_URL,
@@ -114,7 +114,7 @@ describe("greenfield TEST target configuration", () => {
     );
   });
 
-  it("derives session, worker, and app_runtime URLs only through closures", () => {
+  it("derives session, worker, and runtime-login URLs only through closures", () => {
     const env = validEnvironment();
     const config = parse(env);
     const runtimePassword = "Runtime/Password?With#Reserved=Chars-12345";
@@ -132,13 +132,13 @@ describe("greenfield TEST target configuration", () => {
       `postgres.${TEST_TARGET_REF}`,
     );
     expect(decodeURIComponent(runtime.username)).toBe(
-      `app_runtime.${TEST_TARGET_REF}`,
+      `app_runtime_login.${TEST_TARGET_REF}`,
     );
     expect(decodeURIComponent(runtime.password)).toBe(runtimePassword);
     expect(runtime.port).toBe("6543");
     expect(runtime.search).toBe("?sslmode=verify-full");
     expect(decodeURIComponent(preview.username)).toBe(
-      `app_runtime.${TEST_TARGET_REF}`,
+      `app_runtime_login.${TEST_TARGET_REF}`,
     );
     expect(decodeURIComponent(preview.password)).toBe(PREVIEW_PASSWORD);
     expect(preview.hostname).toBe(POOLER_HOST);
@@ -187,18 +187,19 @@ describe("greenfield TEST target configuration", () => {
   });
 
   it.each([
-    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@db.lxvsspniipcotimbsfqm.supabase.co:5432/postgres?sslmode=verify-full",
-    "postgresql://app_runtime.wrong:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:secret@db.lxvsspniipcotimbsfqm.supabase.co:5432/postgres?sslmode=verify-full",
+    "postgresql://app_runtime_login.wrong:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
     "postgresql://postgres.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
-    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=verify-full",
-    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=verify-full",
-    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres",
-    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=require",
-    "postgresql://app_runtime.lxvsspniipcotimbsfqm:secret@aws-2-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
-    `postgresql://app_runtime.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/wrong?sslmode=verify-full`,
-    `postgresql://app_runtime.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full&application_name=gioia`,
-    `postgresql://app_runtime.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full#fragment`,
-    `postgresql://app_runtime.lxvsspniipcotimbsfqm:%00${"x".repeat(40)}@${POOLER_HOST}:6543/postgres?sslmode=verify-full`,
+    "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=verify-full",
+    "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres",
+    "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:secret@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=require",
+    "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:secret@aws-2-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    `postgresql://app_runtime_login.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/wrong?sslmode=verify-full`,
+    `postgresql://app_runtime_login.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full&application_name=gioia`,
+    `postgresql://app_runtime_login.lxvsspniipcotimbsfqm:${PREVIEW_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full#fragment`,
+    `postgresql://app_runtime_login.lxvsspniipcotimbsfqm:%00${"x".repeat(40)}@${POOLER_HOST}:6543/postgres?sslmode=verify-full`,
   ])("rejects a non-exact Preview DSN", (databaseUrl) => {
     const error = rejection(
       validEnvironment({ GIOIA_TEST_PREVIEW_DATABASE_URL: databaseUrl }),
@@ -209,7 +210,7 @@ describe("greenfield TEST target configuration", () => {
 
   it("rejects reuse of the privileged operator password without reflecting it", () => {
     const databaseUrl =
-      `postgresql://app_runtime.${TEST_TARGET_REF}:` +
+      `postgresql://app_runtime_login.${TEST_TARGET_REF}:` +
       `${OPERATOR_PASSWORD}@${POOLER_HOST}:6543/postgres?sslmode=verify-full`;
     const error = rejection(
       validEnvironment({ GIOIA_TEST_PREVIEW_DATABASE_URL: databaseUrl }),
@@ -350,7 +351,7 @@ describe("greenfield TEST target configuration", () => {
     const unsafePassword = "short-secret";
 
     expect(() => config.deriveAppRuntimeDatabaseUrl(unsafePassword)).toThrow(
-      "in-memory app_runtime password must contain 32 to 256 bytes",
+      "in-memory app_runtime_login password must contain 32 to 256 bytes",
     );
     try {
       config.deriveAppRuntimeDatabaseUrl(unsafePassword);

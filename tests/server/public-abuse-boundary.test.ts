@@ -55,8 +55,9 @@ function previewEnvironment() {
     NEXT_PUBLIC_SUPABASE_URL: `https://${PROJECT_REF}.supabase.co`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: `sb_publishable_${"p".repeat(24)}`,
     SUPABASE_DATABASE_URL:
-      `postgresql://app_runtime.${PROJECT_REF}:synthetic@` +
-      "aws-0-eu-central-2.pooler.supabase.com:6543/postgres",
+      `postgresql://app_runtime_login.${PROJECT_REF}:synthetic@` +
+      "aws-0-eu-central-2.pooler.supabase.com:6543/postgres" +
+      "?sslmode=verify-full",
   };
 }
 

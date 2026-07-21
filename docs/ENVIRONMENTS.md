@@ -37,13 +37,15 @@ INFO on the empty integration database.
 The committed greenfield operator fails closed unless it sees the exact clean
 and pushed `refactor` SHA with a successful CI run, the allowlisted session
 pooler identity with certificate verification, an explicit project-specific
-confirmation, and the reviewed migration/pgTAP byte manifests. It holds one
-project advisory lock, applies teardown, all 37 migrations, exact migration
-history, and final reconciliation in one serializable transaction, then runs
-two complete synthetic acceptance/cleanup cycles and requires matching schema
-and reference-data fingerprints. Remote checkpoint attempts reached the clean
-37-migration state, but the final two-cycle proof remains open after the shared
-pool exhausted its client capacity.
+confirmation, and the reviewed migration/pgTAP byte manifests. The target must
+first be advanced through the separately approved additive apply to the exact
+current 61-file manifest. The operator then holds one project advisory lock,
+applies teardown, all 61 migrations, exact migration history, and final
+reconciliation in one serializable transaction, then runs two complete
+synthetic acceptance/cleanup cycles and requires matching schema and
+reference-data fingerprints. Earlier remote checkpoint attempts reached the
+clean 37-migration state, but the current 61-migration two-cycle proof remains
+open.
 
 Safety rules:
 
@@ -52,16 +54,39 @@ Safety rules:
 - Only synthetic fixtures and fake/non-delivering email are allowed. Never copy real Firebase customer data, production Resend credentials, or production secrets into this project during development.
 - The schema, migrations, test Auth users, functions, and synthetic data may be created, changed, reset, or deleted as required for the rebuild. Remote changes must remain reproducible from the repository.
 - Vercel Preview may use this target only after fail-closed environment isolation is implemented and verified. Serialized Preview/E2E runs must lock and reset or namespace synthetic data.
-- Preview application traffic uses a separately provisioned `app_runtime` login over the transaction pooler (`:6543`) with prepared statements disabled. Environment validation rejects direct connections and the privileged `postgres` role.
-- A destructive greenfield checkpoint receives that exact Preview transaction-pooler DSN only through the protected TEST operator environment. It authenticates a fresh pinned-CA connection before mutation, holds `app_runtime` at `NOLOGIN` with no password for both cycles, and restores the same password with a second fresh authentication proof before releasing the project lock. The DSN is never accepted from dotenv, serialized config, subprocess arguments, logs, or artifacts.
-- An interrupted checkpoint may leave Preview database access disabled. A later guarded run may restore only from the same strictly validated protected DSN; an active credential that does not authenticate is never overwritten. Failed restoration is contained back to `NOLOGIN` with no password and keeps the checkpoint failed.
+- Preview application traffic uses the credential-only `app_runtime_login` role
+  over the transaction pooler (`:6543`) with prepared statements disabled. The
+  stable authorization role `app_runtime` remains `NOLOGIN`; every application
+  transaction must explicitly `SET LOCAL ROLE app_runtime` before calling an
+  allowlisted function.
+- `app_runtime_login` is `NOINHERIT` and has only `SET TRUE` membership in
+  `app_runtime`. It owns no database object and receives no direct schema,
+  table, sequence, or function ACL. Environment validation rejects direct
+  connections, `app_runtime` as a login principal, and privileged roles such as
+  `postgres`.
+- A destructive greenfield checkpoint receives the exact Preview
+  `app_runtime_login` transaction-pooler DSN only through the protected TEST
+  operator environment. It authenticates a fresh pinned-CA connection before
+  mutation, holds `app_runtime_login` at `NOLOGIN` with no password for both
+  cycles, and restores the same password with a second fresh authentication and
+  `SET LOCAL ROLE app_runtime` proof before releasing the project lock. The DSN
+  is never accepted from dotenv, serialized config, subprocess arguments,
+  logs, or artifacts.
+- An interrupted checkpoint may leave Preview database access disabled. A
+  later guarded run may restore only from the same strictly validated protected
+  DSN; an active credential that does not authenticate is never overwritten.
+  Failed restoration is contained back to `app_runtime_login NOLOGIN` with no
+  password and keeps the checkpoint failed. Reset/rebuild tooling must also
+  prove the carrier has no direct ACLs or ownership and the authorization role
+  remains `NOLOGIN`.
 - Connection mode is fixed by workload. Trusted migration/operator work prefers the
   direct `db.<ref>.supabase.co:5432` endpoint when its runner has IPv6 (or the
   separately purchased IPv4 add-on); an explicitly pinned shared session pooler
   on `:5432` is the approved fallback for IPv4-only operator runners. Vercel
-  Functions always use the least-privilege `app_runtime.<ref>` login through the
-  shared transaction pooler on `:6543`, `prepare: false`, and the code-owned pool
-  cap. Direct or privileged database URLs remain invalid in Preview.
+  Functions always use the credential-only `app_runtime_login.<ref>` login
+  through the shared transaction pooler on `:6543`, `prepare: false`, and the
+  code-owned pool cap, then assume `app_runtime` transaction-locally. Direct or
+  privileged database URLs remain invalid in Preview.
 - The Free plan is acceptable for greenfield testing but is not the approved launch posture.
 
 Before this project can become Production, it must be reclassified in this file and in the operator preflight. Remove synthetic data and test users, rebuild from committed migrations, run advisors and direct-access security tests, approve/upgrade the backup tier, prove restore into an isolated target, and complete Firestore import reconciliation. Once real customer data is imported or live traffic points here, it is immediately Production and every production control applies.
@@ -99,14 +124,21 @@ distributed rate-limit/challenge adapter plus its explicit environment and
 provider configuration; no `disabled` flag or process-local cache is accepted
 as a substitute.
 
-As of 2026-07-11, Vercel Preview is bound to the greenfield project using the
-transaction-pooler `app_runtime` principal, the pinned Supabase CA, unique
+As of 2026-07-11, the existing Vercel Preview deployment is bound to the
+greenfield project using the legacy transaction-pooler `app_runtime` principal,
+the pinned Supabase CA, unique
 server-only booking/session HMAC material, and fake email with webhooks off.
 Legacy Resend and Twilio variables are Production-only. Deployment
 `dpl_Cc9ar52EEeT5kG5xTQSvNf5xeqN5` built commit `45b70f9a57280e3d80daca554eef7669b7ca66dc`
 successfully and returned the expected private `200` health response. Public
 booking remains code-disabled before database work, and no customer data is in
-this target.
+this target. The fresh-role TEST canary validates only that a new custom login
+identity can authenticate through the transaction pooler; versioned migration
+and security tests must separately prove the carrier membership and
+transaction-local authorization switch. The canary does not change that
+deployment. Replacing its protected secret and activating the durable carrier
+is a separate named `[TEST]` configuration action. It has no effect on the live
+Firebase site, Vercel Production, or any future Production Supabase target.
 
 ## Local and CI
 

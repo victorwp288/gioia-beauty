@@ -17,7 +17,7 @@ const operatorSessionUrl =
 const operatorWorkerUrl =
   "postgresql://postgres.ref:operator@pooler.test:6543/postgres?sslmode=verify-full";
 const runtimeUrl =
-  "postgresql://app_runtime.ref:runtime@pooler.test:6543/postgres?sslmode=verify-full";
+  "postgresql://app_runtime_login.ref:runtime@pooler.test:6543/postgres?sslmode=verify-full";
 const CA_CERTIFICATE = "synthetic-ca-certificate";
 
 function config() {

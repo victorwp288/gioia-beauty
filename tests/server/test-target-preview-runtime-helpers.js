@@ -12,7 +12,7 @@ export const operatorSessionUrl =
 export const operatorWorkerUrl =
   "postgresql://postgres.ref:operator@pooler.test:6543/postgres?sslmode=verify-full";
 export const PREVIEW_PASSWORD = "Preview!Password-Only-In-Memory-12345";
-export const runtimeUrl = `postgresql://app_runtime.ref:${PREVIEW_PASSWORD}@pooler.test:6543/postgres?sslmode=verify-full`;
+export const runtimeUrl = `postgresql://app_runtime_login.ref:${PREVIEW_PASSWORD}@pooler.test:6543/postgres?sslmode=verify-full`;
 const CA_CERTIFICATE = "synthetic-ca-certificate";
 
 export function config() {
@@ -29,13 +29,18 @@ function safeWorkerResult(
   rolcanlogin = false,
   attributesAreSafe = true,
   credentialIsSafe = true,
+  hasUnsafeMembership = false,
+  hasUnsafeAccess = false,
+  rolePresent = true,
 ) {
   if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
+    if (!rolePresent) return [];
     return [
       {
         attributes_are_safe: attributesAreSafe,
         credential_is_safe: credentialIsSafe,
-        has_unsafe_membership: false,
+        has_unsafe_access: hasUnsafeAccess,
+        has_unsafe_membership: hasUnsafeMembership,
         rolcanlogin,
       },
     ];
@@ -56,6 +61,9 @@ export function lifecycleHarness({
   terminateFailureAfter = Number.POSITIVE_INFINITY,
   closeFailures = [],
   cleanupFailures = {},
+  hasUnsafeMembership = false,
+  hasUnsafeAccess = false,
+  rolePresent = true,
 } = {}) {
   let roleCanLogin = initialLogin;
   let roleCredentialIsSafe = credentialIsSafe;
@@ -89,6 +97,9 @@ export function lifecycleHarness({
         roleCanLogin,
         attributesAreSafe,
         roleCredentialIsSafe,
+        hasUnsafeMembership,
+        hasUnsafeAccess,
+        rolePresent,
       );
     }),
     begin: vi.fn(async (callback) =>
@@ -119,17 +130,28 @@ export function lifecycleHarness({
     }),
   };
   let authorizationIndex = 0;
-  const credentialClients = authorizations.map((authorization, index) => ({
-    unsafe: vi.fn(async () => {
-      events.push(`authenticate-${authorizationIndex++}`);
-      if (authorization instanceof Error) throw authorization;
-      return [{ authorized: authorization }];
-    }),
-    end: vi.fn(async () => {
-      events.push("close-auth");
-      if (closeFailures[index]) throw closeFailures[index];
-    }),
-  }));
+  const credentialClients = authorizations.map((authorization, index) => {
+    const transactionUnsafe = vi.fn(async (query) => {
+      if (query === GREENFIELD_PREVIEW_ROLE_SQL.authenticate) {
+        return [{ authorized: true }];
+      }
+      if (query === GREENFIELD_PREVIEW_ROLE_SQL.assume) return [];
+      if (query === GREENFIELD_PREVIEW_ROLE_SQL.authorize) {
+        events.push(`authenticate-${authorizationIndex++}`);
+        if (authorization instanceof Error) throw authorization;
+        return [{ authorized: authorization }];
+      }
+      return [];
+    });
+    return {
+      begin: vi.fn(async (callback) => callback({ unsafe: transactionUnsafe })),
+      end: vi.fn(async () => {
+        events.push("close-auth");
+        if (closeFailures[index]) throw closeFailures[index];
+      }),
+      transactionUnsafe,
+    };
+  });
   const clientFactory = vi
     .fn()
     .mockReturnValueOnce(lockPool)

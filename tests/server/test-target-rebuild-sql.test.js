@@ -9,6 +9,7 @@ import {
   GREENFIELD_REBUILD_VERIFY_SQL,
   rebuildGreenfieldTestDatabaseInTransaction,
 } from "../../scripts/test-target-rebuild-sql.mjs";
+import { GREENFIELD_TARGET_VERSIONS } from "../../scripts/test-target-migrations.mjs";
 
 function verifiedRow(overrides = {}) {
   return {
@@ -28,7 +29,7 @@ function verifiedRow(overrides = {}) {
 }
 
 function database({
-  migrationCount = 35,
+  migrationCount = GREENFIELD_TARGET_VERSIONS.length,
   removed = migrationCount,
   verify = verifiedRow(),
 } = {}) {
@@ -55,19 +56,26 @@ describe("greenfield TEST guarded rebuild SQL", () => {
     expect(GREENFIELD_REBUILD_GUARD_SQL).toContain(
       "migration history is not an exact rebuild state",
     );
+    expect(GREENFIELD_REBUILD_GUARD_SQL).toContain("app_runtime_login");
   });
 
   it("guards exact roles, memberships, residue, checksums, and dependencies", () => {
     for (const contract of [
       "custom role attributes are not exact",
       "custom role memberships are not exact",
+      "custom role credentials are not contained",
+      "runtime login ownership is not empty",
+      "runtime login direct ACL is not empty",
       "custom default privileges are not exact",
       "migration history metadata is not exact",
+      "private tables are not exact",
+      "private functions are not exact",
       "application sessions are active",
       "operational residue exists",
       "Auth residue exists",
       "Storage residue exists",
       "reference checksum is not exact",
+      "extended reference rows are not exact",
       "external dependencies on private objects",
     ]) {
       expect(GREENFIELD_REBUILD_GUARD_SQL).toContain(contract);
@@ -83,6 +91,7 @@ describe("greenfield TEST guarded rebuild SQL", () => {
 
   it("restores only custom defaults and drops only the private schema and roles", () => {
     expect(GREENFIELD_REBUILD_MUTATION_SQL).toEqual([
+      "alter role app_runtime_login nologin password null valid until 'infinity'",
       "alter role app_runtime nologin password null valid until 'infinity'",
       "grant gioia_mutator, gioia_migrator to postgres with inherit true, set false granted by current_user",
       "do $$ begin if not pg_catalog.pg_has_role(current_user,'gioia_mutator','USAGE') or not pg_catalog.pg_has_role(current_user,'gioia_migrator','USAGE') then raise exception 'Greenfield TEST temporary default-ACL membership failed'; end if; end $$",
@@ -91,6 +100,8 @@ describe("greenfield TEST guarded rebuild SQL", () => {
       "revoke gioia_mutator, gioia_migrator from postgres granted by current_user",
       "do $$ begin if pg_catalog.pg_has_role(current_user,'gioia_mutator','USAGE') or pg_catalog.pg_has_role(current_user,'gioia_migrator','USAGE') then raise exception 'Greenfield TEST temporary default-ACL membership remained'; end if; end $$",
       "revoke usage on schema extensions from gioia_mutator, gioia_migrator",
+      "revoke app_runtime from app_runtime_login granted by postgres",
+      "drop role app_runtime_login",
       "drop schema gioia_private cascade",
       "drop role app_runtime, gioia_migrator, gioia_mutator",
     ]);
@@ -108,45 +119,50 @@ describe("greenfield TEST guarded rebuild SQL", () => {
     expect(GREENFIELD_REBUILD_VERIFY_SQL).toContain("extensions_preserved");
   });
 
-  it.each([35, 37])(
-    "runs the exact %i-migration teardown in one transaction",
+  it("runs the exact reviewed target teardown in one transaction", async () => {
+    const migrationCount = GREENFIELD_TARGET_VERSIONS.length;
+    const sql = database({ migrationCount });
+
+    await expect(
+      rebuildGreenfieldTestDatabaseInTransaction(sql),
+    ).resolves.toEqual({
+      removedMigrations: migrationCount,
+    });
+
+    const calls = sql.unsafe.mock.calls.map(([query]) => query);
+    expect(calls.slice(0, 4)).toEqual(GREENFIELD_REBUILD_TRANSACTION_SQL);
+    expect(calls.indexOf(GREENFIELD_REBUILD_GUARD_SQL)).toBeLessThan(
+      calls.indexOf(GREENFIELD_REBUILD_SNAPSHOT_SQL),
+    );
+    expect(calls.indexOf(GREENFIELD_REBUILD_SNAPSHOT_SQL)).toBeLessThan(
+      calls.indexOf(GREENFIELD_REBUILD_MUTATION_SQL[0]),
+    );
+    expect(calls.at(-1)).toBe(GREENFIELD_REBUILD_VERIFY_SQL);
+  });
+
+  it.each([35, 37, GREENFIELD_TARGET_VERSIONS.length - 1])(
+    "fails closed before mutation at unsupported migration count %i",
     async (migrationCount) => {
       const sql = database({ migrationCount });
 
       await expect(
         rebuildGreenfieldTestDatabaseInTransaction(sql),
-      ).resolves.toEqual({
-        removedMigrations: migrationCount,
-      });
-
-      const calls = sql.unsafe.mock.calls.map(([query]) => query);
-      expect(calls.slice(0, 4)).toEqual(GREENFIELD_REBUILD_TRANSACTION_SQL);
-      expect(calls.indexOf(GREENFIELD_REBUILD_GUARD_SQL)).toBeLessThan(
-        calls.indexOf(GREENFIELD_REBUILD_SNAPSHOT_SQL),
+      ).rejects.toThrow("pre-state is invalid");
+      expect(sql.unsafe).not.toHaveBeenCalledWith(
+        GREENFIELD_REBUILD_SNAPSHOT_SQL,
       );
-      expect(calls.indexOf(GREENFIELD_REBUILD_SNAPSHOT_SQL)).toBeLessThan(
-        calls.indexOf(GREENFIELD_REBUILD_MUTATION_SQL[0]),
+      expect(sql.unsafe).not.toHaveBeenCalledWith(
+        GREENFIELD_REBUILD_MUTATION_SQL[0],
       );
-      expect(calls.at(-1)).toBe(GREENFIELD_REBUILD_VERIFY_SQL);
     },
   );
 
-  it("fails closed before mutation when the counted pre-state is not reviewed", async () => {
-    const sql = database({ migrationCount: 36 });
-
-    await expect(
-      rebuildGreenfieldTestDatabaseInTransaction(sql),
-    ).rejects.toThrow("pre-state is invalid");
-    expect(sql.unsafe).not.toHaveBeenCalledWith(
-      GREENFIELD_REBUILD_SNAPSHOT_SQL,
-    );
-    expect(sql.unsafe).not.toHaveBeenCalledWith(
-      GREENFIELD_REBUILD_MUTATION_SQL[0],
-    );
-  });
-
   it("rolls back on removal or preservation mismatch", async () => {
-    const countMismatch = database({ migrationCount: 35, removed: 34 });
+    const targetCount = GREENFIELD_TARGET_VERSIONS.length;
+    const countMismatch = database({
+      migrationCount: targetCount,
+      removed: targetCount - 1,
+    });
     await expect(
       rebuildGreenfieldTestDatabaseInTransaction(countMismatch),
     ).rejects.toThrow("migration removal did not reconcile");
@@ -155,7 +171,7 @@ describe("greenfield TEST guarded rebuild SQL", () => {
     );
 
     const preservationMismatch = database({
-      migrationCount: 37,
+      migrationCount: targetCount,
       verify: verifiedRow({ extensions_preserved: false }),
     });
     await expect(

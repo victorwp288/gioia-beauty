@@ -31,6 +31,7 @@ export const GREENFIELD_VACATION_REASON = "Synthetic booking vacation race";
 export const GREENFIELD_EXPECTED_ROLE_NAMES = Object.freeze([
   "anon",
   "app_runtime",
+  "app_runtime_login",
   "authenticated",
   "authenticator",
   "dashboard_user",
@@ -79,6 +80,93 @@ export const GREENFIELD_EXPECTED_SCHEMA_NAMES = Object.freeze([
   "supabase_migrations",
   "vault",
 ]);
+export const GREENFIELD_REFERENCE_TABLE_NAMES = Object.freeze([
+  "booking_policy",
+  "business_hours",
+  "cutover_write_control",
+  "email_dead_letter_monitor_state",
+  "public_abuse_policies",
+  "service_categories",
+  "service_variants",
+  "services",
+]);
+export const GREENFIELD_OPERATIONAL_TABLE_NAMES = Object.freeze([
+  "command_requests",
+  "cutover_canary_events",
+  "cutover_canary_grants",
+  "cutover_canary_runs",
+  "cutover_transition_log",
+  "domain_change_log",
+  "email_dead_letter_events",
+  "email_outbox",
+  "email_webhook_events",
+  "migration_quarantine",
+  "migration_records",
+  "migration_runs",
+  "newsletter_action_signing_keys",
+  "newsletter_action_tokens",
+  "newsletter_consent_artifacts",
+  "newsletter_consent_cycles",
+  "newsletter_consent_events",
+  "newsletter_subscribers",
+  "owner_accounts",
+  "owner_sessions",
+  "public_abuse_buckets",
+  "schedule_day_locks",
+  "schedule_entries",
+  "vacations",
+]);
+export const GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES = Object.freeze(
+  [
+    ...GREENFIELD_REFERENCE_TABLE_NAMES,
+    ...GREENFIELD_OPERATIONAL_TABLE_NAMES,
+  ].sort(),
+);
+export const GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  `ack_email_dead_letter_alert_batch apply_legacy_quarantine_import
+  apply_legacy_schedule_import apply_legacy_subscriber_import
+  apply_legacy_vacation_import assert_enabled_owner
+  assert_enabled_owner_account assert_interval_open assert_owner_slot_policy
+  assert_public_slot_policy assert_schedule_date_open assert_vacation_span_clear
+  authenticated_owner_session_id authorize_cutover_write
+  authorize_owner_session begin_command begin_cutover_canary_run
+  begin_cutover_write_freeze begin_email_outbox_provider_attempt
+  begin_legacy_migration_import canonicalize_newsletter_action_token_times
+  claim_email_dead_letter_alert_batch claim_email_outbox complete_command
+  complete_cutover_unfreeze complete_email_outbox_failure
+  complete_email_outbox_pre_provider_failure complete_email_outbox_success
+  complete_legacy_migration_import confirm_public_newsletter
+  consume_public_abuse_bucket count_schedule_as_owner create_public_booking
+  enforce_command_request_transition enforce_email_outbox_transition
+  enforce_email_webhook_event_transition enforce_migration_quarantine_transition
+  enforce_migration_run_transition enforce_newsletter_action_token_transition
+  enforce_newsletter_consent_cycle_binding
+  enforce_newsletter_subscriber_transition enforce_schedule_entry_transition
+  enforce_vacation_transition enqueue_schedule_emails
+  enter_cutover_owner_reconcile export_schedule_as_owner fail_command
+  get_cutover_write_state get_public_availability issue_cutover_canary_grant
+  list_email_outbox_as_owner list_newsletter_subscribers_as_owner
+  list_schedule_as_owner list_vacations_as_owner lock_schedule_dates
+  maintain_email_webhook_replay_lifecycle owner_cancel_schedule_entry
+  owner_cancel_vacation owner_create_appointment owner_create_block
+  owner_create_vacation owner_reschedule_appointment owner_reschedule_block
+  owner_scope_hash owner_set_appointment_status owner_unsubscribe_subscriber
+  owner_update_appointment_details owner_update_block_details
+  owner_update_vacation prepare_legacy_migration_import_record
+  process_verified_email_webhook purge_expired_public_abuse_buckets
+  reconcile_cutover_canary_run record_domain_change
+  record_email_dead_letter_event replay_pending_verified_email_webhooks
+  resolve_active_variant retry_email_outbox_as_owner
+  revoke_cutover_canary_grant revoke_owner_session rome_today
+  set_updated_at_and_version start_owner_session subscribe_public_newsletter
+  suppress_cutover_canary_outbox unsubscribe_public_newsletter`
+    .split(/\s+/u)
+    .sort(),
+);
+
+const operationalRowCountSql = GREENFIELD_OPERATIONAL_TABLE_NAMES.map(
+  (table) => `(select count(*) from gioia_private.${table})`,
+).join("\n      + ");
 
 export const GREENFIELD_STATE_SQL = `
   select
@@ -101,18 +189,48 @@ export const GREENFIELD_STATE_SQL = `
       join pg_catalog.pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'gioia_private') as functions,
     (select count(*)::integer from pg_catalog.pg_roles
-      where rolname in ('app_runtime','gioia_mutator','gioia_migrator')) as roles,
+      where rolname in (
+        'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+      )) as roles,
     (select count(*)::integer from pg_catalog.pg_roles
-      where rolname in ('app_runtime','gioia_mutator','gioia_migrator')
+      where rolname in (
+        'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+      )
         and (rolcanlogin or rolsuper or rolcreatedb or rolcreaterole
           or rolinherit or rolreplication or rolbypassrls)) as unsafe_roles,
-    (select count(*)::integer from pg_catalog.pg_auth_members membership
-      join pg_catalog.pg_roles granted on granted.oid = membership.roleid
-      join pg_catalog.pg_roles member on member.oid = membership.member
-      where (granted.rolname in ('app_runtime','gioia_mutator','gioia_migrator')
-        and (member.rolname <> 'postgres' or not membership.admin_option
-          or membership.inherit_option or membership.set_option))
-        or member.rolname in ('app_runtime','gioia_mutator','gioia_migrator'))
+    ((select count(*) from pg_catalog.pg_auth_members membership
+        join pg_catalog.pg_roles granted on granted.oid = membership.roleid
+        join pg_catalog.pg_roles member on member.oid = membership.member
+        join pg_catalog.pg_roles grantor on grantor.oid = membership.grantor
+        where (granted.rolname in (
+            'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+          ) or member.rolname in (
+            'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+          )) and not (
+            (granted.rolname in (
+                'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+              )
+              and member.rolname = 'postgres'
+              and grantor.rolname = 'supabase_admin'
+              and membership.admin_option
+              and not membership.inherit_option
+              and not membership.set_option)
+            or
+            (granted.rolname = 'app_runtime'
+              and member.rolname = 'app_runtime_login'
+              and grantor.rolname = 'postgres'
+              and not membership.admin_option
+              and not membership.inherit_option
+              and membership.set_option)
+          ))
+      + abs((select count(*) from pg_catalog.pg_auth_members membership
+          join pg_catalog.pg_roles granted on granted.oid = membership.roleid
+          join pg_catalog.pg_roles member on member.oid = membership.member
+          where granted.rolname in (
+              'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+            ) or member.rolname in (
+              'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+            )) - 5))::integer
       as unsafe_role_memberships,
     (select count(*)::integer from pg_catalog.pg_class c
       join pg_catalog.pg_namespace n on n.oid = c.relnamespace
@@ -122,6 +240,12 @@ export const GREENFIELD_STATE_SQL = `
     (select count(*)::integer from gioia_private.service_variants) as variants,
     (select count(*)::integer from gioia_private.business_hours) as hours,
     (select count(*)::integer from gioia_private.booking_policy) as policies,
+    (select count(*)::integer from gioia_private.public_abuse_policies)
+      as abuse_policies,
+    (select count(*)::integer from gioia_private.cutover_write_control)
+      as cutover_controls,
+    (select count(*)::integer from gioia_private.email_dead_letter_monitor_state)
+      as dead_letter_monitor_states,
     (select count(*)::integer from auth.users) as auth_users,
     (select count(*)::integer from auth.identities) as auth_identities,
     (select count(*)::integer from auth.sessions) as auth_sessions,
@@ -153,17 +277,7 @@ export const GREENFIELD_STATE_SQL = `
       + (select count(*) from storage.vector_indexes))::integer as storage_rows,
     (select count(*)::integer from gioia_private.owner_accounts) as owners,
     (select count(*)::integer from gioia_private.owner_sessions) as owner_sessions,
-    ((select count(*) from gioia_private.command_requests)
-      + (select count(*) from gioia_private.schedule_day_locks)
-      + (select count(*) from gioia_private.vacations)
-      + (select count(*) from gioia_private.schedule_entries)
-      + (select count(*) from gioia_private.newsletter_subscribers)
-      + (select count(*) from gioia_private.email_outbox)
-      + (select count(*) from gioia_private.email_webhook_events)
-      + (select count(*) from gioia_private.domain_change_log)
-      + (select count(*) from gioia_private.migration_runs)
-      + (select count(*) from gioia_private.migration_records)
-      + (select count(*) from gioia_private.migration_quarantine))::integer
+    (${operationalRowCountSql})::integer
       as operational_rows
 `;
 

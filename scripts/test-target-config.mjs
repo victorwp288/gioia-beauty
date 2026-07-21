@@ -27,7 +27,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const POOLER_HOST_PATTERN = /^aws-[0-9]+-eu-central-2\.pooler\.supabase\.com$/;
 const OPERATOR_USERNAME = `postgres.${TEST_TARGET_REF}`;
-const RUNTIME_USERNAME = `app_runtime.${TEST_TARGET_REF}`;
+const RUNTIME_LOGIN_USERNAME = `app_runtime_login.${TEST_TARGET_REF}`;
 const TEST_TARGET_CA_FINGERPRINT =
   "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
 const ALLOWED_SUPABASE_ENV_KEYS = new Set([
@@ -251,7 +251,7 @@ function parsePreviewDatabaseUrl(value, operatorUrl, errors) {
       url.searchParams.get("sslmode") === "verify-full";
     if (
       url.protocol !== "postgresql:" ||
-      decodeURIComponent(url.username) !== RUNTIME_USERNAME ||
+      decodeURIComponent(url.username) !== RUNTIME_LOGIN_USERNAME ||
       password.trim() !== password ||
       password.includes("\0") ||
       Buffer.byteLength(password, "utf8") < 32 ||
@@ -285,11 +285,11 @@ function runtimeDatabaseUrl(operatorWorkerUrl, password) {
     Buffer.byteLength(password, "utf8") > 256
   ) {
     throw new TestTargetConfigError([
-      "in-memory app_runtime password must contain 32 to 256 bytes",
+      "in-memory app_runtime_login password must contain 32 to 256 bytes",
     ]);
   }
   const url = new URL(operatorWorkerUrl);
-  url.username = RUNTIME_USERNAME;
+  url.username = RUNTIME_LOGIN_USERNAME;
   url.password = password;
   return url.href;
 }

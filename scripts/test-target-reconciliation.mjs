@@ -30,10 +30,10 @@ export function assertCleanGreenfieldRow(row, expectedVersions) {
     }
   }
   const expected = {
-    tables: 18,
-    forced_rls: 18,
-    functions: 49,
-    roles: 3,
+    tables: 32,
+    forced_rls: 32,
+    functions: 86,
+    roles: 4,
     unsafe_roles: 0,
     unsafe_role_memberships: 0,
     public_tables: 0,
@@ -42,6 +42,9 @@ export function assertCleanGreenfieldRow(row, expectedVersions) {
     variants: 102,
     hours: 5,
     policies: 1,
+    abuse_policies: 9,
+    cutover_controls: 1,
+    dead_letter_monitor_states: 1,
     auth_users: 0,
     auth_identities: 0,
     auth_sessions: 0,

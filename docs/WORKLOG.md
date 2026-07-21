@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Replaced the blocked runtime login with a credential-only carrier
+**Phase:** Phase 2 hosted-TEST recovery foundation; final `[TEST]` checklist item remains open
+**Labels/environment:** one owner-approved bounded `[TEST]` fresh-role canary; `[LOCAL]` carrier implementation and disposable synthetic verification
+**Data impact:** TEST canary created, authenticated, contained, and dropped one temporary role; Local resets used synthetic fixtures only; zero business/Auth/storage/customer rows
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm` in `eu-central-2` plus disposable Local Gioia stack on temporary 5632x ports; live Firebase/site/`main`, Vercel Production, Resend, and customer data untouched
+**Expected reads/writes/rows:** bounded TEST catalog/session/identity reads, one temporary `gioia_pooler_canary` role lifecycle and one transaction-pooler identity query; Local-only 61-migration rebuilds and synthetic acceptance; zero remote business/Auth/storage rows
+**Done:** Proved a fresh custom role authenticates through Supavisor `:6543` and reconciled it absent. Added inert `app_runtime_login` as a `NOINHERIT`, SET-only credential carrier while `app_runtime` remains the stable `NOLOGIN` authorization role; pinned Preview DSNs to the carrier/shared transaction pooler/`verify-full`; updated guarded credential lifecycle, exact rebuild/reconciliation, pgTAP, app runtime validation, docs, and the Local creator-membership harness.
+**Verified/reconciled:** TEST canary absent, `app_runtime` contained, 0 relevant sessions, and remote history still 37. Local: 61 migrations; 27 pgTAP files/445 assertions passed on both clean cycles; DB lint/advisors/static, synthetic Auth/routes, four concurrency races, format, lint, TS5/TS6, 2,060 tests, both 56-test timezone suites, dependency audit with 0 high/critical, and production build passed. Independent review's privilege-drift, live SET-role proof, migration-order wording, and timeout-coverage findings were fixed; final re-review resolved them. Disposable stack/volumes were removed and committed ports restored. Gitleaks 8.30.1 is unavailable locally; the untrusted container fallback was denied rather than bypassed.
+**Production actions performed:** none; no Production read/write, deployment/config/provider action, email, secret rotation, support-access grant, or customer-data access
+**Backup/restore evidence:** n/a; synthetic Local and temporary empty TEST role only
+**Rollback/forward recovery:** revert this carrier batch for code; the TEST canary already self-removed with exact snapshot reconciliation. Durable hosted state was not changed and `app_runtime` remains contained.
+**Next:** Commit/push and require exact-head green CI. Then obtain exact approval to apply reviewed migrations 38–61 to `lxvsspniipcotimbsfqm`, provision one protected durable `app_runtime_login` TEST credential, and run the complete two-cycle `npm run db:test:greenfield` gate. Keep Vercel Preview secret activation as a separate named configuration action and tick Phase 2 only after final success plus zero residue.
+**Gotchas:** The successful fresh-role canary disproves a project-wide pooler outage but does not prove the durable SET-role boundary or hosted schema. The old `app_runtime` pooler identity may remain provider-stale; the new design no longer depends on repairing it.
+
 ## 2026-07-21 — Guarded `app_runtime` recovery still failed closed
 **Phase:** Phase 2 final hosted-TEST acceptance gate; no checklist item completed
 **Labels/environment:** bounded `[TEST]` role recovery and identity diagnostics; `[LOCAL]` read-only repo/config validation

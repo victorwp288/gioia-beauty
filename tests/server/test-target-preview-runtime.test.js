@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   GREENFIELD_PREVIEW_ROLE_SQL,
+  GREENFIELD_RUNTIME_ROLE_SQL,
   withGreenfieldTestLock,
 } from "../../scripts/test-target-harness.mjs";
 import { verifyPreviewCredential } from "../../scripts/test-target-runtime-role.mjs";
@@ -15,6 +16,84 @@ import {
 } from "./test-target-preview-runtime-helpers.js";
 
 describe("greenfield TEST durable Preview runtime", () => {
+  it("targets only the carrier for credentials and the authorization role for privileges", () => {
+    expect(GREENFIELD_PREVIEW_ROLE_SQL.authenticate).toContain(
+      "session_user = 'app_runtime_login'",
+    );
+    expect(GREENFIELD_PREVIEW_ROLE_SQL.authenticate).toContain(
+      "current_user = 'app_runtime_login'",
+    );
+    expect(GREENFIELD_PREVIEW_ROLE_SQL.assume).toBe(
+      "set local role app_runtime",
+    );
+    expect(GREENFIELD_PREVIEW_ROLE_SQL.authorize).toContain(
+      "current_user = 'app_runtime'",
+    );
+    expect(GREENFIELD_PREVIEW_ROLE_SQL.authorize).toContain(
+      "gioia_private.get_cutover_write_state()",
+    );
+    expect(GREENFIELD_PREVIEW_ROLE_SQL.restore[1]).toContain(
+      "alter role app_runtime_login login",
+    );
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.cleanup[0]).toBe(
+      "alter role app_runtime_login nologin password null valid until 'infinity'",
+    );
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.setup[1]).toBe(
+      "grant app_runtime to postgres with inherit false, set true granted by current_user",
+    );
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.state).toContain(
+      "login.rolname = 'app_runtime_login'",
+    );
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.state).toContain(
+      "authorization.rolname = 'app_runtime'",
+    );
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.state).toContain("as has_unsafe_access");
+  });
+
+  it("fails closed when the versioned carrier role is missing", async () => {
+    const state = lifecycleHarness({ rolePresent: false });
+    const callback = vi.fn();
+
+    await expect(
+      withGreenfieldTestLock(config(), callback, {
+        clientFactory: state.clientFactory,
+      }),
+    ).rejects.toThrow("runtime role state is invalid");
+
+    expect(callback).not.toHaveBeenCalled();
+    expect(state.events).toEqual(["lock", "unlock"]);
+  });
+
+  it("contains a carrier with unexpected role membership", async () => {
+    const state = lifecycleHarness({ hasUnsafeMembership: true });
+    const callback = vi.fn();
+
+    await expect(
+      withGreenfieldTestLock(config(), callback, {
+        clientFactory: state.clientFactory,
+      }),
+    ).rejects.toThrow("unsafe Preview role containment failed");
+
+    expect(callback).not.toHaveBeenCalled();
+    expect(state.roleCanLogin()).toBe(false);
+    expect(state.events.at(-1)).toBe("unlock");
+  });
+
+  it("contains a carrier with direct access or ownership residue", async () => {
+    const state = lifecycleHarness({ hasUnsafeAccess: true });
+    const callback = vi.fn();
+
+    await expect(
+      withGreenfieldTestLock(config(), callback, {
+        clientFactory: state.clientFactory,
+      }),
+    ).rejects.toThrow("unsafe Preview role containment failed");
+
+    expect(callback).not.toHaveBeenCalled();
+    expect(state.roleCanLogin()).toBe(false);
+    expect(state.events.at(-1)).toBe("unlock");
+  });
+
   it("suspends and restores the exact credential before unlocking", async () => {
     const callbackFailure = new Error("synthetic callback failure");
     const state = lifecycleHarness();
@@ -47,8 +126,17 @@ describe("greenfield TEST durable Preview runtime", () => {
       state.credentialClients.every(({ end }) => end.mock.calls.length === 1),
     ).toBe(true);
     for (const client of state.credentialClients) {
-      expect(client.unsafe).toHaveBeenCalledWith(
+      expect(client.transactionUnsafe).toHaveBeenNthCalledWith(
+        1,
         GREENFIELD_PREVIEW_ROLE_SQL.authenticate,
+      );
+      expect(client.transactionUnsafe).toHaveBeenNthCalledWith(
+        2,
+        GREENFIELD_PREVIEW_ROLE_SQL.assume,
+      );
+      expect(client.transactionUnsafe).toHaveBeenNthCalledWith(
+        3,
+        GREENFIELD_PREVIEW_ROLE_SQL.authorize,
       );
     }
     const restoreTransaction = state.lockClient.begin.mock.calls[0][0];
@@ -173,7 +261,7 @@ describe("greenfield TEST durable Preview runtime", () => {
     vi.useFakeTimers();
     try {
       const pendingClient = {
-        unsafe: vi.fn(() => new Promise(() => {})),
+        begin: vi.fn(() => new Promise(() => {})),
         end: vi.fn(async () => {}),
       };
       const clientFactory = vi.fn().mockReturnValueOnce(pendingClient);
@@ -187,6 +275,7 @@ describe("greenfield TEST durable Preview runtime", () => {
       });
 
       expect(clientFactory).toHaveBeenCalledTimes(1);
+      expect(pendingClient.begin).toHaveBeenCalledTimes(1);
       expect(pendingClient.end).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
@@ -197,7 +286,7 @@ describe("greenfield TEST durable Preview runtime", () => {
     for (const code of ["08006", "ECONNREFUSED", "EDBHANDLEREXITED"]) {
       const failure = Object.assign(new Error(`secret-${code}`), { code });
       const client = {
-        unsafe: vi.fn(async () => {
+        begin: vi.fn(async () => {
           throw failure;
         }),
         end: vi.fn(async () => {}),
@@ -226,7 +315,7 @@ describe("greenfield TEST durable Preview runtime", () => {
           code: "28P01",
         });
       const clients = [0, 1, 2].map(() => ({
-        unsafe: vi.fn(async () => {
+        begin: vi.fn(async () => {
           throw wrongPassword();
         }),
         end: vi.fn(async () => {}),
@@ -271,7 +360,7 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.credentialClients).toHaveLength(2);
     expect(
       state.credentialClients.every(
-        ({ unsafe }) => unsafe.mock.calls.length === 0,
+        ({ begin }) => begin.mock.calls.length === 0,
       ),
     ).toBe(true);
   });

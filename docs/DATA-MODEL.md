@@ -343,8 +343,27 @@ the keyset order and prove the physical scan plan in TEST before activation.
 
 - Supabase Auth contains the single owner/admin identity; invite/reset rather than attempting to migrate Firebase password hashes.
 - Authorization uses owner-controlled `app_metadata` or an explicit server-side allowlist. Never authorize from editable `user_metadata`.
-- Business operations remain behind server routes using a least-privilege pooled `app_runtime` Postgres role against the private `gioia_private` schema. It can execute only allowlisted definer functions and has no table privileges. `anon`, `authenticated`, and `service_role` have neither business-table nor business-function access.
-- `app_runtime` is committed as `NOLOGIN`. A TEST/Production operator separately provisions its strong password/login capability and transaction-pooler secret; the application never connects as `postgres`. A destructive TEST checkpoint temporarily returns the role to the committed suspended state and must restore the exact protected Preview credential plus prove a fresh login before releasing its project lock.
+- Business operations remain behind server routes using the stable,
+  least-privilege `app_runtime` authorization role against the private
+  `gioia_private` schema. It can execute only allowlisted definer functions and
+  has no table privileges. `anon`, `authenticated`, and `service_role` have
+  neither business-table nor business-function access.
+- `app_runtime` is always `NOLOGIN`; its permissions and object grants never
+  move to a credential-bearing role. The application authenticates to the
+  transaction pooler as `app_runtime_login`, then every transaction explicitly
+  runs `SET LOCAL ROLE app_runtime` before business SQL.
+- `app_runtime_login` is a credential-only `NOINHERIT` carrier with `SET TRUE`
+  membership in `app_runtime`. It owns no database object and has no direct
+  schema, table, sequence, or function ACL. A TEST/Production operator
+  separately provisions its strong password/login capability and protected
+  transaction-pooler secret; the application never connects as `postgres` or
+  directly as `app_runtime`.
+- A destructive TEST checkpoint suspends only `app_runtime_login` to the
+  committed `NOLOGIN`/password-null state. Before releasing its project lock it
+  must restore the exact protected credential, prove a fresh carrier login and
+  `SET LOCAL ROLE app_runtime`, and recheck zero direct carrier ACL/ownership.
+  Any failure is contained by disabling and clearing the carrier credential;
+  the `app_runtime` authorization surface remains unchanged.
 
 ## 3. Booking and privacy decisions
 

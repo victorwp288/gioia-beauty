@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   GREENFIELD_CLEANUP_SQL,
   GREENFIELD_CLEANUP_ISOLATION_SQL,
+  GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES,
+  GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES,
   GREENFIELD_EXPECTED_ROLE_NAMES,
   GREENFIELD_EXPECTED_SCHEMA_NAMES,
   GREENFIELD_OWNER_PROVISION_SQL,
@@ -41,10 +43,10 @@ function cleanRow(overrides = {}) {
     migration_versions: versions,
     role_names: GREENFIELD_EXPECTED_ROLE_NAMES,
     schema_names: GREENFIELD_EXPECTED_SCHEMA_NAMES,
-    tables: 18,
-    forced_rls: 18,
-    functions: 49,
-    roles: 3,
+    tables: 32,
+    forced_rls: 32,
+    functions: 86,
+    roles: 4,
     unsafe_roles: 0,
     unsafe_role_memberships: 0,
     public_tables: 0,
@@ -53,6 +55,9 @@ function cleanRow(overrides = {}) {
     variants: 102,
     hours: 5,
     policies: 1,
+    abuse_policies: 9,
+    cutover_controls: 1,
+    dead_letter_monitor_states: 1,
     auth_users: 0,
     auth_identities: 0,
     auth_sessions: 0,
@@ -124,6 +129,17 @@ function fingerprintRow(overrides = {}) {
 }
 
 describe("greenfield TEST fixture reconciliation", () => {
+  it("pins the complete 61-migration private catalog", () => {
+    expect(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES).toHaveLength(32);
+    expect(GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES).toHaveLength(86);
+    expect(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES).toContain(
+      "email_dead_letter_monitor_state",
+    );
+    expect(GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES).toContain(
+      "authorize_cutover_write",
+    );
+  });
+
   it("binds every operator fixture parameter to an explicit PostgreSQL type", () => {
     expect(GREENFIELD_OWNER_PROVISION_SQL[0]).toContain(
       "extensions.crypt($3::text",

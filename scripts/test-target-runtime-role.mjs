@@ -5,7 +5,9 @@ import {
   endTestTargetDatabaseClient,
 } from "./test-target-database-client.mjs";
 import {
+  PREVIEW_ROLE_AUTHORIZE_SQL,
   PREVIEW_ROLE_AUTHENTICATE_SQL,
+  PREVIEW_ROLE_ASSUME_SQL,
   PREVIEW_ROLE_RESTORE_SQL,
   RUNTIME_PASSWORD_CONFIG_SQL,
   RUNTIME_ROLE_ALTER_SQL,
@@ -40,7 +42,8 @@ function isSafeRuntimeRole(state, canLogin) {
     state.rolcanlogin === canLogin &&
     state.attributes_are_safe === true &&
     state.credential_is_safe === true &&
-    !state.has_unsafe_membership
+    !state.has_unsafe_membership &&
+    !state.has_unsafe_access
   );
 }
 
@@ -104,7 +107,16 @@ async function authenticatePreviewClient(client) {
   let timeout;
   try {
     return await Promise.race([
-      client.unsafe(PREVIEW_ROLE_AUTHENTICATE_SQL),
+      client.begin(async (transaction) => {
+        const [identity, ...extraIdentity] = await transaction.unsafe(
+          PREVIEW_ROLE_AUTHENTICATE_SQL,
+        );
+        if (identity?.authorized !== true || extraIdentity.length !== 0) {
+          return [{ authorized: false }];
+        }
+        await transaction.unsafe(PREVIEW_ROLE_ASSUME_SQL);
+        return transaction.unsafe(PREVIEW_ROLE_AUTHORIZE_SQL);
+      }),
       new Promise((_, reject) => {
         timeout = setTimeout(
           () =>
@@ -218,6 +230,7 @@ async function ensurePreviewCredential(sql, config, clientFactory) {
     state.attributes_are_safe !== true ||
     state.credential_is_safe !== true ||
     state.has_unsafe_membership ||
+    state.has_unsafe_access ||
     typeof state.rolcanlogin !== "boolean"
   ) {
     const stateError = new Error(

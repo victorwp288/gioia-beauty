@@ -21,8 +21,9 @@ function previewEnvironment(overrides = {}) {
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       "sb_publishable_synthetic_value_123456",
     SUPABASE_DATABASE_URL:
-      `postgresql://app_runtime.${GREENFIELD_SUPABASE_REF}:` +
-      "synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres",
+      `postgresql://app_runtime_login.${GREENFIELD_SUPABASE_REF}:` +
+      "synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres" +
+      "?sslmode=verify-full",
     BOOKING_HMAC_SECRET: "synthetic-preview-booking-hmac-secret-000000000000",
     OWNER_SESSION_HMAC_SECRET:
       "synthetic-preview-owner-session-secret-000000000000",
@@ -270,26 +271,50 @@ describe("environment isolation", () => {
     expect(rejected.ok).toBe(false);
   });
 
-  it("rejects privileged or non-transactional Preview database connections", () => {
-    const privileged = validate(
+  it.each([
+    ["authorization role", `app_runtime.${GREENFIELD_SUPABASE_REF}`],
+    ["privileged role", `postgres.${GREENFIELD_SUPABASE_REF}`],
+    ["other role", `other.${GREENFIELD_SUPABASE_REF}`],
+  ])("rejects the %s as a Preview database login", (_, username) => {
+    const result = validate(
       previewEnvironment({
         SUPABASE_DATABASE_URL:
-          `postgresql://postgres.${GREENFIELD_SUPABASE_REF}:` +
-          "synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres",
-      }),
-    );
-    const direct = validate(
-      previewEnvironment({
-        SUPABASE_DATABASE_URL:
-          `postgresql://app_runtime:synthetic@db.${GREENFIELD_SUPABASE_REF}` +
-          ".supabase.co:5432/postgres",
+          `postgresql://${username}:synthetic@` +
+          "aws-0-eu-central-2.pooler.supabase.com:6543/postgres" +
+          "?sslmode=verify-full",
       }),
     );
 
-    expect(privileged.ok).toBe(false);
-    expect(direct.ok).toBe(false);
-    expect(privileged.errors.join(" ")).toContain("app_runtime");
-    expect(direct.errors.join(" ")).toContain("transaction pooler");
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toContain(
+      "app_runtime_login credential carrier",
+    );
+  });
+
+  it.each([
+    [
+      "direct connection",
+      `postgresql://app_runtime_login:synthetic@db.${GREENFIELD_SUPABASE_REF}.supabase.co:5432/postgres?sslmode=verify-full`,
+    ],
+    [
+      "session pooler",
+      `postgresql://app_runtime_login.${GREENFIELD_SUPABASE_REF}:synthetic@aws-0-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=verify-full`,
+    ],
+    [
+      "missing verify-full",
+      `postgresql://app_runtime_login.${GREENFIELD_SUPABASE_REF}:synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres`,
+    ],
+    [
+      "weaker TLS mode",
+      `postgresql://app_runtime_login.${GREENFIELD_SUPABASE_REF}:synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=require`,
+    ],
+  ])("rejects a Preview %s URL", (_, databaseUrl) => {
+    const result = validate(
+      previewEnvironment({ SUPABASE_DATABASE_URL: databaseUrl }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toContain("transaction pooler");
   });
 
   it("binds Preview URLs to the registered project ref", () => {

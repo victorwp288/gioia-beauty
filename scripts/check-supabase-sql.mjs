@@ -134,7 +134,9 @@ export function validateDatabaseTestSql(filename, sql) {
   }
   if (
     /set\s+local\s+role\s+app_runtime\b/i.test(sql) &&
-    !/grant\s+app_runtime\s+to\s+postgres\s*;/i.test(sql)
+    !/grant\s+app_runtime\s+to\s+postgres(?:\s+with\s+admin\s+false\s*,\s*inherit\s+false\s*,\s*set\s+true\s+granted\s+by\s+current_user)?\s*;/i.test(
+      sql,
+    )
   ) {
     errors.push(
       "runtime-role tests require a transaction-scoped postgres membership grant",

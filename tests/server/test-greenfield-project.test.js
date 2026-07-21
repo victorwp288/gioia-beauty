@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { runGreenfieldTestProject } from "../../scripts/test-greenfield-project.mjs";
+import { GREENFIELD_TARGET_VERSIONS } from "../../scripts/test-target-migrations.mjs";
 
 const fingerprint = {
   referenceChecksum: "a".repeat(64),
@@ -21,6 +22,7 @@ function harness(overrides = {}) {
     projectRef: "lxvsspniipcotimbsfqm",
   };
   let rebuildIndex = 0;
+  const targetCount = GREENFIELD_TARGET_VERSIONS.length;
   const operationOverrides = {
     createCli: vi.fn(() => cli),
     createPlan: vi.fn(() => {
@@ -31,7 +33,7 @@ function harness(overrides = {}) {
     rebuild: vi.fn(async () => {
       calls.push("rebuild");
       return {
-        removedMigrations: [35, 37][rebuildIndex++],
+        removedMigrations: [targetCount, targetCount][rebuildIndex++],
         ...fingerprint,
       };
     }),
@@ -99,7 +101,10 @@ describe("greenfield TEST two-cycle operator", () => {
       ciRunId: "29068500383",
       commitSha: "c".repeat(40),
       projectRef: "lxvsspniipcotimbsfqm",
-      removedMigrations: [35, 37],
+      removedMigrations: [
+        GREENFIELD_TARGET_VERSIONS.length,
+        GREENFIELD_TARGET_VERSIONS.length,
+      ],
       ...fingerprint,
     });
     expect(state.operationOverrides.createCli).toHaveBeenCalledWith({
@@ -116,21 +121,24 @@ describe("greenfield TEST two-cycle operator", () => {
     });
   });
 
-  it("rejects an atomic result without an exact reviewed history", async () => {
-    const state = harness({
-      rebuild: vi.fn(async () => ({ removedMigrations: 36 })),
-    });
-    await expect(
-      runGreenfieldTestProject(
-        {},
-        {
-          operationOverrides: state.operationOverrides,
-        },
-      ),
-    ).rejects.toThrow("rebuild result is invalid");
-    expect(state.cli.lintPrivateSchema).toHaveBeenCalledOnce();
-    expect(state.operationOverrides.runAcceptance).not.toHaveBeenCalled();
-  });
+  it.each([35, 37, GREENFIELD_TARGET_VERSIONS.length - 1])(
+    "rejects atomic result with unsupported migration count %i",
+    async (removedMigrations) => {
+      const state = harness({
+        rebuild: vi.fn(async () => ({ removedMigrations })),
+      });
+      await expect(
+        runGreenfieldTestProject(
+          {},
+          {
+            operationOverrides: state.operationOverrides,
+          },
+        ),
+      ).rejects.toThrow("rebuild result is invalid");
+      expect(state.cli.lintPrivateSchema).toHaveBeenCalledOnce();
+      expect(state.operationOverrides.runAcceptance).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not start acceptance after an atomic rebuild failure", async () => {
     const rebuildFailure = new Error("synthetic atomic failure");

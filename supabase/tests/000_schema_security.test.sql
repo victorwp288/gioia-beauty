@@ -21,9 +21,9 @@ select is(
 
 select is(
   (select count(*) from pg_catalog.pg_roles where rolname in (
-    'app_runtime', 'gioia_mutator', 'gioia_migrator'
+    'app_runtime', 'app_runtime_login', 'gioia_mutator', 'gioia_migrator'
   )),
-  3::bigint,
+  4::bigint,
   'all application roles exist'
 );
 
@@ -31,7 +31,9 @@ select ok(
   not exists (
     select 1
     from pg_catalog.pg_roles
-    where rolname in ('app_runtime', 'gioia_mutator', 'gioia_migrator')
+    where rolname in (
+      'app_runtime', 'app_runtime_login', 'gioia_mutator', 'gioia_migrator'
+    )
       and (rolcanlogin or rolsuper or rolcreatedb or rolcreaterole
         or rolinherit or rolreplication or rolbypassrls)
   ),
@@ -43,10 +45,20 @@ select ok(
     select 1
     from pg_catalog.pg_auth_members as membership
     join pg_catalog.pg_roles as granted_role on granted_role.oid = membership.roleid
-    where granted_role.rolname in ('app_runtime', 'gioia_mutator', 'gioia_migrator')
+    join pg_catalog.pg_roles as member_role on member_role.oid = membership.member
+    where granted_role.rolname in (
+      'app_runtime', 'app_runtime_login', 'gioia_mutator', 'gioia_migrator'
+    )
       and (membership.inherit_option or membership.set_option)
+      and not (
+        granted_role.rolname = 'app_runtime'
+        and member_role.rolname = 'app_runtime_login'
+        and not membership.admin_option
+        and not membership.inherit_option
+        and membership.set_option
+      )
   ),
-  'application roles have no inheritable or SET-capable memberships'
+  'only the credential carrier has a non-inheriting SET-capable membership'
 );
 
 select ok(
@@ -55,10 +67,29 @@ select ok(
     from pg_catalog.pg_auth_members as membership
     join pg_catalog.pg_roles as granted_role on granted_role.oid = membership.roleid
     join pg_catalog.pg_roles as member_role on member_role.oid = membership.member
-    where granted_role.rolname in ('app_runtime', 'gioia_mutator', 'gioia_migrator')
-      and (member_role.rolname <> 'postgres' or not membership.admin_option)
+    where (
+      granted_role.rolname in (
+        'app_runtime', 'app_runtime_login', 'gioia_mutator', 'gioia_migrator'
+      )
+      or member_role.rolname in (
+        'app_runtime', 'app_runtime_login', 'gioia_mutator', 'gioia_migrator'
+      )
+    )
+      and not (
+        member_role.rolname = 'postgres'
+        and membership.admin_option
+        and not membership.inherit_option
+        and not membership.set_option
+      )
+      and not (
+        granted_role.rolname = 'app_runtime'
+        and member_role.rolname = 'app_runtime_login'
+        and not membership.admin_option
+        and not membership.inherit_option
+        and membership.set_option
+      )
   ),
-  'only postgres creator-admin memberships may remain'
+  'only creator-admin and credential-carrier memberships may remain'
 );
 
 select ok(

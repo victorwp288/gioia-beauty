@@ -143,6 +143,20 @@ describe("Supabase SQL static validation", () => {
         error.includes("transaction-scoped postgres membership"),
       ),
     ).toBe(true);
+
+    const explicitPostgres17Grant = [
+      "begin;",
+      "grant app_runtime to postgres with admin false, inherit false, set true granted by current_user;",
+      "grant usage on schema extensions to app_runtime;",
+      "select plan(1);",
+      "set local role app_runtime;",
+      "select ok(true);",
+      "select * from finish();",
+      "rollback;",
+    ].join("\n");
+    expect(
+      validateDatabaseTestSql("070_runtime.test.sql", explicitPostgres17Grant),
+    ).toEqual([]);
   });
 
   it("requires rollback-scoped pgTAP access for restricted-role tests", () => {

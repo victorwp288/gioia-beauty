@@ -1,28 +1,16 @@
 import {
+  GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES,
+  GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES,
   GREENFIELD_EXPECTED_ROLE_NAMES,
   GREENFIELD_EXPECTED_SCHEMA_NAMES,
+  GREENFIELD_OPERATIONAL_TABLE_NAMES,
 } from "./test-target-fixture-sql.mjs";
 import { GREENFIELD_REFERENCE_CHECKSUM } from "./test-target-fingerprint-sql.mjs";
-import {
-  GREENFIELD_BASELINE_VERSIONS,
-  GREENFIELD_TARGET_VERSIONS,
-} from "./test-target-migrations.mjs";
+import { GREENFIELD_TARGET_VERSIONS } from "./test-target-migrations.mjs";
 
 const words = (value) => Object.freeze(value.split(" "));
-const CUSTOM_ROLES = words("app_runtime gioia_migrator gioia_mutator");
-const REFERENCE_TABLES = words(
-  "booking_policy business_hours service_categories service_variants services",
-);
-const BASELINE_TABLES = Object.freeze(
-  [
-    ...REFERENCE_TABLES,
-    ..."command_requests domain_change_log email_outbox email_webhook_events migration_quarantine migration_records migration_runs newsletter_subscribers owner_accounts schedule_day_locks schedule_entries vacations".split(
-      " ",
-    ),
-  ].sort(),
-);
-const TARGET_TABLES = Object.freeze(
-  [...BASELINE_TABLES, "owner_sessions"].sort(),
+const CUSTOM_ROLES = words(
+  "app_runtime app_runtime_login gioia_migrator gioia_mutator",
 );
 const AUTH_TABLES = words(
   "audit_log_entries custom_oauth_providers flow_state identities instances mfa_amr_claims mfa_challenges mfa_factors oauth_authorizations oauth_client_states oauth_clients oauth_consents one_time_tokens refresh_tokens saml_providers saml_relay_states sessions sso_domains sso_providers users webauthn_challenges webauthn_credentials",
@@ -42,8 +30,8 @@ function textArray(values) {
 export const GREENFIELD_REBUILD_GUARD_SQL = `
 do $guard$
 declare
-  actual_versions text[]; actual_tables text[]; actual_roles text[];
-  actual_schemas text[]; expected_tables text[]; table_name text;
+  actual_versions text[]; actual_tables text[]; actual_functions text[];
+  actual_roles text[]; actual_schemas text[]; table_name text;
   row_total bigint; reference_checksum text;
 begin
   if current_user <> 'postgres' then
@@ -55,11 +43,7 @@ begin
 
   select coalesce(pg_catalog.array_agg(version::text order by version::text), '{}')
     into actual_versions from supabase_migrations.schema_migrations;
-  if actual_versions = ${textArray(GREENFIELD_BASELINE_VERSIONS)} then
-    expected_tables := ${textArray(BASELINE_TABLES)};
-  elsif actual_versions = ${textArray(GREENFIELD_TARGET_VERSIONS)} then
-    expected_tables := ${textArray(TARGET_TABLES)};
-  else
+  if actual_versions <> ${textArray(GREENFIELD_TARGET_VERSIONS)} then
     raise exception 'Greenfield TEST migration history is not an exact rebuild state';
   end if;
   if exists (select 1 from supabase_migrations.schema_migrations
@@ -76,8 +60,15 @@ begin
     into actual_tables from pg_catalog.pg_class c
     join pg_catalog.pg_namespace n on n.oid=c.relnamespace
     where n.nspname='gioia_private' and c.relkind in ('r','p');
-  if actual_tables <> expected_tables then
+  if actual_tables <> ${textArray(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES)} then
     raise exception 'Greenfield TEST private tables are not exact';
+  end if;
+  select coalesce(pg_catalog.array_agg(p.proname::text order by p.proname), '{}')
+    into actual_functions from pg_catalog.pg_proc p
+    join pg_catalog.pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='gioia_private';
+  if actual_functions <> ${textArray(GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES)} then
+    raise exception 'Greenfield TEST private functions are not exact';
   end if;
   select pg_catalog.array_agg(rolname::text order by rolname) into actual_roles from pg_catalog.pg_roles;
   select pg_catalog.array_agg(nspname::text order by nspname) into actual_schemas from pg_catalog.pg_namespace
@@ -91,9 +82,11 @@ begin
     where r.rolname=any(${textArray(CUSTOM_ROLES)}) and
       (r.rolcanlogin or r.rolsuper or r.rolcreatedb or r.rolcreaterole or
        r.rolinherit or r.rolreplication or r.rolbypassrls or r.rolconnlimit <> -1 or
-       (r.rolname='app_runtime' and r.rolvaliduntil is not null and
+       (r.rolname in ('app_runtime','app_runtime_login') and
+         r.rolvaliduntil is not null and
          r.rolvaliduntil<>'infinity'::timestamptz) or
-       (r.rolname<>'app_runtime' and r.rolvaliduntil is not null) or
+       (r.rolname not in ('app_runtime','app_runtime_login') and
+         r.rolvaliduntil is not null) or
        (select pg_catalog.array_agg(setting order by setting)
           from pg_catalog.unnest(coalesce(r.rolconfig,'{}')) as config(setting))
         is distinct from case r.rolname when 'gioia_migrator'
@@ -101,22 +94,76 @@ begin
           else array['lock_timeout=3s','statement_timeout=10s']::text[] end)) then
     raise exception 'Greenfield TEST custom role attributes are not exact';
   end if;
+  if exists (select 1 from pg_catalog.pg_authid r
+      where r.rolname=any(${textArray(CUSTOM_ROLES)}) and
+        r.rolpassword is not null) then
+    raise exception 'Greenfield TEST custom role credentials are not contained';
+  end if;
   if (select count(*) from pg_catalog.pg_auth_members m
       join pg_catalog.pg_roles granted on granted.oid=m.roleid
       join pg_catalog.pg_roles member on member.oid=m.member
       join pg_catalog.pg_roles grantor on grantor.oid=m.grantor
       where granted.rolname=any(${textArray(CUSTOM_ROLES)}) or
-        member.rolname=any(${textArray(CUSTOM_ROLES)})) <> 3 or
+        member.rolname=any(${textArray(CUSTOM_ROLES)})) <> 5 or
      exists (select 1 from pg_catalog.pg_auth_members m
       join pg_catalog.pg_roles granted on granted.oid=m.roleid
       join pg_catalog.pg_roles member on member.oid=m.member
       join pg_catalog.pg_roles grantor on grantor.oid=m.grantor
       where (granted.rolname=any(${textArray(CUSTOM_ROLES)}) or
-        member.rolname=any(${textArray(CUSTOM_ROLES)})) and
-        (granted.rolname<>all(${textArray(CUSTOM_ROLES)}) or member.rolname<>'postgres' or
-         grantor.rolname<>'supabase_admin' or not m.admin_option or
-         m.inherit_option or m.set_option)) then
+        member.rolname=any(${textArray(CUSTOM_ROLES)})) and not (
+          (granted.rolname=any(${textArray(CUSTOM_ROLES)}) and
+            member.rolname='postgres' and grantor.rolname='supabase_admin' and
+            m.admin_option and not m.inherit_option and not m.set_option)
+          or
+          (granted.rolname='app_runtime' and member.rolname='app_runtime_login' and
+            grantor.rolname='postgres' and not m.admin_option and
+            not m.inherit_option and m.set_option)
+        )) then
     raise exception 'Greenfield TEST custom role memberships are not exact';
+  end if;
+  if exists (
+    select 1 from pg_catalog.pg_namespace n
+      where n.nspowner='app_runtime_login'::regrole
+    union all
+    select 1 from pg_catalog.pg_class c
+      where c.relowner='app_runtime_login'::regrole
+    union all
+    select 1 from pg_catalog.pg_proc p
+      where p.proowner='app_runtime_login'::regrole
+    union all
+    select 1 from pg_catalog.pg_type t
+      where t.typowner='app_runtime_login'::regrole
+    union all
+    select 1 from pg_catalog.pg_extension e
+      where e.extowner='app_runtime_login'::regrole
+    union all
+    select 1 from pg_catalog.pg_default_acl d
+      where d.defaclrole='app_runtime_login'::regrole
+  ) then
+    raise exception 'Greenfield TEST runtime login ownership is not empty';
+  end if;
+  if exists (
+    select 1 from pg_catalog.pg_namespace n
+      cross join lateral pg_catalog.aclexplode(n.nspacl) a
+      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
+    union all
+    select 1 from pg_catalog.pg_class c
+      cross join lateral pg_catalog.aclexplode(c.relacl) a
+      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
+    union all
+    select 1 from pg_catalog.pg_proc p
+      cross join lateral pg_catalog.aclexplode(p.proacl) a
+      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
+    union all
+    select 1 from pg_catalog.pg_type t
+      cross join lateral pg_catalog.aclexplode(t.typacl) a
+      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
+    union all
+    select 1 from pg_catalog.pg_database d
+      cross join lateral pg_catalog.aclexplode(d.datacl) a
+      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
+  ) then
+    raise exception 'Greenfield TEST runtime login direct ACL is not empty';
   end if;
   if (select count(*) from pg_catalog.pg_default_acl d join pg_catalog.pg_roles r
       on r.oid=d.defaclrole where r.rolname=any(${textArray(CUSTOM_ROLES)})) <> 2 or
@@ -162,7 +209,8 @@ begin
   end if;
   if exists (select 1 from pg_catalog.pg_stat_activity where pid<>pg_catalog.pg_backend_pid()
       and datname=pg_catalog.current_database() and
-      (usename='app_runtime' or application_name='gioia_public_api')) then
+      (usename in ('app_runtime','app_runtime_login') or
+        application_name='gioia_public_api')) then
     raise exception 'Greenfield TEST application sessions are active';
   end if;
   if exists (select 1 from pg_catalog.pg_class c join pg_catalog.pg_namespace n
@@ -174,11 +222,9 @@ begin
     raise exception 'Greenfield TEST public schema is not empty';
   end if;
 
-  foreach table_name in array expected_tables loop
-    if table_name<>all(${textArray(REFERENCE_TABLES)}) then
-      execute pg_catalog.format('select count(*) from gioia_private.%I',table_name) into row_total;
-      if row_total<>0 then raise exception 'Greenfield TEST operational residue exists'; end if;
-    end if;
+  foreach table_name in array ${textArray(GREENFIELD_OPERATIONAL_TABLE_NAMES)} loop
+    execute pg_catalog.format('select count(*) from gioia_private.%I',table_name) into row_total;
+    if row_total<>0 then raise exception 'Greenfield TEST operational residue exists'; end if;
   end loop;
   foreach table_name in array ${textArray(AUTH_TABLES)} loop
     execute pg_catalog.format('select count(*) from auth.%I',table_name) into row_total;
@@ -192,8 +238,49 @@ begin
      (select count(*) from gioia_private.services)<>74 or
      (select count(*) from gioia_private.service_variants)<>102 or
      (select count(*) from gioia_private.business_hours)<>5 or
-     (select count(*) from gioia_private.booking_policy)<>1 then
+     (select count(*) from gioia_private.booking_policy)<>1 or
+     (select count(*) from gioia_private.public_abuse_policies)<>9 or
+     (select count(*) from gioia_private.cutover_write_control)<>1 or
+     (select count(*) from gioia_private.email_dead_letter_monitor_state)<>1 then
     raise exception 'Greenfield TEST reference row counts are not exact';
+  end if;
+  if exists (
+      (select action,scope_kind,window_seconds,hard_limit,challenge_after,retention_seconds
+        from gioia_private.public_abuse_policies
+       except
+       values
+        ('availability','network',60,120,null::integer,3600),
+        ('booking','network',900,10,3,86400),
+        ('booking','account',86400,3,1,172800),
+        ('newsletter_subscribe','network',3600,10,5,86400),
+        ('newsletter_subscribe','account',86400,3,1,172800),
+        ('newsletter_action','network',900,30,null::integer,86400),
+        ('newsletter_action','token',900,10,null::integer,86400),
+        ('owner_login','network',900,10,5,86400),
+        ('owner_login','account',900,5,3,86400))
+      union all
+      ((values
+        ('availability','network',60,120,null::integer,3600),
+        ('booking','network',900,10,3,86400),
+        ('booking','account',86400,3,1,172800),
+        ('newsletter_subscribe','network',3600,10,5,86400),
+        ('newsletter_subscribe','account',86400,3,1,172800),
+        ('newsletter_action','network',900,30,null::integer,86400),
+        ('newsletter_action','token',900,10,null::integer,86400),
+        ('owner_login','network',900,10,5,86400),
+        ('owner_login','account',900,5,3,86400))
+       except
+       select action,scope_kind,window_seconds,hard_limit,challenge_after,retention_seconds
+        from gioia_private.public_abuse_policies)
+    ) or exists (select 1 from gioia_private.cutover_write_control
+      where not singleton or mode<>'open' or freeze_id is not null or version<>1 or
+        reason_code<>'INITIAL_LOCAL_STATE') or
+      exists (select 1 from gioia_private.email_dead_letter_monitor_state
+        where monitor_name<>'operator_alert_v1' or acked_sequence_id<>0 or
+          batch_id is not null or locked_by is not null or
+          leased_through_sequence_id is not null or lease_expires_at is not null or
+          version<>1) then
+    raise exception 'Greenfield TEST extended reference rows are not exact';
   end if;
   select pg_catalog.encode(extensions.digest(pg_catalog.jsonb_build_object(
     'categories',(select jsonb_agg(to_jsonb(x)-'created_at'-'updated_at' order by id) from gioia_private.service_categories x), 'services',(select jsonb_agg(to_jsonb(x)-'created_at'-'updated_at' order by id) from gioia_private.services x),

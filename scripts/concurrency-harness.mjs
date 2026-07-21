@@ -6,6 +6,12 @@ import postgres from "postgres";
 
 import { REQUEST_COUNT } from "./concurrency-queries.mjs";
 import { localSupabasePorts } from "./local-supabase-ports.mjs";
+import { withLocalRuntimeCreatorMembership } from "./local-runtime-creator-membership.mjs";
+
+export {
+  RUNTIME_CREATOR_MEMBERSHIP_SQL,
+  withLocalRuntimeCreatorMembership,
+} from "./local-runtime-creator-membership.mjs";
 
 const execFileAsync = promisify(execFile);
 const BARRIER_TIMEOUT_MS = 10_000;
@@ -223,22 +229,9 @@ export async function withLocalRuntimeDatabase(callback) {
     max_lifetime: 60,
     onnotice: () => {},
   });
-  let membershipGranted = false;
   try {
-    await admin.unsafe(
-      "grant app_runtime to postgres with inherit false, set true granted by current_user",
-    );
-    membershipGranted = true;
-    return await callback(sql);
+    return await withLocalRuntimeCreatorMembership(admin, () => callback(sql));
   } finally {
-    try {
-      if (membershipGranted) {
-        await admin.unsafe(
-          "revoke app_runtime from postgres granted by current_user",
-        );
-      }
-    } finally {
-      await Promise.all([sql.end({ timeout: 5 }), admin.end({ timeout: 5 })]);
-    }
+    await Promise.all([sql.end({ timeout: 5 }), admin.end({ timeout: 5 })]);
   }
 }

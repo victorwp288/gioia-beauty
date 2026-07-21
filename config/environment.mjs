@@ -16,6 +16,7 @@ const REMOTE_FIREBASE_PROJECTS = [
 export const GREENFIELD_SUPABASE_REF = "lxvsspniipcotimbsfqm";
 export const PRODUCTION_SUPABASE_REF = null;
 export const ISOLATED_FIREBASE_PROJECT_ID = "demo-gioia-beauty";
+export const RUNTIME_LOGIN_ROLE = "app_runtime_login";
 
 const FIREBASE_EMULATOR_HOSTS = {
   FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
@@ -92,19 +93,23 @@ function isSupabaseUrlForRef(key, value, projectRef) {
     }
 
     const username = decodeURIComponent(url.username);
-    const isDedicatedPooler =
-      url.hostname === `db.${projectRef}.supabase.co` &&
-      url.port === "6543" &&
-      username === "app_runtime";
     const isSharedPooler =
       url.hostname.endsWith(".pooler.supabase.com") &&
       url.port === "6543" &&
-      username === `app_runtime.${projectRef}`;
+      username === `${RUNTIME_LOGIN_ROLE}.${projectRef}`;
+    const searchParameters = [...url.searchParams.entries()];
+    const usesPinnedTlsMode =
+      searchParameters.length === 1 &&
+      searchParameters[0][0] === "sslmode" &&
+      searchParameters[0][1] === "verify-full" &&
+      url.hash === "";
 
     return (
       ["postgres:", "postgresql:"].includes(url.protocol) &&
       url.pathname === "/postgres" &&
-      (isDedicatedPooler || isSharedPooler)
+      hasValue(decodeURIComponent(url.password)) &&
+      isSharedPooler &&
+      usesPinnedTlsMode
     );
   } catch {
     return false;
@@ -146,7 +151,7 @@ function validateSupabaseTarget(appEnv, env, errors, projectRef) {
   for (const key of SUPABASE_DATABASE_URL_KEYS) {
     if (hasValue(env[key]) && !isSupabaseUrlForRef(key, env[key], projectRef)) {
       errors.push(
-        `${key} must use the app_runtime role through the transaction pooler`,
+        `${key} must use the app_runtime_login credential carrier through the transaction pooler with sslmode=verify-full`,
       );
     }
   }

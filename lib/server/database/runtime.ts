@@ -69,6 +69,7 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPABASE_CA_FINGERPRINT =
   "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
+const RUNTIME_LOGIN_ROLE = "app_runtime_login";
 
 function requireOwnerIdentity(
   identity: OwnerTransactionIdentity,
@@ -87,6 +88,9 @@ function requireDatabaseUrl(
 
   try {
     const url = new URL(value);
+    const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(
+      url.hostname,
+    );
     if (
       !["postgres:", "postgresql:"].includes(url.protocol) ||
       !url.hostname ||
@@ -94,6 +98,25 @@ function requireDatabaseUrl(
       !url.pathname.slice(1)
     ) {
       throw new DatabaseConfigurationError();
+    }
+    if (!isLoopback) {
+      const projectRef = env.SUPABASE_PROJECT_REF;
+      const searchParameters = [...url.searchParams.entries()];
+      if (
+        !projectRef ||
+        decodeURIComponent(url.username) !==
+          `${RUNTIME_LOGIN_ROLE}.${projectRef}` ||
+        !decodeURIComponent(url.password) ||
+        !url.hostname.endsWith(".pooler.supabase.com") ||
+        url.port !== "6543" ||
+        url.pathname !== "/postgres" ||
+        searchParameters.length !== 1 ||
+        searchParameters[0]?.[0] !== "sslmode" ||
+        searchParameters[0]?.[1] !== "verify-full" ||
+        url.hash !== ""
+      ) {
+        throw new DatabaseConfigurationError();
+      }
     }
   } catch {
     throw new DatabaseConfigurationError();

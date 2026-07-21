@@ -11,7 +11,10 @@ import {
 import { createTestTargetCli } from "./test-target-cli.mjs";
 import { parseTestTargetConfig } from "./test-target-config.mjs";
 import { withGreenfieldTestLock } from "./test-target-harness.mjs";
-import { repositoryMigrationFiles } from "./test-target-migrations.mjs";
+import {
+  GREENFIELD_TARGET_VERSIONS,
+  repositoryMigrationFiles,
+} from "./test-target-migrations.mjs";
 import { verifyGreenfieldTestPreflight } from "./test-target-preflight.mjs";
 
 const DEFAULT_OPERATIONS = Object.freeze({
@@ -39,7 +42,7 @@ function validatedOperations(overrides) {
 
 async function rebuildAndApply(worker, plan, rebuild) {
   const result = await rebuild(worker, plan);
-  if (![35, 37].includes(Number(result?.removedMigrations))) {
+  if (Number(result?.removedMigrations) !== GREENFIELD_TARGET_VERSIONS.length) {
     throw new Error("Greenfield TEST rebuild result is invalid");
   }
   return result;

@@ -119,13 +119,17 @@ export const REVIEWED_MIGRATION_DIGESTS = Object.freeze({
     "1fd310d9102b91ea45df11ba007662fc573844144c2f7371575c5686fb485e1f",
   "20260720184500_phase4_legacy_migration_import_boundary.sql":
     "84516a7ba14d5f313581aa0b32c24884d3ea079a868ec0fb685b08173566524d",
+  "20260721104615_add_runtime_login_carrier.sql":
+    "bb0af7652c25bff0ea5495f45b23d605845b734b0a9e6144703453e19c06025a",
 });
 
 export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "000_0_pgtap_setup.test.sql":
     "0ae2198cbf1d3207f4f52aa19c64c685efdfad417600ea3f6f25c5f624618ed0",
   "000_schema_security.test.sql":
-    "6a050ae3a6b4b2128a140496812406e1e6f47cde4aed3f896d1c8a15852555fc",
+    "6e3ed7d70a985c443bb165b71787ddf0b56c660a210a070159e629cf49e6fbf7",
+  "002_runtime_login_carrier.test.sql":
+    "98cd08d44ea58f563f2fe052dacb5f9302db2472388fe53f7e5bc7c3983142c1",
   "005_foreign_key_indexes.test.sql":
     "9dfac6e3500b1d72d3123d2f020eb1c57ab23ba77fd488e56ad70d39b85f14fc",
   "010_catalog_policy.test.sql":

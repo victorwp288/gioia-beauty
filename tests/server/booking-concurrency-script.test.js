@@ -23,8 +23,10 @@ import {
   parseRaceTarget,
   parseRaceTargets,
   raceTargetQuery,
+  RUNTIME_CREATOR_MEMBERSHIP_SQL,
   RUNTIME_ROLE_SQL,
   runBookingConcurrencySuite,
+  withLocalRuntimeCreatorMembership,
   WORKER_BARRIER_SQL,
 } from "../../scripts/test-booking-concurrency.mjs";
 
@@ -67,6 +69,64 @@ function bookingResults() {
 }
 
 describe("booking concurrency target and safety", () => {
+  it("temporarily enables SET on the existing runtime creator membership", async () => {
+    const membership = {
+      grantor: "supabase_admin",
+      admin_option: true,
+      inherit_option: false,
+      set_option: false,
+    };
+    const admin = {
+      unsafe: vi
+        .fn()
+        .mockResolvedValueOnce([membership])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([membership]),
+    };
+
+    await expect(
+      withLocalRuntimeCreatorMembership(admin, async () => "passed"),
+    ).resolves.toBe("passed");
+    expect(admin.unsafe).toHaveBeenNthCalledWith(
+      1,
+      RUNTIME_CREATOR_MEMBERSHIP_SQL,
+    );
+    expect(admin.unsafe).toHaveBeenNthCalledWith(
+      2,
+      "grant app_runtime to postgres with admin true, inherit false, set true granted by current_user",
+    );
+    expect(admin.unsafe).toHaveBeenNthCalledWith(
+      3,
+      "grant app_runtime to postgres with admin true, inherit false, set false granted by current_user",
+    );
+    expect(admin.unsafe).toHaveBeenNthCalledWith(
+      4,
+      RUNTIME_CREATOR_MEMBERSHIP_SQL,
+    );
+  });
+
+  it("removes only a runtime creator membership that it created", async () => {
+    const admin = {
+      unsafe: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+
+    await withLocalRuntimeCreatorMembership(admin, async () => undefined);
+    expect(admin.unsafe).toHaveBeenNthCalledWith(
+      2,
+      "grant app_runtime to postgres with admin false, inherit false, set true granted by current_user",
+    );
+    expect(admin.unsafe).toHaveBeenNthCalledWith(
+      3,
+      "revoke app_runtime from postgres granted by current_user",
+    );
+  });
+
   it("builds five bounded dates and one validated catalog target", () => {
     const rows = Array.from({ length: 5 }, (_, index) => ({
       ...target,

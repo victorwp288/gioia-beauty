@@ -9,6 +9,7 @@ export { GREENFIELD_REBUILD_GUARD_SQL };
 
 const CUSTOM_ROLES = Object.freeze([
   "app_runtime",
+  "app_runtime_login",
   "gioia_migrator",
   "gioia_mutator",
 ]);
@@ -85,6 +86,7 @@ select
   ${SURVIVING_SCHEMA_ACLS_SQL} as schema_acls`;
 
 export const GREENFIELD_REBUILD_MUTATION_SQL = Object.freeze([
+  "alter role app_runtime_login nologin password null valid until 'infinity'",
   "alter role app_runtime nologin password null valid until 'infinity'",
   "grant gioia_mutator, gioia_migrator to postgres with inherit true, set false granted by current_user",
   "do $$ begin if not pg_catalog.pg_has_role(current_user,'gioia_mutator','USAGE') or not pg_catalog.pg_has_role(current_user,'gioia_migrator','USAGE') then raise exception 'Greenfield TEST temporary default-ACL membership failed'; end if; end $$",
@@ -93,6 +95,8 @@ export const GREENFIELD_REBUILD_MUTATION_SQL = Object.freeze([
   "revoke gioia_mutator, gioia_migrator from postgres granted by current_user",
   "do $$ begin if pg_catalog.pg_has_role(current_user,'gioia_mutator','USAGE') or pg_catalog.pg_has_role(current_user,'gioia_migrator','USAGE') then raise exception 'Greenfield TEST temporary default-ACL membership remained'; end if; end $$",
   "revoke usage on schema extensions from gioia_mutator, gioia_migrator",
+  "revoke app_runtime from app_runtime_login granted by postgres",
+  "drop role app_runtime_login",
   "drop schema gioia_private cascade",
   "drop role app_runtime, gioia_migrator, gioia_mutator",
 ]);
@@ -151,7 +155,7 @@ export async function rebuildGreenfieldTestDatabaseInTransaction(transaction) {
     "select count(*)::integer as migration_count from supabase_migrations.schema_migrations",
   );
   const expectedCount = Number(mode?.migration_count);
-  if (![35, 37].includes(expectedCount)) {
+  if (expectedCount !== GREENFIELD_TARGET_VERSIONS.length) {
     throw new Error("Greenfield TEST rebuild pre-state is invalid");
   }
   await transaction.unsafe(GREENFIELD_REBUILD_SNAPSHOT_SQL);
