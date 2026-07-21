@@ -218,6 +218,31 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.roleCanLogin()).toBe(true);
   });
 
+  it("bounds transient session-pooler connection retries before locking", async () => {
+    vi.useFakeTimers();
+    try {
+      const refusal = Object.assign(new Error("synthetic pooler refusal"), {
+        code: "08006",
+      });
+      const state = lifecycleHarness();
+      state.lockPool.reserve
+        .mockRejectedValueOnce(refusal)
+        .mockResolvedValue(state.lockClient);
+
+      const operation = withGreenfieldTestLock(config(), vi.fn(), {
+        clientFactory: state.clientFactory,
+      });
+      await vi.runAllTimersAsync();
+      await expect(operation).resolves.toBeUndefined();
+
+      expect(state.lockPool.reserve).toHaveBeenCalledTimes(2);
+      expect(state.events[0]).toBe("lock");
+      expect(state.events.at(-1)).toBe("unlock");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retries a transient pooler authentication failure with a fresh client", async () => {
     const transientFailure = Object.assign(
       new Error("synthetic pooler credential refresh"),
@@ -307,14 +332,14 @@ describe("greenfield TEST durable Preview runtime", () => {
     }
   });
 
-  it("caps wrong-password refresh at one fresh-client retry", async () => {
+  it("caps wrong-password propagation retries at fifteen seconds", async () => {
     vi.useFakeTimers();
     try {
       const wrongPassword = () =>
         Object.assign(new Error("synthetic protected password"), {
           code: "28P01",
         });
-      const clients = [0, 1, 2].map(() => ({
+      const clients = [0, 1, 2, 3, 4, 5].map(() => ({
         begin: vi.fn(async () => {
           throw wrongPassword();
         }),
@@ -324,7 +349,10 @@ describe("greenfield TEST durable Preview runtime", () => {
         .fn()
         .mockReturnValueOnce(clients[0])
         .mockReturnValueOnce(clients[1])
-        .mockReturnValueOnce(clients[2]);
+        .mockReturnValueOnce(clients[2])
+        .mockReturnValueOnce(clients[3])
+        .mockReturnValueOnce(clients[4])
+        .mockReturnValueOnce(clients[5]);
 
       const verification = verifyPreviewCredential(config(), clientFactory);
       const outcome = verification.catch((error) => error);
@@ -334,10 +362,11 @@ describe("greenfield TEST durable Preview runtime", () => {
           "Greenfield TEST durable Preview credential could not authenticate",
       });
 
-      expect(clientFactory).toHaveBeenCalledTimes(2);
-      expect(clients[0].end).toHaveBeenCalledTimes(1);
-      expect(clients[1].end).toHaveBeenCalledTimes(1);
-      expect(clients[2].end).not.toHaveBeenCalled();
+      expect(clientFactory).toHaveBeenCalledTimes(5);
+      for (const client of clients.slice(0, 5)) {
+        expect(client.end).toHaveBeenCalledTimes(1);
+      }
+      expect(clients[5].end).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

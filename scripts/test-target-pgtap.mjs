@@ -23,8 +23,34 @@ export const REMOTE_PGTAP_ROLLBACK_SQL = "rollback";
 export const REMOTE_PGTAP_CLEANUP_SQL = "drop extension if exists pgtap";
 export const REMOTE_PGTAP_SETUP_SQL =
   "create extension if not exists pgtap with schema extensions";
+export const REMOTE_PGTAP_NEWSLETTER_FIXTURE_FILES = Object.freeze([
+  "080_subscriber_commands.test.sql",
+  "100_verified_webhook_commands.test.sql",
+  "135_consent_evidence_binding.test.sql",
+]);
+export const REMOTE_PGTAP_NEWSLETTER_FIXTURE_SQL = `
+insert into gioia_private.newsletter_consent_artifacts (
+  artifact_version, policy_version, locale, form_copy, confirmation_copy,
+  privacy_notice_url, content_sha256, effective_at
+) values (
+  'newsletter-consent-v1.it-1', 'newsletter-consent-v1', 'it-IT',
+  'Synthetic local newsletter consent fixture.',
+  'Synthetic local newsletter confirmation fixture.',
+  'https://www.gioiabeauty.net/policy', decode(repeat('a1', 32), 'hex'),
+  '2026-01-01 00:00:00+00'
+) on conflict (artifact_version) do nothing;
+
+insert into gioia_private.newsletter_action_signing_keys (
+  key_id, issue_enabled, verify_until, created_at
+) values (
+  'local_1', true, '2099-01-01 00:00:00+00', '2026-01-01 00:00:00+00'
+) on conflict (key_id) do update set
+  issue_enabled = excluded.issue_enabled,
+  verify_until = excluded.verify_until;
+`;
 const REMOTE_PGTAP_SETUP_FILE = "000_0_pgtap_setup.test.sql";
 const REMOTE_PGTAP_SETUP_PREFIX = `${REMOTE_PGTAP_SETUP_SQL};\n\n`;
+const NEWSLETTER_FIXTURE_FILES = new Set(REMOTE_PGTAP_NEWSLETTER_FIXTURE_FILES);
 
 function validatedDatabaseUrl(getter) {
   if (typeof getter !== "function") {
@@ -110,6 +136,17 @@ function reviewedSource(file, absoluteFile) {
   return source.toString("utf8");
 }
 
+export function withRemotePgTapFixtures(file, source) {
+  if (!NEWSLETTER_FIXTURE_FILES.has(path.basename(file))) return source;
+  const transactionPrefix = "begin;\n";
+  if (!source.startsWith(transactionPrefix)) {
+    throw new TestTargetPgTapError(
+      "Remote pgTAP newsletter fixture transaction is invalid",
+    );
+  }
+  return `${transactionPrefix}${REMOTE_PGTAP_NEWSLETTER_FIXTURE_SQL}${source.slice(transactionPrefix.length)}`;
+}
+
 function validateTapResult(file, source, results) {
   const expected = expectedAssertions(source);
   const lines = textRows(results);
@@ -174,6 +211,7 @@ export function createRemotePgTapRunner({
           await sql.unsafe(REMOTE_PGTAP_SETUP_SQL);
           testSource = source.slice(REMOTE_PGTAP_SETUP_PREFIX.length);
         }
+        testSource = withRemotePgTapFixtures(file, testSource);
         const results = await sql.unsafe(testSource, [], { simple: true });
         total += validateTapResult(file, source, results);
       }

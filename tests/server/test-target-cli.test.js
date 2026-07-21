@@ -17,8 +17,11 @@ import {
 import { remotePgTapFiles } from "../../scripts/test-target-migrations.mjs";
 import {
   REMOTE_PGTAP_CLEANUP_SQL,
+  REMOTE_PGTAP_NEWSLETTER_FIXTURE_FILES,
+  REMOTE_PGTAP_NEWSLETTER_FIXTURE_SQL,
   REMOTE_PGTAP_ROLLBACK_SQL,
   REMOTE_PGTAP_SETUP_SQL,
+  withRemotePgTapFixtures,
 } from "../../scripts/test-target-pgtap.mjs";
 
 const PASSWORD = "operator-password-12345678901234567890";
@@ -225,6 +228,28 @@ describe("greenfield TEST Supabase CLI", () => {
       REMOTE_PGTAP_CLEANUP_SQL,
     );
     expect(database.sql.end).toHaveBeenCalledWith({ timeout: 5 });
+  });
+
+  it("injects rollback-only newsletter configuration into only the dependent remote tests", () => {
+    const source = "begin;\nselect plan(1);\nrollback;\n";
+    for (const file of REMOTE_PGTAP_NEWSLETTER_FIXTURE_FILES) {
+      const prepared = withRemotePgTapFixtures(file, source);
+      expect(
+        prepared.startsWith(`begin;\n${REMOTE_PGTAP_NEWSLETTER_FIXTURE_SQL}`),
+      ).toBe(true);
+      expect(prepared).toContain("newsletter-consent-v1.it-1");
+      expect(prepared).toContain("'local_1', true");
+      expect(prepared.endsWith("select plan(1);\nrollback;\n")).toBe(true);
+    }
+    expect(withRemotePgTapFixtures("010_catalog_policy.test.sql", source)).toBe(
+      source,
+    );
+    expect(() =>
+      withRemotePgTapFixtures(
+        REMOTE_PGTAP_NEWSLETTER_FIXTURE_FILES[0],
+        "select plan(1);",
+      ),
+    ).toThrow("fixture transaction is invalid");
   });
 
   it("redacts database credentials from results and failures", async () => {

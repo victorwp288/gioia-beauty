@@ -19,8 +19,9 @@ import {
   RUNTIME_SESSION_TERMINATE_SQL,
 } from "./test-target-runtime-role-sql.mjs";
 
-const PREVIEW_AUTH_ATTEMPTS = 2;
-const PREVIEW_AUTH_RETRY_DELAY_MS = 1_000;
+const PREVIEW_AUTH_RETRY_DELAYS_MS = Object.freeze([
+  1_000, 2_000, 4_000, 8_000,
+]);
 const PREVIEW_AUTH_TIMEOUT_MS = 15_000;
 const INVALID_PASSWORD_CODE = "28P01";
 
@@ -137,7 +138,8 @@ export async function verifyPreviewCredential(config, clientFactory) {
     new Error(
       "Greenfield TEST durable Preview credential could not authenticate",
     );
-  for (let attempt = 0; attempt < PREVIEW_AUTH_ATTEMPTS; attempt += 1) {
+  const attempts = PREVIEW_AUTH_RETRY_DELAYS_MS.length + 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     let client;
     try {
       client = createTestTargetDatabaseClient(
@@ -183,9 +185,9 @@ export async function verifyPreviewCredential(config, clientFactory) {
     }
     if (unauthorized) throw authenticationError();
     if (!authenticationFailure) return;
-    if (credentialRefreshFailure && attempt < PREVIEW_AUTH_ATTEMPTS - 1) {
+    if (credentialRefreshFailure && attempt < attempts - 1) {
       await new Promise((resolve) =>
-        setTimeout(resolve, PREVIEW_AUTH_RETRY_DELAY_MS),
+        setTimeout(resolve, PREVIEW_AUTH_RETRY_DELAYS_MS[attempt]),
       );
       continue;
     }

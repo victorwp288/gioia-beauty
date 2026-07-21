@@ -16,6 +16,9 @@ const GLOBAL_LOCK_SQL =
   "select pg_catalog.pg_try_advisory_lock(7102026, 72135538) as acquired";
 const GLOBAL_UNLOCK_SQL =
   "select pg_catalog.pg_advisory_unlock(7102026, 72135538) as released";
+const LOCK_CONNECT_ATTEMPTS = 3;
+const LOCK_CONNECT_RETRY_DELAY_MS = 1_000;
+const RETRIABLE_LOCK_CONNECT_CODES = new Set(["08006", "ECONNREFUSED"]);
 
 export const GREENFIELD_TEST_LOCK_SQL = GLOBAL_LOCK_SQL;
 export const GREENFIELD_TEST_UNLOCK_SQL = GLOBAL_UNLOCK_SQL;
@@ -26,6 +29,25 @@ async function attemptCleanup(errors, message, operation) {
   } catch {
     errors.push(new Error(message));
   }
+}
+
+async function reserveLockClient(lockPool) {
+  for (let attempt = 0; attempt < LOCK_CONNECT_ATTEMPTS; attempt += 1) {
+    try {
+      return await lockPool.reserve();
+    } catch (error) {
+      if (
+        !RETRIABLE_LOCK_CONNECT_CODES.has(error?.code) ||
+        attempt === LOCK_CONNECT_ATTEMPTS - 1
+      ) {
+        throw error;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, LOCK_CONNECT_RETRY_DELAY_MS),
+      );
+    }
+  }
+  throw new Error("Greenfield TEST lock connection failed");
 }
 
 export async function withGreenfieldTestLock(
@@ -53,7 +75,7 @@ export async function withGreenfieldTestLock(
       21,
       { caCertificate, clientFactory },
     );
-    lockClient = await lockPool.reserve();
+    lockClient = await reserveLockClient(lockPool);
     const [lock, ...extra] = await lockClient.unsafe(GLOBAL_LOCK_SQL);
     if (lock?.acquired !== true || extra.length !== 0) {
       throw new Error("Greenfield TEST target is already locked");
