@@ -25,7 +25,8 @@ export type PublicAbuseAction =
   | "public_booking"
   | "public_newsletter_subscribe"
   | "public_newsletter_confirm"
-  | "public_newsletter_unsubscribe";
+  | "public_newsletter_unsubscribe"
+  | "owner_login";
 
 export type PublicAbuseAllowed = {
   readonly ok: true;
@@ -142,7 +143,19 @@ function isPublicAbuseAction(action: unknown): action is PublicAbuseAction {
     "public_newsletter_subscribe",
     "public_newsletter_confirm",
     "public_newsletter_unsubscribe",
+    "owner_login",
   ].includes(action as PublicAbuseAction);
+}
+
+function actionEnabledInEnvironment(
+  appEnv: string,
+  action: PublicAbuseAction,
+): boolean {
+  if (appEnv === "local" || appEnv === "test") return true;
+  return (
+    action === "owner_login" &&
+    (appEnv === "preview" || appEnv === "production")
+  );
 }
 
 function validScopeForAction(
@@ -153,7 +166,8 @@ function validScopeForAction(
   return (
     (scope.kind === "account" &&
       (action === "public_booking" ||
-        action === "public_newsletter_subscribe")) ||
+        action === "public_newsletter_subscribe" ||
+        action === "owner_login")) ||
     (scope.kind === "token" &&
       (action === "public_newsletter_confirm" ||
         action === "public_newsletter_unsubscribe"))
@@ -231,8 +245,9 @@ export async function evaluatePublicAbuseGuard(
 export function publicAbuseRejectionResponse(
   decision: PublicAbuseRejection,
   requestId: string,
+  responseHeaders: HeadersInit = {},
 ): Response {
-  const headers = new Headers();
+  const headers = new Headers(responseHeaders);
   if (decision.status === 429) {
     headers.set("Retry-After", String(decision.retryAfterSeconds));
   }
@@ -248,8 +263,8 @@ export function createPublicAbuseGuard(
         const validation = validateEnvironment(env);
         if (
           !validation.ok ||
-          (validation.appEnv !== "local" && validation.appEnv !== "test") ||
           !isPublicAbuseAction(action) ||
+          !actionEnabledInEnvironment(validation.appEnv, action) ||
           !validScopeForAction(action, scope)
         ) {
           return unavailableDecision();
@@ -314,8 +329,8 @@ export function createDatabasePublicAbuseGuard(
       const validation = validateEnvironment(env);
       if (
         !validation.ok ||
-        (validation.appEnv !== "local" && validation.appEnv !== "test") ||
         !isPublicAbuseAction(action) ||
+        !actionEnabledInEnvironment(validation.appEnv, action) ||
         !validScopeForAction(action, scope)
       ) {
         return unavailableDecision();
@@ -349,6 +364,14 @@ export function createDatabasePublicAbuseGuard(
         result.decision === "human_verification_required" &&
         result.humanVerificationRequired
       ) {
+        if (action === "owner_login" && result.retryAfterSeconds > 0) {
+          return {
+            ok: false,
+            status: 429,
+            code: "RATE_LIMITED",
+            retryAfterSeconds: result.retryAfterSeconds,
+          };
+        }
         return {
           ok: false,
           status: 403,

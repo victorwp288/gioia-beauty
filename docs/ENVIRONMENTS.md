@@ -39,12 +39,12 @@ and pushed `refactor` SHA with a successful CI run, the allowlisted session
 pooler identity with certificate verification, an explicit project-specific
 confirmation, and the reviewed migration/pgTAP byte manifests. The target must
 first be advanced through the separately approved additive apply to the exact
-current 61-file manifest. The operator then holds one project advisory lock,
-applies teardown, all 61 migrations, exact migration history, and final
+current 62-file manifest. The operator then holds one project advisory lock,
+applies teardown, all 62 migrations, exact migration history, and final
 reconciliation in one serializable transaction, then runs two complete
 synthetic acceptance/cleanup cycles and requires matching schema and
 reference-data fingerprints. Earlier remote checkpoint attempts reached the
-clean 37-migration state, but the current 61-migration two-cycle proof remains
+clean 37-migration state, but the current 62-migration two-cycle proof remains
 open.
 
 Safety rules:

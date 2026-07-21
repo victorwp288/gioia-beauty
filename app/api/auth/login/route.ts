@@ -3,6 +3,7 @@ import { ownerAuthRepository } from "@/lib/server/database/ownerAuthRepository.t
 import { createOwnerLoginHandler } from "@/lib/server/auth/ownerAuthHandlers.ts";
 import { createNextOwnerAuthContext } from "@/lib/server/auth/nextOwnerAuthContext.ts";
 import { observeServerRoute } from "@/lib/server/observability/runtime";
+import { publicAbuseGuard } from "@/lib/server/publicAbuseBoundary.ts";
 import {
   clearOwnerSecurityCookies,
   writeOwnerSecurityCookies,
@@ -16,6 +17,7 @@ async function loginPostHandler(request: Request): Promise<Response> {
     const context = await createNextOwnerAuthContext(request);
     return await createOwnerLoginHandler({
       auth: context.auth,
+      abuseGuard: publicAbuseGuard,
       bindingSecret: process.env.OWNER_SESSION_HMAC_SECRET ?? "",
       startSession: ownerAuthRepository.startSession,
       revokeSession: ownerAuthRepository.revokeSession,

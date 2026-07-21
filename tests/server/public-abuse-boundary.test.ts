@@ -141,7 +141,7 @@ describe("public abuse boundary", () => {
     });
   });
 
-  it("code-disables valid Preview and invalid remote environments before hash work", async () => {
+  it("code-disables public actions in valid Preview and invalid remote environments before hash work", async () => {
     const preview = previewEnvironment();
     expect(validateEnvironment(preview).ok).toBe(true);
 
@@ -173,6 +173,106 @@ describe("public abuse boundary", () => {
       });
       expect(getHeader).not.toHaveBeenCalled();
     }
+  });
+
+  it("enables durable owner-login network and account buckets in Preview without challenge verification", async () => {
+    const consume = vi.fn(async (_input: unknown) => ({
+      decision: "allowed" as const,
+      allowed: true,
+      remaining: 1,
+      retryAfterSeconds: 0,
+      humanVerificationRequired: false,
+    }));
+    const verify = vi.fn(async () => {
+      throw new Error("owner login must not invoke the public challenge seam");
+    });
+    const guard = createDatabasePublicAbuseGuard(
+      { consume },
+      previewEnvironment(),
+      { verify },
+    );
+    const metadata = {
+      headers: new Headers({ "x-forwarded-for": "192.0.2.20" }),
+    };
+
+    const network = await guard.check(metadata, "owner_login");
+    expect(network).toMatchObject({ ok: true, humanVerified: false });
+    await expect(
+      guard.check(metadata, "owner_login", {
+        kind: "account",
+        value: "owner@example.test",
+        humanVerified: false,
+      }),
+    ).resolves.toMatchObject({ ok: true, humanVerified: false });
+
+    expect(consume).toHaveBeenNthCalledWith(1, {
+      action: "owner_login",
+      scopeKind: "network",
+      scopeHash: expect.any(Buffer),
+      humanVerified: false,
+    });
+    expect(consume).toHaveBeenNthCalledWith(2, {
+      action: "owner_login",
+      scopeKind: "account",
+      scopeHash: expect.any(Buffer),
+      humanVerified: false,
+    });
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("maps the durable owner-login post-threshold signal to an ordinary 429 with its exact retry delay", async () => {
+    const consume = vi.fn(async (_input: unknown) => ({
+      decision: "human_verification_required" as const,
+      allowed: false,
+      remaining: 4,
+      retryAfterSeconds: 713,
+      humanVerificationRequired: true,
+    }));
+    const verify = vi.fn(async () => ({ verified: true }));
+    const guard = createDatabasePublicAbuseGuard(
+      { consume },
+      isolatedEnvironment("test"),
+      { verify },
+    );
+
+    await expect(
+      guard.check(
+        { headers: new Headers({ "x-forwarded-for": "192.0.2.21" }) },
+        "owner_login",
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      status: 429,
+      code: "RATE_LIMITED",
+      retryAfterSeconds: 713,
+    });
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("preserves human-verification decisions for public challenge actions", async () => {
+    const consume = vi.fn(async (_input: unknown) => ({
+      decision: "human_verification_required" as const,
+      allowed: false,
+      remaining: 2,
+      retryAfterSeconds: 701,
+      humanVerificationRequired: true,
+    }));
+    const guard = createDatabasePublicAbuseGuard(
+      { consume },
+      isolatedEnvironment("test"),
+      { verify: vi.fn(async () => ({ verified: false })) },
+    );
+
+    await expect(
+      guard.check(
+        { headers: new Headers({ "x-forwarded-for": "192.0.2.22" }) },
+        "public_booking",
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      status: 403,
+      code: "HUMAN_VERIFICATION_REQUIRED",
+    });
   });
 
   it("fails closed on an unsupported runtime action without hashing", async () => {

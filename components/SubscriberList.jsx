@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { useNotification } from "@/context/NotificationContext";
 
-const SubscriberList = ({ onClose }) => {
+const SubscriberList = ({ onClose, mutationsDisabled = false }) => {
   const [subscribers, setSubscribers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -181,6 +181,7 @@ const SubscriberList = ({ onClose }) => {
   };
 
   const handleDeleteSubscriber = async (subscriber) => {
+    if (mutationsDisabled) return;
     const confirmed = await showConfirmation({
       title: "Disiscrivi contatto",
       message:
@@ -217,7 +218,7 @@ const SubscriberList = ({ onClose }) => {
   };
 
   const handleBulkDeleteSubscribers = async () => {
-    if (!hasSelection) {
+    if (mutationsDisabled || !hasSelection) {
       return;
     }
     if (selectedCount > 20) {
@@ -326,7 +327,7 @@ const SubscriberList = ({ onClose }) => {
             onClick={handleBulkDeleteSubscribers}
             size="sm"
             variant="destructive"
-            disabled={!hasSelection || isBulkDeleting}
+            disabled={mutationsDisabled || !hasSelection || isBulkDeleting}
             className="flex items-center gap-2"
           >
             <Trash2 size={14} />
@@ -394,8 +395,9 @@ const SubscriberList = ({ onClose }) => {
                   </button>
                   <button
                     onClick={() => handleDeleteSubscriber(subscriber)}
-                    className="rounded-full p-2 hover:bg-red-100 dark:hover:bg-red-900"
+                    className="rounded-full p-2 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900"
                     aria-label="Disiscrivi"
+                    disabled={mutationsDisabled}
                   >
                     <Trash2 size={16} className="text-red-500" />
                   </button>

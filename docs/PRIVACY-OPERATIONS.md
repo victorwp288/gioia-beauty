@@ -412,11 +412,12 @@ succeeded. The full restore and deployment gates in
 ## Migration ordering
 
 This document creates no migration and reserves no Production action.
-The current source manifest contains 61 migrations. Phase 3 migrations 38–54,
-Phase 4 migrations 55–60, and the runtime-login carrier migration 61 exist in
-source and may have Local/CI evidence, but they have not been applied and
-accepted by the protected hosted-TEST checkpoint. Their presence is not remote
-schema evidence. The Phase 2 TEST checkpoint is still open.
+The current source manifest contains 62 migrations. Phase 3 migrations 38–54,
+Phase 4 migrations 55–60, the runtime-login carrier migration 61, and the
+Phase 4 minimum-canary follow-up migration 62 exist in source and may have
+Local/CI evidence, but they have not been applied and accepted by the protected
+hosted-TEST checkpoint. Their presence is not remote schema evidence. The Phase
+2 TEST checkpoint is still open.
 
 **The Phase 2 TEST checkpoint also remains unresolved.**
 

@@ -18,6 +18,7 @@ const InputSchema = z
       "public_newsletter_subscribe",
       "public_newsletter_confirm",
       "public_newsletter_unsubscribe",
+      "owner_login",
     ]),
     scopeKind: z.enum(["network", "account", "token"]),
     scopeHash: HashSchema,
@@ -89,6 +90,7 @@ const DATABASE_ACTION: Record<PublicAbuseAction, string> = {
   public_newsletter_subscribe: "newsletter_subscribe",
   public_newsletter_confirm: "newsletter_action",
   public_newsletter_unsubscribe: "newsletter_action",
+  owner_login: "owner_login",
 };
 
 export function createPublicAbuseRepository(

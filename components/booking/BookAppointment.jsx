@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 
 import { useNotification } from "@/context/NotificationContext";
 import { useBookingForm } from "@/hooks/useBookingForm";
+import { useMaintenanceStatus } from "@/hooks/useMaintenanceStatus";
 import { useOptimizedTimeSlots } from "@/hooks/useOptimizedTimeSlots";
 
 // Utilities
@@ -36,12 +37,21 @@ import {
   shouldRetainPublicIdempotencyKey,
   startMinutesFromTime,
 } from "@/lib/client/publicApi.ts";
+import {
+  MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE,
+  PUBLIC_MAINTENANCE_MESSAGE,
+} from "@/lib/client/maintenanceApi.ts";
 
 // Components
 import BookingConfirmation from "./BookingConfirmation";
 
 const BookAppointment = () => {
   const { showError, notifyAsync } = useNotification();
+  const {
+    publicBookingEnabled,
+    messageCode: maintenanceMessageCode,
+    unavailable: maintenanceStatusUnavailable,
+  } = useMaintenanceStatus();
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [bookingLoading, setBookingLoading] = useState(false);
@@ -190,6 +200,14 @@ const BookAppointment = () => {
 
   // Form submission handler
   const handleSubmit = async (data) => {
+    if (!publicBookingEnabled) {
+      showError(
+        maintenanceStatusUnavailable
+          ? MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE
+          : PUBLIC_MAINTENANCE_MESSAGE,
+      );
+      return;
+    }
     setBookingLoading(true);
     try {
       const selection = catalogSelection(
@@ -344,6 +362,19 @@ const BookAppointment = () => {
           Prenota un appuntamento
         </h2>
       </div>
+
+      {maintenanceMessageCode === "MAINTENANCE_ACTIVE" ||
+      maintenanceMessageCode === "OWNER_RECONCILIATION_ACTIVE" ||
+      maintenanceStatusUnavailable ? (
+        <div
+          className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+          role="alert"
+        >
+          {maintenanceStatusUnavailable
+            ? MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE
+            : PUBLIC_MAINTENANCE_MESSAGE}
+        </div>
+      ) : null}
 
       {/* Form */}
       <Form {...form}>
@@ -694,7 +725,12 @@ const BookAppointment = () => {
             <Button
               type="submit"
               className="w-full md:w-auto px-8 py-3"
-              disabled={bookingLoading || !selectedDate || !selectedTimeSlot}
+              disabled={
+                bookingLoading ||
+                !selectedDate ||
+                !selectedTimeSlot ||
+                !publicBookingEnabled
+              }
             >
               {bookingLoading
                 ? "Prenotazione in corso..."

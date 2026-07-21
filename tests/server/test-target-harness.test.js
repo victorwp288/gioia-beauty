@@ -106,25 +106,65 @@ describe("greenfield TEST advisory lock", () => {
 });
 
 describe("greenfield TEST temporary runtime role", () => {
+  it("defaults to one 125-second quiet period before authentication", async () => {
+    vi.useFakeTimers();
+    try {
+      const credentialVerifier = vi.fn(async () => {});
+      const callback = vi.fn(async () => {});
+      const operation = withTemporaryRuntimeRole({
+        config: config(),
+        worker: {
+          begin: async (transactionCallback) =>
+            transactionCallback({ unsafe: async () => [] }),
+        },
+        recoverRuntimeRole: vi.fn(async () => {}),
+        callback,
+        credentialVerifier,
+        passwordFactory: () => `Aa9!${"q".repeat(40)}`,
+      });
+
+      await vi.advanceTimersByTimeAsync(124_999);
+      expect(credentialVerifier).not.toHaveBeenCalled();
+      expect(callback).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      await operation;
+
+      expect(credentialVerifier).toHaveBeenCalledOnce();
+      expect(callback).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("binds an in-memory password and always restores the role", async () => {
     const calls = [];
+    const events = [];
     const worker = {
-      begin: async (callback) =>
-        callback({
+      begin: async (callback) => {
+        const result = await callback({
           unsafe: async (query, parameters) => {
             calls.push({ query, parameters });
             return [];
           },
-        }),
+        });
+        events.push("altered");
+        return result;
+      },
       unsafe: async (query) => {
         calls.push({ query });
         return safeWorkerResult(query);
       },
     };
     const recoverRuntimeRole = vi.fn(async () => {});
-    const verifier = runtimeCredentialVerifier();
+    const credentialVerifier = vi.fn(async () => {
+      events.push("authenticate");
+    });
     const password = `Aa9!${"x".repeat(40)}`;
     const callbackFailure = new Error("synthetic route failure");
+    const credentialPropagationWait = vi.fn(async (milliseconds) => {
+      events.push(`wait-${milliseconds}`);
+    });
 
     await expect(
       withTemporaryRuntimeRole({
@@ -132,10 +172,12 @@ describe("greenfield TEST temporary runtime role", () => {
         worker,
         recoverRuntimeRole,
         callback: async ({ runtimeDatabaseUrl }) => {
+          events.push("callback");
           expect(runtimeDatabaseUrl).toBe(runtimeUrl);
           throw callbackFailure;
         },
-        credentialVerifier: verifier.credentialVerifier,
+        credentialPropagationWait,
+        credentialVerifier,
         passwordFactory: () => password,
       }),
     ).rejects.toBe(callbackFailure);
@@ -146,11 +188,19 @@ describe("greenfield TEST temporary runtime role", () => {
     expect(passwordCall.query).not.toContain(password);
     expect(passwordCall.parameters).toEqual([password]);
     expect(recoverRuntimeRole).toHaveBeenCalledTimes(2);
-    expect(verifier.credentialVerifier).toHaveBeenCalledOnce();
-    expect(verifier.credentialVerifier.mock.calls[0][0]).toMatchObject({
+    expect(credentialPropagationWait).toHaveBeenCalledOnce();
+    expect(credentialPropagationWait).toHaveBeenCalledWith(125_000);
+    expect(credentialVerifier).toHaveBeenCalledOnce();
+    expect(credentialVerifier.mock.calls[0][0]).toMatchObject({
       credentialLabel: "temporary runtime credential",
       databaseUrl: runtimeUrl,
     });
+    expect(events).toEqual([
+      "altered",
+      "wait-125000",
+      "authenticate",
+      "callback",
+    ]);
   });
 
   it("uses the held-lock recovery before setup and after callback", async () => {
@@ -165,6 +215,7 @@ describe("greenfield TEST temporary runtime role", () => {
       worker,
       recoverRuntimeRole,
       callback: async () => {},
+      credentialPropagationWait: vi.fn(async () => {}),
       credentialVerifier: verifier.credentialVerifier,
       passwordFactory: () => `Aa9!${"y".repeat(40)}`,
     });
@@ -190,6 +241,7 @@ describe("greenfield TEST temporary runtime role", () => {
       callback: async () => {
         throw callbackFailure;
       },
+      credentialPropagationWait: vi.fn(async () => {}),
       credentialVerifier: verifier.credentialVerifier,
       passwordFactory: () => `Aa9!${"z".repeat(40)}`,
     }).catch((caught) => caught);
@@ -214,6 +266,7 @@ describe("greenfield TEST temporary runtime role", () => {
       },
       recoverRuntimeRole,
       callback,
+      credentialPropagationWait: vi.fn(async () => {}),
       credentialVerifier: verifier.credentialVerifier,
       passwordFactory: () => `Aa9!${"w".repeat(40)}`,
     }).catch((caught) => caught);

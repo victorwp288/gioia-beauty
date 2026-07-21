@@ -87,4 +87,25 @@ describe("SubscriberList unsubscribe notifications", () => {
     expect(mocks.notificationError).toHaveBeenCalledOnce();
     expect(mocks.directToastError).not.toHaveBeenCalled();
   });
+
+  it("keeps copy and selection readable while disabling unsubscribe mutations", async () => {
+    const user = userEvent.setup();
+    render(<SubscriberList mutationsDisabled />);
+
+    const unsubscribe = await screen.findByRole("button", {
+      name: "Disiscrivi",
+    });
+    expect(unsubscribe).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Copia questa email" }),
+    ).toBeEnabled();
+
+    await user.click(
+      screen.getByRole("checkbox", { name: `Seleziona ${subscriber.email}` }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Disiscrivi selezionati" }),
+    ).toBeDisabled();
+    expect(mocks.runOwnerCommand).not.toHaveBeenCalled();
+  });
 });

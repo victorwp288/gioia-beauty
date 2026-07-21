@@ -80,20 +80,32 @@ describe("local cutover maintenance operator", () => {
     expect(parameters[4]).not.toBe(fingerprint);
   });
 
-  it("rejects arbitrary canary operations before SQL", async () => {
+  it("permits only the minimum runbook canary operation set", async () => {
     const unsafe = vi.fn();
     const operator = createLocalCutoverOperator({
       database: { unsafe },
       env: LOCAL_ENV,
     });
-    await expect(
-      operator.issueCanaryGrant({
-        runId: RUN_ID,
-        operation: "owner_delete_everything",
-        idempotencyKey: IDEMPOTENCY_KEY,
-        requestFingerprint: Buffer.alloc(32),
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_CANARY_OPERATION" });
+    for (const operation of [
+      "owner_update_appointment_details",
+      "owner_update_block_details",
+      "owner_reschedule_appointment",
+      "owner_reschedule_block",
+      "owner_set_appointment_status",
+      "owner_update_vacation",
+      "owner_unsubscribe_subscriber",
+      "owner_outbox_retry",
+      "owner_delete_everything",
+    ]) {
+      await expect(
+        operator.issueCanaryGrant({
+          runId: RUN_ID,
+          operation,
+          idempotencyKey: IDEMPOTENCY_KEY,
+          requestFingerprint: Buffer.alloc(32),
+        }),
+      ).rejects.toMatchObject({ code: "INVALID_CANARY_OPERATION" });
+    }
     expect(unsafe).not.toHaveBeenCalled();
   });
 });

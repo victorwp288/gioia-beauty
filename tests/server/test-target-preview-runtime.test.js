@@ -109,11 +109,13 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.roleCanLogin()).toBe(true);
     expect(state.events).toEqual([
       "lock",
+      "wait-125000",
       "authenticate-0",
       "close-auth",
       "suspend",
       "suspend",
       "restore",
+      "wait-125000",
       "authenticate-1",
       "close-auth",
       "unlock",
@@ -121,6 +123,9 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(
       state.credentialClients.every(({ end }) => end.mock.calls.length === 1),
     ).toBe(true);
+    expect(state.credentialPropagationWait).toHaveBeenCalledTimes(2);
+    expect(state.credentialPropagationWait).toHaveBeenNthCalledWith(1, 125_000);
+    expect(state.credentialPropagationWait).toHaveBeenNthCalledWith(2, 125_000);
     for (const client of state.credentialClients) {
       expect(client.transactionUnsafe).toHaveBeenNthCalledWith(
         1,
@@ -182,11 +187,43 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.roleCanLogin()).toBe(false);
     expect(state.events).toEqual([
       "lock",
+      "wait-125000",
       "authenticate-0",
       "close-auth",
       "suspend",
       "unlock",
     ]);
+    expect(state.credentialPropagationWait).toHaveBeenCalledOnce();
+    expect(state.credentialPropagationWait).toHaveBeenCalledWith(125_000);
+  });
+
+  it("holds an active durable credential behind the quiet period", async () => {
+    const operationFailure = new Error("synthetic checkpoint failure");
+    const state = lifecycleHarness({ authorizations: [true] });
+    let releaseWait;
+    const credentialPropagationWait = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          releaseWait = resolve;
+        }),
+    );
+
+    const operation = withGreenfieldTestLock(
+      config(),
+      async () => {
+        throw operationFailure;
+      },
+      { ...state.options, credentialPropagationWait },
+    );
+
+    await vi.waitFor(() => {
+      expect(credentialPropagationWait).toHaveBeenCalledWith(125_000);
+    });
+    expect(state.credentialVerifier).not.toHaveBeenCalled();
+
+    releaseWait();
+    await expect(operation).rejects.toBe(operationFailure);
+    expect(state.credentialVerifier).toHaveBeenCalledOnce();
   });
 
   it("recovers an interrupted suspended credential before the checkpoint", async () => {
@@ -204,17 +241,22 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.events).toEqual([
       "lock",
       "restore",
+      "wait-125000",
       "authenticate-0",
       "close-auth",
       "suspend",
       "callback",
       "suspend",
       "restore",
+      "wait-125000",
       "authenticate-1",
       "close-auth",
       "unlock",
     ]);
     expect(state.roleCanLogin()).toBe(true);
+    expect(state.credentialPropagationWait).toHaveBeenCalledTimes(2);
+    expect(state.credentialPropagationWait).toHaveBeenNthCalledWith(1, 125_000);
+    expect(state.credentialPropagationWait).toHaveBeenNthCalledWith(2, 125_000);
   });
 
   it.each(["08006", "ECONNREFUSED", "28P01"])(
@@ -261,6 +303,7 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.events).toEqual([
       "lock",
       "restore",
+      "wait-125000",
       "authenticate-0",
       "close-auth",
       "suspend",
@@ -348,6 +391,7 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.roleCanLogin()).toBe(false);
     expect(state.events).toEqual([
       "lock",
+      "wait-125000",
       "authenticate-0",
       "close-auth",
       "suspend",

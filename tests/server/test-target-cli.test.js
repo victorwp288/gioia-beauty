@@ -194,13 +194,13 @@ describe("greenfield TEST Supabase CLI", () => {
     }
   });
 
-  it("passes all 26 reviewed remote pgTAP files explicitly", async () => {
+  it("passes all 28 reviewed remote pgTAP files explicitly", async () => {
     const { run } = fakeRunner();
     const database = fakePgTapDatabase();
     const result = await client(run, database.client).runRemotePgTap();
     const suite = remotePgTapFiles();
 
-    expect(result).toMatchObject({ assertions: 437, files: suite.files });
+    expect(result).toMatchObject({ assertions: 443, files: suite.files });
     expect(run).not.toHaveBeenCalled();
     expect(database.client).toHaveBeenCalledWith(
       DATABASE_URL,
@@ -213,18 +213,18 @@ describe("greenfield TEST Supabase CLI", () => {
     const testCalls = database.sql.unsafe.mock.calls.filter(
       ([, , options]) => options?.simple === true,
     );
-    expect(testCalls).toHaveLength(26);
+    expect(testCalls).toHaveLength(28);
     expect(
       testCalls.every(
         ([, args, options]) => args.length === 0 && options.simple === true,
       ),
     ).toBe(true);
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
-      28,
+      30,
       REMOTE_PGTAP_ROLLBACK_SQL,
     );
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
-      29,
+      31,
       REMOTE_PGTAP_CLEANUP_SQL,
     );
     expect(database.sql.end).toHaveBeenCalledWith({ timeout: 5 });

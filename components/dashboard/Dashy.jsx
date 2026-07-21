@@ -38,6 +38,7 @@ import Link from "next/link";
 
 // Context and Hooks
 import { useAppointmentContext } from "@/context/AppointmentContext";
+import { useMaintenanceStatus } from "@/hooks/useMaintenanceStatus";
 import { useNotification } from "@/context/NotificationContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -61,6 +62,10 @@ import {
   ownerErrorMessage,
 } from "@/lib/client/ownerApi.ts";
 import { salonDateFromLocalDate } from "@/lib/client/publicApi.ts";
+import {
+  MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE,
+  OWNER_MAINTENANCE_MESSAGE,
+} from "@/lib/client/maintenanceApi.ts";
 
 // Separate Components
 import SubscriberList from "../SubscriberList";
@@ -107,6 +112,20 @@ const Dashy = ({ user, authLoading }) => {
   } = useAppointmentContext();
 
   const { showConfirmation, notifyAsync, showError } = useNotification();
+  const {
+    messageCode: maintenanceMessageCode,
+    ownerMutationsEnabled,
+    unavailable: maintenanceStatusUnavailable,
+  } = useMaintenanceStatus();
+  const mutationsDisabled = !ownerMutationsEnabled;
+  const mutationBlockedMessage = maintenanceStatusUnavailable
+    ? MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE
+    : OWNER_MAINTENANCE_MESSAGE;
+  const blockDisabledMutation = () => {
+    if (!mutationsDisabled) return false;
+    showError(mutationBlockedMessage);
+    return true;
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -277,6 +296,7 @@ const Dashy = ({ user, authLoading }) => {
   // ============================================================================
 
   const handleAddAppointment = () => {
+    if (blockDisabledMutation()) return;
     // Reset form and errors for new appointment
     resetForm();
     setFormErrors({});
@@ -304,6 +324,7 @@ const Dashy = ({ user, authLoading }) => {
   };
 
   const handleOpenBlockModal = () => {
+    if (blockDisabledMutation()) return;
     setSelectedAppointment(null);
     setBlockFormData({
       selectedDate: formatDateForInput(selectedDate) || getTodayFormatted(),
@@ -382,6 +403,7 @@ const Dashy = ({ user, authLoading }) => {
   };
 
   const handleSaveTimeBlock = async () => {
+    if (blockDisabledMutation()) return;
     try {
       if (!validateBlockForm()) {
         showError("Compila data, orario e durata del blocco.");
@@ -444,6 +466,7 @@ const Dashy = ({ user, authLoading }) => {
   };
 
   const handleEditAppointment = (appointment) => {
+    if (blockDisabledMutation()) return;
     if (appointment.isTimeBlock) {
       setSelectedAppointment(appointment);
       setBlockFormData({
@@ -504,6 +527,7 @@ const Dashy = ({ user, authLoading }) => {
   };
 
   const handleSaveAppointment = async () => {
+    if (blockDisabledMutation()) return;
     try {
       // Validate form fields
       if (!validateForm()) {
@@ -587,6 +611,7 @@ const Dashy = ({ user, authLoading }) => {
 
   // Chain Appointment Handler
   const handleChainAppointment = async () => {
+    if (blockDisabledMutation()) return;
     try {
       if (!validateForm()) {
         showError("Compila tutti i campi obbligatori prima di concatenare.");
@@ -644,6 +669,7 @@ const Dashy = ({ user, authLoading }) => {
   };
 
   const handleDeleteAppointment = async (appointment) => {
+    if (blockDisabledMutation()) return;
     const confirmDelete = await showConfirmation({
       title: appointment.isTimeBlock
         ? "Annulla blocco orario"
@@ -862,6 +888,16 @@ const Dashy = ({ user, authLoading }) => {
           </div>
         </div>
 
+        {maintenanceMessageCode === "MAINTENANCE_ACTIVE" ||
+        maintenanceStatusUnavailable ? (
+          <div
+            className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+            role="alert"
+          >
+            {mutationBlockedMessage}
+          </div>
+        ) : null}
+
         {/* Newsletter Subscriber List Dialog */}
         <Dialog
           open={isSubscriberModalOpen}
@@ -872,7 +908,10 @@ const Dashy = ({ user, authLoading }) => {
               <DialogHeader>
                 <DialogTitle>Iscrizioni newsletter</DialogTitle>
               </DialogHeader>
-              <SubscriberList onClose={() => setIsSubscriberModalOpen(false)} />
+              <SubscriberList
+                mutationsDisabled={mutationsDisabled}
+                onClose={() => setIsSubscriberModalOpen(false)}
+              />
             </div>
           </DialogContent>
         </Dialog>
@@ -893,6 +932,7 @@ const Dashy = ({ user, authLoading }) => {
                 <Button
                   onClick={handleOpenBlockModal}
                   variant="outline"
+                  disabled={mutationsDisabled}
                   className="flex items-center gap-2 border-zinc-300 bg-white/80 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/80 dark:hover:bg-zinc-700"
                 >
                   <Clock3 className="h-4 w-4" />
@@ -901,6 +941,7 @@ const Dashy = ({ user, authLoading }) => {
                 <Button
                   onClick={handleAddAppointment}
                   className="flex items-center gap-2"
+                  disabled={mutationsDisabled}
                 >
                   <Plus className="h-4 w-4" />
                   Nuovo appuntamento
@@ -959,6 +1000,7 @@ const Dashy = ({ user, authLoading }) => {
                               variant="outline"
                               size="sm"
                               onClick={() => handleEditAppointment(appointment)}
+                              disabled={mutationsDisabled}
                               className="flex-1 bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
                             >
                               <Edit className="h-4 w-4" />
@@ -969,6 +1011,7 @@ const Dashy = ({ user, authLoading }) => {
                               onClick={() =>
                                 handleDeleteAppointment(appointment)
                               }
+                              disabled={mutationsDisabled}
                               className="flex-1 bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1058,6 +1101,7 @@ const Dashy = ({ user, authLoading }) => {
                                           onClick={() =>
                                             handleEditAppointment(appointment)
                                           }
+                                          disabled={mutationsDisabled}
                                           className="bg-white hover:bg-gray-100 border border-zinc-200 dark:border-none dark:bg-gray-600 dark:hover:bg-gray-700"
                                         >
                                           <Edit className="h-3 w-3" />
@@ -1068,6 +1112,7 @@ const Dashy = ({ user, authLoading }) => {
                                           onClick={() =>
                                             handleDeleteAppointment(appointment)
                                           }
+                                          disabled={mutationsDisabled}
                                           className="bg-white hover:bg-red-50 border border-zinc-200 dark:border-none dark:bg-red-600 dark:hover:bg-red-700 text-red-600 dark:text-white"
                                         >
                                           <Trash2 className="h-3 w-3" />
@@ -1213,7 +1258,11 @@ const Dashy = ({ user, authLoading }) => {
               >
                 Annulla
               </Button>
-              <Button type="button" onClick={handleSaveTimeBlock}>
+              <Button
+                type="button"
+                onClick={handleSaveTimeBlock}
+                disabled={mutationsDisabled}
+              >
                 Crea blocco
               </Button>
             </DialogFooter>
@@ -1547,7 +1596,7 @@ const Dashy = ({ user, authLoading }) => {
               </Button>
               <Button
                 onClick={handleSaveAppointment}
-                disabled={appointmentsLoading}
+                disabled={appointmentsLoading || mutationsDisabled}
                 className="px-6"
               >
                 {appointmentsLoading
@@ -1560,7 +1609,7 @@ const Dashy = ({ user, authLoading }) => {
                 <Button
                   variant="secondary"
                   onClick={handleChainAppointment}
-                  disabled={appointmentsLoading}
+                  disabled={appointmentsLoading || mutationsDisabled}
                   className="px-6"
                   type="button"
                 >
@@ -1574,6 +1623,7 @@ const Dashy = ({ user, authLoading }) => {
         {/* Vacation Manager Modal */}
         <VacationManager
           isOpen={isVacationModalOpen}
+          mutationsDisabled={mutationsDisabled}
           onClose={() => setIsVacationModalOpen(false)}
         />
       </div>

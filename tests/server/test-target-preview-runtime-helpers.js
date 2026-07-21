@@ -145,6 +145,9 @@ export function lifecycleHarness({
     .fn()
     .mockReturnValueOnce(lockPool)
     .mockReturnValueOnce(worker);
+  const credentialPropagationWait = vi.fn(async (milliseconds) => {
+    events.push(`wait-${milliseconds}`);
+  });
   const credentialVerifier = vi.fn(async (request) => {
     const client = credentialClients[authorizationIndex];
     if (!client) throw new Error("synthetic unexpected credential attempt");
@@ -166,12 +169,17 @@ export function lifecycleHarness({
   });
   return {
     clientFactory,
+    credentialPropagationWait,
     credentialVerifier,
     credentialClients,
     events,
     lockClient,
     lockPool,
-    options: { clientFactory, credentialVerifier },
+    options: {
+      clientFactory,
+      credentialPropagationWait,
+      credentialVerifier,
+    },
     roleCanLogin: () => roleCanLogin,
     worker,
   };

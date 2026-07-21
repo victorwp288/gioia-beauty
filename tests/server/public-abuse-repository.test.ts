@@ -58,6 +58,65 @@ describe("public abuse repository", () => {
     expect(runtime.unsafe.mock.calls[0]![0]).toContain("limit 2");
   });
 
+  it("maps owner login account limits to the exact durable policy action", async () => {
+    const runtime = fixture([
+      {
+        decision: "rate_limited",
+        allowed: false,
+        remaining: 0,
+        retry_after_seconds: 417,
+        human_verification_required: false,
+      },
+    ]);
+    const scopeHash = Buffer.alloc(32, 0x51);
+
+    await expect(
+      runtime.repository.consume({
+        action: "owner_login",
+        scopeKind: "account",
+        scopeHash,
+        humanVerified: false,
+      }),
+    ).resolves.toEqual({
+      decision: "rate_limited",
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: 417,
+      humanVerificationRequired: false,
+    });
+    expect(runtime.unsafe).toHaveBeenCalledWith(
+      expect.stringContaining("consume_public_abuse_bucket"),
+      ["owner_login", "account", scopeHash, false],
+    );
+  });
+
+  it("preserves the durable owner-login post-threshold signal for action mapping", async () => {
+    const runtime = fixture([
+      {
+        decision: "human_verification_required",
+        allowed: false,
+        remaining: 2,
+        retry_after_seconds: 899,
+        human_verification_required: true,
+      },
+    ]);
+
+    await expect(
+      runtime.repository.consume({
+        action: "owner_login",
+        scopeKind: "network",
+        scopeHash: Buffer.alloc(32, 0x52),
+        humanVerified: false,
+      }),
+    ).resolves.toEqual({
+      decision: "human_verification_required",
+      allowed: false,
+      remaining: 2,
+      retryAfterSeconds: 899,
+      humanVerificationRequired: true,
+    });
+  });
+
   it("rejects malformed scope input before database work", async () => {
     const runtime = fixture([]);
     await expect(

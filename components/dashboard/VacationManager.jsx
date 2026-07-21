@@ -41,7 +41,7 @@ import { useNotification } from "@/context/NotificationContext";
 import { formatDate, isValidDateRange, addDays } from "@/lib/utils/dateUtils";
 import { validateVacationPeriod } from "@/lib/utils/validationSchemas";
 
-const VacationManager = ({ isOpen, onClose }) => {
+const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
   const {
     vacationPeriods,
     vacationsLoading,
@@ -210,6 +210,7 @@ const VacationManager = ({ isOpen, onClose }) => {
   // ============================================================================
 
   const handleAddVacation = () => {
+    if (mutationsDisabled) return;
     const today = new Date();
     const tomorrow = addDays(today, 1);
 
@@ -225,6 +226,7 @@ const VacationManager = ({ isOpen, onClose }) => {
   };
 
   const handleEditVacation = (vacation) => {
+    if (mutationsDisabled) return;
     // Parse the reason field to extract title and description
     let title = vacation.reason || "Vacation Period";
     let description = "";
@@ -248,6 +250,7 @@ const VacationManager = ({ isOpen, onClose }) => {
   };
 
   const handleSaveVacation = async () => {
+    if (mutationsDisabled) return;
     if (!validateForm()) {
       return;
     }
@@ -335,6 +338,7 @@ const VacationManager = ({ isOpen, onClose }) => {
   };
 
   const handleDeleteVacation = async (vacation) => {
+    if (mutationsDisabled) return;
     // Get the display title from the reason field
     const displayTitle =
       vacation.reason && vacation.reason.includes(" - ")
@@ -445,6 +449,7 @@ const VacationManager = ({ isOpen, onClose }) => {
                 <Button
                   onClick={handleAddVacation}
                   className="flex items-center gap-2"
+                  disabled={mutationsDisabled}
                 >
                   <Plus className="h-4 w-4" />
                   Aggiungi periodo di Vacanza
@@ -556,6 +561,7 @@ const VacationManager = ({ isOpen, onClose }) => {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleEditVacation(vacation)}
+                                    disabled={mutationsDisabled}
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
@@ -565,6 +571,7 @@ const VacationManager = ({ isOpen, onClose }) => {
                                     onClick={() =>
                                       handleDeleteVacation(vacation)
                                     }
+                                    disabled={mutationsDisabled}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -685,7 +692,7 @@ const VacationManager = ({ isOpen, onClose }) => {
             >
               Cancel
             </Button>
-            <Button onClick={handleSaveVacation}>
+            <Button onClick={handleSaveVacation} disabled={mutationsDisabled}>
               {isEditMode ? "Update" : "Create"}
             </Button>
           </DialogFooter>

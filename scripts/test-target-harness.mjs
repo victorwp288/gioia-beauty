@@ -30,7 +30,11 @@ async function attemptCleanup(errors, message, operation) {
 export async function withGreenfieldTestLock(
   config,
   callback,
-  { clientFactory = postgres, credentialVerifier } = {},
+  {
+    clientFactory = postgres,
+    credentialPropagationWait,
+    credentialVerifier,
+  } = {},
 ) {
   if (typeof callback !== "function") {
     throw new Error("Greenfield TEST lock requires a callback");
@@ -63,6 +67,7 @@ export async function withGreenfieldTestLock(
       config,
       credentialVerifier,
       ({ recoverRuntimeRole }) => callback({ worker, recoverRuntimeRole }),
+      credentialPropagationWait,
     );
   } catch (error) {
     operationError = error;

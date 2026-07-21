@@ -14,6 +14,7 @@ export const PHASE4_PUBLIC_PERSON = {
 const PUBLIC_BUSINESS_API_PATHS = new Set([
   "/api/availability",
   "/api/bookings",
+  "/api/maintenance",
   "/api/newsletter/subscribe",
 ]);
 const RAW_DATA_PATH =

@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import { createOwnerLoginHandler } from "@/lib/server/auth/ownerAuthHandlers.ts";
 import { verifyOwnerSessionBinding } from "@/lib/server/auth/sessionBinding.ts";
+import type { PublicAbuseGuard } from "@/lib/server/publicAbuseBoundary.ts";
 import {
   createHandlerFixture,
   ownerBindingSecret,
@@ -13,9 +14,25 @@ import {
   ownerUserId,
 } from "./owner-auth-handler-fixture.ts";
 
-function handler(fixture: ReturnType<typeof createHandlerFixture>) {
+const ALLOWED_ABUSE_DECISION = {
+  ok: true as const,
+  principalScopeHash: Buffer.alloc(32, 0x42),
+  humanVerified: false,
+};
+
+function allowingAbuseGuard() {
+  return {
+    check: vi.fn(async () => ALLOWED_ABUSE_DECISION),
+  } satisfies PublicAbuseGuard;
+}
+
+function handler(
+  fixture: ReturnType<typeof createHandlerFixture>,
+  abuseGuard: PublicAbuseGuard = allowingAbuseGuard(),
+) {
   return createOwnerLoginHandler({
     auth: fixture.auth,
+    abuseGuard,
     bindingSecret: ownerBindingSecret,
     startSession: fixture.sessionOperation,
     revokeSession: fixture.revokeOperation,
@@ -26,8 +43,10 @@ function handler(fixture: ReturnType<typeof createHandlerFixture>) {
 describe("owner login handler", () => {
   it("creates one bound session only after fresh Auth and DB authorization", async () => {
     const fixture = createHandlerFixture();
+    const abuseGuard = allowingAbuseGuard();
     const response = await createOwnerLoginHandler({
       auth: fixture.auth,
+      abuseGuard,
       bindingSecret: ownerBindingSecret,
       startSession: fixture.sessionOperation,
       revokeSession: fixture.revokeOperation,
@@ -41,6 +60,24 @@ describe("owner login handler", () => {
     expect(body.csrfToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("x-auth-refresh")).toBe("applied");
+    expect(abuseGuard.check).toHaveBeenNthCalledWith(
+      1,
+      { headers: expect.any(Headers) },
+      "owner_login",
+    );
+    expect(abuseGuard.check).toHaveBeenNthCalledWith(
+      2,
+      { headers: expect.any(Headers) },
+      "owner_login",
+      {
+        kind: "account",
+        value: "owner@example.test",
+        humanVerified: false,
+      },
+    );
+    expect(abuseGuard.check.mock.invocationCallOrder[1]).toBeLessThan(
+      fixture.auth.signInWithPassword.mock.invocationCallOrder[0]!,
+    );
     expect(fixture.auth.signInWithPassword).toHaveBeenCalledWith({
       email: "owner@example.test",
       password: "synthetic-password",
@@ -149,19 +186,21 @@ describe("owner login handler", () => {
 
   it("rejects a query before body, Auth, database, or cookie mutation", async () => {
     const fixture = createHandlerFixture();
+    const abuseGuard = allowingAbuseGuard();
     const request = ownerLoginRequest(
       "https://app.example.test",
       "?unexpected=1",
     );
     const getReader = vi.spyOn(request.body!, "getReader");
 
-    const response = await handler(fixture)(request);
+    const response = await handler(fixture, abuseGuard)(request);
 
     expect(response.status).toBe(400);
     expect(await ownerResponseBody(response)).toMatchObject({
       code: "INVALID_REQUEST",
     });
     expect(getReader).not.toHaveBeenCalled();
+    expect(abuseGuard.check).not.toHaveBeenCalled();
     expect(fixture.auth.signInWithPassword).not.toHaveBeenCalled();
     expect(fixture.auth.getSession).not.toHaveBeenCalled();
     expect(fixture.auth.getUser).not.toHaveBeenCalled();
@@ -170,5 +209,94 @@ describe("owner login handler", () => {
     expect(fixture.revokeOperation).not.toHaveBeenCalled();
     expect(fixture.securityCookies.set).not.toHaveBeenCalled();
     expect(fixture.securityCookies.clear).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "network",
+      [
+        {
+          ok: false,
+          status: 429,
+          code: "RATE_LIMITED",
+          retryAfterSeconds: 77,
+        },
+      ],
+      429,
+      "RATE_LIMITED",
+      "77",
+      1,
+    ],
+    [
+      "account post-threshold",
+      [
+        ALLOWED_ABUSE_DECISION,
+        {
+          ok: false,
+          status: 429,
+          code: "RATE_LIMITED",
+          retryAfterSeconds: 123,
+        },
+      ],
+      429,
+      "RATE_LIMITED",
+      "123",
+      2,
+    ],
+    [
+      "unavailable boundary",
+      [
+        ALLOWED_ABUSE_DECISION,
+        { ok: false, status: 503, code: "SERVICE_UNAVAILABLE" },
+      ],
+      503,
+      "SERVICE_UNAVAILABLE",
+      null,
+      2,
+    ],
+  ] as const)(
+    "returns the fixed $0 rejection before any Auth or session work",
+    async (_label, decisions, status, code, retryAfter, expectedChecks) => {
+      const fixture = createHandlerFixture();
+      const check = vi.fn();
+      for (const decision of decisions) check.mockResolvedValueOnce(decision);
+      const response = await handler(fixture, { check })(ownerLoginRequest());
+
+      expect(response.status).toBe(status);
+      expect(await ownerResponseBody(response)).toMatchObject({ code });
+      expect(response.headers.get("retry-after")).toBe(retryAfter);
+      expect(check).toHaveBeenCalledTimes(expectedChecks);
+      expect(fixture.auth.signInWithPassword).not.toHaveBeenCalled();
+      expect(fixture.auth.getSession).not.toHaveBeenCalled();
+      expect(fixture.auth.getUser).not.toHaveBeenCalled();
+      expect(fixture.auth.signOut).not.toHaveBeenCalled();
+      expect(fixture.sessionOperation).not.toHaveBeenCalled();
+      expect(fixture.revokeOperation).not.toHaveBeenCalled();
+      expect(fixture.securityCookies.set).not.toHaveBeenCalled();
+      expect(fixture.securityCookies.clear).not.toHaveBeenCalled();
+    },
+  );
+
+  it("redacts malformed or thrown abuse decisions without exposing the account", async () => {
+    for (const check of [
+      vi.fn(async () => ({
+        ok: false,
+        status: 429,
+        code: "owner@example.test",
+        retryAfterSeconds: 10,
+      })),
+      vi.fn(async () => {
+        throw new Error("owner@example.test provider detail");
+      }),
+    ]) {
+      const fixture = createHandlerFixture();
+      const response = await handler(fixture, { check })(ownerLoginRequest());
+      const serialized = JSON.stringify(await ownerResponseBody(response));
+
+      expect(response.status).toBe(503);
+      expect(serialized).toContain("SERVICE_UNAVAILABLE");
+      expect(serialized).not.toContain("owner@example.test");
+      expect(fixture.auth.signInWithPassword).not.toHaveBeenCalled();
+    }
   });
 });

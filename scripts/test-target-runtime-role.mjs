@@ -21,6 +21,21 @@ export {
   GREENFIELD_RUNTIME_ROLE_SQL,
 } from "./test-target-runtime-role-sql.mjs";
 
+export const RUNTIME_CREDENTIAL_PROPAGATION_DELAY_MS = 125_000;
+
+async function waitForRuntimeCredentialPropagation(milliseconds) {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitBeforeRuntimeCredentialAuthentication(
+  credentialPropagationWait = waitForRuntimeCredentialPropagation,
+) {
+  // Supavisor can retain its credential circuit breaker for two minutes. One
+  // quiet period avoids extending it. Without persisted rotation proof, an
+  // active durable credential must be treated as newly propagated too.
+  await credentialPropagationWait(RUNTIME_CREDENTIAL_PROPAGATION_DELAY_MS);
+}
+
 async function runtimeRoleState(sql) {
   const [state, ...extra] = await sql.unsafe(RUNTIME_ROLE_STATE_SQL);
   if (!state || extra.length !== 0) {
@@ -122,7 +137,12 @@ export async function verifyPreviewCredential(config, credentialVerifier) {
   );
 }
 
-async function restorePreviewRuntimeRole(sql, config, credentialVerifier) {
+async function restorePreviewRuntimeRole(
+  sql,
+  config,
+  credentialVerifier,
+  credentialPropagationWait,
+) {
   const previewUrl = new URL(config.getPreviewRuntimeDatabaseUrl());
   const password = decodeURIComponent(previewUrl.password);
   try {
@@ -136,6 +156,7 @@ async function restorePreviewRuntimeRole(sql, config, credentialVerifier) {
       true,
       "Greenfield TEST Preview runtime role is not exact",
     );
+    await waitBeforeRuntimeCredentialAuthentication(credentialPropagationWait);
     await verifyPreviewCredential(config, credentialVerifier);
   } catch (restoreError) {
     try {
@@ -152,7 +173,12 @@ async function restorePreviewRuntimeRole(sql, config, credentialVerifier) {
   }
 }
 
-async function ensurePreviewCredential(sql, config, credentialVerifier) {
+async function ensurePreviewCredential(
+  sql,
+  config,
+  credentialVerifier,
+  credentialPropagationWait,
+) {
   const state = await runtimeRoleState(sql);
   if (
     state.attributes_are_safe !== true ||
@@ -176,6 +202,9 @@ async function ensurePreviewCredential(sql, config, credentialVerifier) {
   }
   if (state.rolcanlogin) {
     try {
+      await waitBeforeRuntimeCredentialAuthentication(
+        credentialPropagationWait,
+      );
       await verifyPreviewCredential(config, credentialVerifier);
       return;
     } catch (verificationError) {
@@ -190,7 +219,12 @@ async function ensurePreviewCredential(sql, config, credentialVerifier) {
       throw verificationError;
     }
   }
-  await restorePreviewRuntimeRole(sql, config, credentialVerifier);
+  await restorePreviewRuntimeRole(
+    sql,
+    config,
+    credentialVerifier,
+    credentialPropagationWait,
+  );
 }
 
 export async function withSuspendedPreviewCredential(
@@ -198,8 +232,14 @@ export async function withSuspendedPreviewCredential(
   config,
   credentialVerifier,
   callback,
+  credentialPropagationWait,
 ) {
-  await ensurePreviewCredential(sql, config, credentialVerifier);
+  await ensurePreviewCredential(
+    sql,
+    config,
+    credentialVerifier,
+    credentialPropagationWait,
+  );
   let operationError;
   let result;
   try {
@@ -225,7 +265,12 @@ export async function withSuspendedPreviewCredential(
 
   if (operationError) throw operationError;
 
-  await restorePreviewRuntimeRole(sql, config, credentialVerifier);
+  await restorePreviewRuntimeRole(
+    sql,
+    config,
+    credentialVerifier,
+    credentialPropagationWait,
+  );
   return result;
 }
 
@@ -239,6 +284,7 @@ export async function withTemporaryRuntimeRole({
   recoverRuntimeRole,
   callback,
   credentialVerifier,
+  credentialPropagationWait,
   passwordFactory = runtimePassword,
 }) {
   if (
@@ -258,6 +304,7 @@ export async function withTemporaryRuntimeRole({
       await transaction.unsafe(RUNTIME_ROLE_GRANT_SQL);
       await transaction.unsafe(RUNTIME_ROLE_ALTER_SQL);
     });
+    await waitBeforeRuntimeCredentialAuthentication(credentialPropagationWait);
     await verifyRuntimeCredential(
       runtimeDatabaseUrl,
       config.getDatabaseCaCertificate(),

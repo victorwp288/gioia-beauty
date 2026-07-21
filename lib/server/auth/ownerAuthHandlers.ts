@@ -1,6 +1,13 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import { apiErrorResponse } from "../publicApiResponse.ts";
+import {
+  evaluatePublicAbuseGuard,
+  publicAbuseRejectionResponse,
+  type PublicAbuseGuard,
+} from "../publicAbuseBoundary.ts";
 import { classifySupabaseAuthError } from "./authFailure.ts";
 import {
   getFreshSupabaseIdentity,
@@ -31,6 +38,7 @@ import {
 
 export function createOwnerLoginHandler({
   auth,
+  abuseGuard,
   bindingSecret,
   startSession,
   revokeSession,
@@ -38,6 +46,7 @@ export function createOwnerLoginHandler({
   responseHeaders = {},
 }: {
   auth: OwnerAuthActions;
+  abuseGuard: PublicAbuseGuard;
   bindingSecret: string;
   startSession: (
     identity: FreshSupabaseIdentity,
@@ -69,6 +78,37 @@ export function createOwnerLoginHandler({
         body.status,
         body.code,
         undefined,
+        responseHeaders,
+      );
+    }
+
+    const requestId = randomUUID();
+    const networkAbuse = await evaluatePublicAbuseGuard(
+      abuseGuard,
+      request,
+      "owner_login",
+    );
+    if (!networkAbuse.ok) {
+      return publicAbuseRejectionResponse(
+        networkAbuse,
+        requestId,
+        responseHeaders,
+      );
+    }
+    const accountAbuse = await evaluatePublicAbuseGuard(
+      abuseGuard,
+      request,
+      "owner_login",
+      {
+        kind: "account",
+        value: body.body.email,
+        humanVerified: networkAbuse.humanVerified,
+      },
+    );
+    if (!accountAbuse.ok) {
+      return publicAbuseRejectionResponse(
+        accountAbuse,
+        requestId,
         responseHeaders,
       );
     }

@@ -8,17 +8,9 @@ const CANARY_OPERATIONS = new Set([
   "public_booking",
   "owner_create_appointment",
   "owner_create_block",
-  "owner_update_appointment_details",
-  "owner_update_block_details",
-  "owner_reschedule_appointment",
-  "owner_reschedule_block",
-  "owner_set_appointment_status",
   "owner_cancel_schedule_entry",
   "owner_create_vacation",
-  "owner_update_vacation",
   "owner_cancel_vacation",
-  "owner_unsubscribe_subscriber",
-  "owner_outbox_retry",
 ]);
 
 export class LocalCutoverOperatorError extends Error {

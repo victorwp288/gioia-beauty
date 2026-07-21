@@ -307,17 +307,37 @@ test.describe.serial("Phase 4 Local owner and maintenance acceptance", () => {
       );
       expect(ownerRead.status()).toBe(200);
 
-      await createNoEmailAppointmentThroughUi(
-        page,
-        ownerBookingTarget,
-        startMinutes,
-        "Frozen owner UI probe",
-      );
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await expect(
-        page.getByText(
-          "Le modifiche sono temporaneamente sospese; la consultazione resta disponibile.",
-        ),
+        page.getByRole("alert").filter({
+          hasText: "Manutenzione attiva: le modifiche sono bloccate",
+        }),
       ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Blocco rapido" }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("button", { name: "Nuovo appuntamento" }),
+      ).toBeDisabled();
+
+      const frozenOwner = await browserOwnerCommand(
+        page,
+        "/api/admin/appointments",
+        {
+          date: ownerBookingTarget.date,
+          startMinutes,
+          serviceId: ownerBookingTarget.serviceId,
+          variantId: ownerBookingTarget.variantId,
+          clientName: "Frozen owner UI probe",
+          clientEmail: null,
+          clientPhone: null,
+          clientNote: null,
+        },
+      );
+      expect(frozenOwner).toMatchObject({
+        body: { code: "MAINTENANCE_ACTIVE" },
+        status: 503,
+      });
       const frozenRows = await localDatabase.unsafe(
         `select count(*)::integer as count from gioia_private.schedule_entries
        where client_name = 'Frozen owner UI probe'`,
@@ -431,6 +451,10 @@ test.describe.serial("Phase 4 Local owner and maintenance acceptance", () => {
         ownerMutationsEnabled: true,
         publicBookingEnabled: false,
       });
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await expect(
+        page.getByRole("button", { name: "Nuovo appuntamento" }),
+      ).toBeEnabled();
       const reconcilePublic = await browserPublicBooking(page, publicBody);
       expect(reconcilePublic.status).toBe(503);
       expect(reconcilePublic.body.code).toBe("MAINTENANCE_ACTIVE");

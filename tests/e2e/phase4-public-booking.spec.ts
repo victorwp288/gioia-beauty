@@ -18,6 +18,46 @@ import {
 test.describe("Phase 4 public booking browser acceptance", () => {
   test.describe.configure({ timeout: 60_000 });
 
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/maintenance", async (route) => {
+      await json(route, 200, {
+        code: "MAINTENANCE_STATUS",
+        messageCode: "OPERATIONS_OPEN",
+        ownerMutationsEnabled: true,
+        publicBookingEnabled: true,
+      });
+    });
+  });
+
+  test("disables booking before submit while maintenance is active", async ({
+    page,
+  }) => {
+    const audit = installPublicBrowserBoundaryAudit(page);
+    await page.unroute("**/api/maintenance");
+    await page.route("**/api/maintenance", async (route) => {
+      await json(route, 200, {
+        code: "MAINTENANCE_STATUS",
+        messageCode: "MAINTENANCE_ACTIVE",
+        ownerMutationsEnabled: false,
+        publicBookingEnabled: false,
+      });
+    });
+    await installAvailabilityRoute(page, () => [540]);
+
+    await openStablePublicHome(page);
+
+    await expect(
+      page.getByRole("alert").filter({
+        hasText:
+          "Le prenotazioni online sono temporaneamente sospese per manutenzione.",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Prenota Appuntamento" }),
+    ).toBeDisabled();
+    await audit.assertSafe({ bookingPosts: 0 });
+  });
+
   test("golden path is keyboard-operable and matches desktop/mobile baselines", async ({
     page,
   }) => {
