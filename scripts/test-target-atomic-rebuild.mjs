@@ -7,7 +7,10 @@ import {
   GREENFIELD_TARGET_VERSIONS,
   repositoryMigrationFiles,
 } from "./test-target-migrations.mjs";
-import { rebuildGreenfieldTestDatabaseInTransaction } from "./test-target-rebuild-sql.mjs";
+import {
+  GREENFIELD_REBUILD_RUNTIME_PRESERVATION_SQL,
+  rebuildGreenfieldTestDatabaseInTransaction,
+} from "./test-target-rebuild-sql.mjs";
 import { REVIEWED_MIGRATION_DIGESTS } from "./test-target-reviewed-manifest.mjs";
 
 const HISTORY_INSERT_SQL = `
@@ -206,6 +209,14 @@ export async function rebuildGreenfieldTestAtomically(
       )
     ) {
       throw new Error("Greenfield TEST atomic migration history is invalid");
+    }
+    const [runtimePreservation, ...extraRuntimePreservation] =
+      await transaction.unsafe(GREENFIELD_REBUILD_RUNTIME_PRESERVATION_SQL);
+    if (
+      runtimePreservation?.runtime_role_preserved !== true ||
+      extraRuntimePreservation.length !== 0
+    ) {
+      throw new Error("Greenfield TEST runtime role was not preserved");
     }
     await fault("before-final-check", migrations.length);
     const fingerprint = await assertClean(

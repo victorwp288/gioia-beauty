@@ -11,7 +11,7 @@ import {
 
 const PASSWORD = "Protected!Password-Only-In-Memory-12345";
 const PSQL_PATH = "/opt/homebrew/Cellar/postgresql@17/17.10/bin/psql";
-const DATABASE_URL = `postgresql://app_runtime_login.lxvsspniipcotimbsfqm:${PASSWORD}@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full`;
+const DATABASE_URL = `postgresql://app_runtime.hzibzwhrwmljgjjdzspi:${PASSWORD}@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full`;
 const CA_CERTIFICATE = readFileSync(
   "config/certificates/supabase-prod-ca-2021.crt",
   "utf8",
@@ -42,7 +42,7 @@ function verify(overrides = {}) {
   return verifyOneShotRuntimeCredential({
     authenticateSql: "select true as authorized",
     authorizeSql: "select true as authorized",
-    assumeSql: "set local role app_runtime",
+    assumeSql: "select true where false",
     caCertificate: CA_CERTIFICATE,
     credentialLabel: "synthetic credential",
     databaseUrl: DATABASE_URL,
@@ -64,7 +64,7 @@ describe("greenfield TEST one-shot credential transport", () => {
     expect(JSON.stringify(args)).not.toContain(PASSWORD);
     expect(JSON.stringify(args)).not.toContain(DATABASE_URL);
     expect(options.env.PGPASSWORD).toBe(PASSWORD);
-    expect(options.env.PGUSER).toBe("app_runtime_login.lxvsspniipcotimbsfqm");
+    expect(options.env.PGUSER).toBe("app_runtime.hzibzwhrwmljgjjdzspi");
     expect(options.env.PGPORT).toBe("6543");
     expect(Object.keys(options.env).sort()).toEqual(
       [

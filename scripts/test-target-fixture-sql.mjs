@@ -31,7 +31,6 @@ export const GREENFIELD_VACATION_REASON = "Synthetic booking vacation race";
 export const GREENFIELD_EXPECTED_ROLE_NAMES = Object.freeze([
   "anon",
   "app_runtime",
-  "app_runtime_login",
   "authenticated",
   "authenticator",
   "dashboard_user",
@@ -190,47 +189,45 @@ export const GREENFIELD_STATE_SQL = `
       where n.nspname = 'gioia_private') as functions,
     (select count(*)::integer from pg_catalog.pg_roles
       where rolname in (
-        'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+        'app_runtime','gioia_mutator','gioia_migrator'
       )) as roles,
     (select count(*)::integer from pg_catalog.pg_roles
       where rolname in (
-        'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+        'app_runtime','gioia_mutator','gioia_migrator'
       )
-        and (rolcanlogin or rolsuper or rolcreatedb or rolcreaterole
+        and ((rolname='app_runtime' and not rolcanlogin) or
+          (rolname<>'app_runtime' and rolcanlogin) or rolsuper or rolcreatedb or rolcreaterole
           or rolinherit or rolreplication or rolbypassrls)) as unsafe_roles,
+    (select count(*)::integer from pg_catalog.pg_authid
+      where (rolname='app_runtime' and rolpassword not like 'SCRAM-SHA-256$%')
+        or (rolname in ('gioia_mutator','gioia_migrator') and rolpassword is not null))
+      as unsafe_role_credentials,
     ((select count(*) from pg_catalog.pg_auth_members membership
         join pg_catalog.pg_roles granted on granted.oid = membership.roleid
         join pg_catalog.pg_roles member on member.oid = membership.member
         join pg_catalog.pg_roles grantor on grantor.oid = membership.grantor
         where (granted.rolname in (
-            'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+            'app_runtime','gioia_mutator','gioia_migrator'
           ) or member.rolname in (
-            'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+            'app_runtime','gioia_mutator','gioia_migrator'
           )) and not (
             (granted.rolname in (
-                'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+                'app_runtime','gioia_mutator','gioia_migrator'
               )
               and member.rolname = 'postgres'
               and grantor.rolname = 'supabase_admin'
               and membership.admin_option
               and not membership.inherit_option
               and not membership.set_option)
-            or
-            (granted.rolname = 'app_runtime'
-              and member.rolname = 'app_runtime_login'
-              and grantor.rolname = 'postgres'
-              and not membership.admin_option
-              and not membership.inherit_option
-              and membership.set_option)
           ))
       + abs((select count(*) from pg_catalog.pg_auth_members membership
           join pg_catalog.pg_roles granted on granted.oid = membership.roleid
           join pg_catalog.pg_roles member on member.oid = membership.member
           where granted.rolname in (
-              'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+              'app_runtime','gioia_mutator','gioia_migrator'
             ) or member.rolname in (
-              'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
-            )) - 5))::integer
+              'app_runtime','gioia_mutator','gioia_migrator'
+            )) - 3))::integer
       as unsafe_role_memberships,
     (select count(*)::integer from pg_catalog.pg_class c
       join pg_catalog.pg_namespace n on n.oid = c.relnamespace

@@ -40,8 +40,8 @@ describe("greenfield TEST migration manifest", () => {
     const manifest = migrationChecksumManifest();
 
     expect(GREENFIELD_BASELINE_VERSIONS).toHaveLength(35);
-    expect(GREENFIELD_TARGET_VERSIONS).toHaveLength(62);
-    expect(files).toHaveLength(62);
+    expect(GREENFIELD_TARGET_VERSIONS).toHaveLength(63);
+    expect(files).toHaveLength(63);
     expect(manifest.map(({ file }) => file)).toEqual(files);
     expect(manifest.every(({ sha256 }) => /^[0-9a-f]{64}$/u.test(sha256))).toBe(
       true,

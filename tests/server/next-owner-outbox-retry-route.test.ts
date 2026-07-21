@@ -37,12 +37,12 @@ const SAFE_PREVIEW_ENV = {
   NEXT_PUBLIC_APP_ENV: "preview",
   VERCEL_ENV: "preview",
   EMAIL_TRANSPORT: "fake",
-  SUPABASE_PROJECT_REF: "lxvsspniipcotimbsfqm",
-  NEXT_PUBLIC_SUPABASE_URL: "https://lxvsspniipcotimbsfqm.supabase.co",
+  SUPABASE_PROJECT_REF: "hzibzwhrwmljgjjdzspi",
+  NEXT_PUBLIC_SUPABASE_URL: "https://hzibzwhrwmljgjjdzspi.supabase.co",
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic_value_123456",
   SUPABASE_DATABASE_URL:
-    "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:synthetic@" +
-    "aws-0-eu-central-2.pooler.supabase.com:6543/postgres" +
+    "postgresql://app_runtime.hzibzwhrwmljgjjdzspi:synthetic@" +
+    "aws-1-eu-central-2.pooler.supabase.com:6543/postgres" +
     "?sslmode=verify-full",
   BOOKING_HMAC_SECRET: "synthetic-preview-booking-hmac-secret-000000000000",
   OWNER_SESSION_HMAC_SECRET:

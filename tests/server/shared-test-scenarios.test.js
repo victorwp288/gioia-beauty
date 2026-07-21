@@ -23,7 +23,7 @@ const SECURE_COOKIE_EXPECTATIONS = {
     forbidden: ["httponly"],
   },
   supabase: {
-    namePrefix: "sb-lxvsspniipcotimbsfqm-auth-token",
+    namePrefix: "sb-hzibzwhrwmljgjjdzspi-auth-token",
     required: ["httponly", "path=/", "samesite=lax", "secure"],
     forbidden: [],
   },
@@ -75,7 +75,7 @@ function scenarioResponses() {
       [
         "gioia_owner_session=session-value; HttpOnly; Path=/; SameSite=Strict; Max-Age=43200; Secure",
         "gioia_owner_csrf=csrf-value; Path=/; SameSite=Strict; Max-Age=43200; Secure",
-        "sb-lxvsspniipcotimbsfqm-auth-token=auth-value; HttpOnly; Path=/; SameSite=Lax; Secure",
+        "sb-hzibzwhrwmljgjjdzspi-auth-token=auth-value; HttpOnly; Path=/; SameSite=Lax; Secure",
       ],
     ),
     jsonResponse(200, "OWNER_SESSION_ACTIVE", {
@@ -84,7 +84,7 @@ function scenarioResponses() {
     jsonResponse(200, "OWNER_SESSION_ENDED", {}, [
       "gioia_owner_session=; Max-Age=0; Path=/",
       "gioia_owner_csrf=; Max-Age=0; Path=/",
-      "sb-lxvsspniipcotimbsfqm-auth-token=; Max-Age=0; Path=/",
+      "sb-hzibzwhrwmljgjjdzspi-auth-token=; Max-Age=0; Path=/",
     ]),
     jsonResponse(401, "OWNER_SESSION_REQUIRED"),
   ];
@@ -254,7 +254,7 @@ describe("shared Local and TEST scenarios", () => {
       [
         "gioia_owner_session=; HttpOnly; Path=/; Max-Age=0",
         "gioia_owner_csrf=; Path=/; Max-Age=0",
-        "sb-lxvsspniipcotimbsfqm-auth-token=; HttpOnly; Path=/; Max-Age=0",
+        "sb-hzibzwhrwmljgjjdzspi-auth-token=; HttpOnly; Path=/; Max-Age=0",
       ].join(", "),
     );
     await expect(

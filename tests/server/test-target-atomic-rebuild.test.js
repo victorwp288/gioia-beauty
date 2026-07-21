@@ -10,6 +10,7 @@ import {
 } from "../../scripts/test-target-atomic-rebuild.mjs";
 import { GREENFIELD_TARGET_VERSIONS } from "../../scripts/test-target-migrations.mjs";
 import { REVIEWED_MIGRATION_DIGESTS } from "../../scripts/test-target-reviewed-manifest.mjs";
+import { GREENFIELD_REBUILD_RUNTIME_PRESERVATION_SQL } from "../../scripts/test-target-rebuild-sql.mjs";
 
 const fingerprint = {
   referenceChecksum: "a".repeat(64),
@@ -25,9 +26,13 @@ function exactHistory(plan) {
 }
 
 function database(plan, { history = exactHistory(plan) } = {}) {
-  const unsafe = vi.fn(async (query) =>
-    query === GREENFIELD_HISTORY_VERIFY_SQL ? history : [],
-  );
+  const unsafe = vi.fn(async (query) => {
+    if (query === GREENFIELD_HISTORY_VERIFY_SQL) return history;
+    if (query === GREENFIELD_REBUILD_RUNTIME_PRESERVATION_SQL) {
+      return [{ runtime_role_preserved: true }];
+    }
+    return [];
+  });
   const state = { committed: false };
   const begin = vi.fn(async (callback) => {
     const result = await callback({ unsafe });
@@ -53,8 +58,8 @@ describe("greenfield TEST atomic migration plan", () => {
     const plan = planGreenfieldAtomicRebuild();
     const migrations = plan.getMigrations();
 
-    expect(plan.migrationCount).toBe(62);
-    expect(migrations).toHaveLength(62);
+    expect(plan.migrationCount).toBe(63);
+    expect(migrations).toHaveLength(63);
     expect(Object.keys(plan)).toEqual(["migrationCount", "files"]);
     expect(Object.keys(migrations[0])).toEqual(["file", "name", "version"]);
     for (const [index, migration] of migrations.entries()) {
@@ -85,7 +90,7 @@ describe("greenfield TEST atomic migration plan", () => {
     expect(injected.rebuild).toHaveBeenCalledOnce();
     expect(injected.assertClean).toHaveBeenCalledOnce();
     expect(sql.state.committed).toBe(true);
-    expect(sql.unsafe).toHaveBeenCalledTimes(125);
+    expect(sql.unsafe).toHaveBeenCalledTimes(128);
     const migrations = plan.getMigrations();
     expect(sql.unsafe.mock.calls[0]).toEqual([migrations[0].getBody()]);
     expect(sql.unsafe.mock.calls[1]).toEqual([
@@ -99,8 +104,10 @@ describe("greenfield TEST atomic migration plan", () => {
     ["after-migration", 0],
     ["after-migration", 58],
     ["after-history", 59],
-    ["before-final-check", 62],
-    ["after-final-check", 62],
+    ["after-migration", 62],
+    ["after-history", 62],
+    ["before-final-check", 63],
+    ["after-final-check", 63],
   ])("does not commit fault injection at %s/%i", async (stage, index) => {
     const failure = new Error(`synthetic ${stage}`);
     const fault = vi.fn(async (actualStage, actualIndex) => {

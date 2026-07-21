@@ -26,8 +26,8 @@ import {
 
 const PASSWORD = "operator-password-12345678901234567890";
 const DATABASE_URL =
-  `postgresql://postgres.lxvsspniipcotimbsfqm:${PASSWORD}` +
-  "@aws-0-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=verify-full";
+  `postgresql://postgres.hzibzwhrwmljgjjdzspi:${PASSWORD}` +
+  "@aws-1-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=verify-full";
 const CERTIFICATE_PEM = readFileSync(
   "config/certificates/supabase-prod-ca-2021.crt",
   "utf8",
@@ -373,7 +373,17 @@ describe("greenfield TEST Supabase CLI", () => {
       createTestTargetCli({
         getDatabaseCaCertificate: () => CERTIFICATE_PEM,
         getOperatorSessionDatabaseUrl: () =>
-          DATABASE_URL.replace("lxvsspniipcotimbsfqm", "production-project"),
+          DATABASE_URL.replace("hzibzwhrwmljgjjdzspi", "production-project"),
+      }),
+    ).toThrow("not the exact greenfield TEST session pooler");
+    expect(() =>
+      createTestTargetCli({
+        getDatabaseCaCertificate: () => CERTIFICATE_PEM,
+        getOperatorSessionDatabaseUrl: () =>
+          DATABASE_URL.replace(
+            "aws-1-eu-central-2.pooler.supabase.com",
+            "aws-0-eu-central-2.pooler.supabase.com",
+          ),
       }),
     ).toThrow("not the exact greenfield TEST session pooler");
     expect(() =>

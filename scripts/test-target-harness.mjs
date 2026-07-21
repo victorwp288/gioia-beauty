@@ -4,12 +4,14 @@ import {
   createTestTargetDatabaseClient,
   endTestTargetDatabaseClient,
 } from "./test-target-database-client.mjs";
-import { withSuspendedPreviewCredential } from "./test-target-runtime-role.mjs";
+import {
+  assertRuntimeRoleBoundary,
+  prepareRuntimeCredential,
+} from "./test-target-runtime-role.mjs";
 
 export {
   GREENFIELD_PREVIEW_ROLE_SQL,
   GREENFIELD_RUNTIME_ROLE_SQL,
-  withTemporaryRuntimeRole,
 } from "./test-target-runtime-role.mjs";
 
 const GLOBAL_LOCK_SQL =
@@ -62,13 +64,29 @@ export async function withGreenfieldTestLock(
       throw new Error("Greenfield TEST target is already locked");
     }
     locked = true;
-    result = await withSuspendedPreviewCredential(
+    await prepareRuntimeCredential(
       lockClient,
       config,
       credentialVerifier,
-      ({ recoverRuntimeRole }) => callback({ worker, recoverRuntimeRole }),
       credentialPropagationWait,
     );
+    try {
+      result = await callback({ worker });
+    } catch (error) {
+      operationError = error;
+    }
+    try {
+      await assertRuntimeRoleBoundary(lockClient);
+    } catch (verificationError) {
+      if (operationError) {
+        throw new AggregateError(
+          [operationError, verificationError],
+          "Greenfield TEST operation and final runtime verification failed",
+        );
+      }
+      throw verificationError;
+    }
+    if (operationError) throw operationError;
   } catch (error) {
     operationError = error;
   }

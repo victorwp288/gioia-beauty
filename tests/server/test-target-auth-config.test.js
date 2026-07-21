@@ -7,10 +7,10 @@ const KEY = `sb_publishable_${"p".repeat(32)}`;
 
 function config(overrides = {}) {
   return {
-    apiUrl: "https://lxvsspniipcotimbsfqm.supabase.co/",
+    apiUrl: "https://hzibzwhrwmljgjjdzspi.supabase.co/",
     environment: "test",
     getPublishableKey: () => KEY,
-    projectRef: "lxvsspniipcotimbsfqm",
+    projectRef: "hzibzwhrwmljgjjdzspi",
     ...overrides,
   };
 }

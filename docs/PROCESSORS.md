@@ -51,14 +51,17 @@ decommission procedure.
 
 ### Supabase
 
-- **Status:** project `lxvsspniipcotimbsfqm` is `authorized-test`; no Supabase
-  project is Production-authoritative.
+- **Status:** replacement project `hzibzwhrwmljgjjdzspi` is
+  `authorized-test`; provider-failed TEST project `lxvsspniipcotimbsfqm` is
+  retired from current configuration; no Supabase project is
+  Production-authoritative.
 - **Purpose:** future Postgres/Auth platform and current synthetic integration
   target.
 - **Data in scope:** synthetic schema/Auth/fixtures today; after approved cutover,
   booking contacts and notes, schedule behavior, subscribers/consent, email
   snapshots/state, owner Auth/session data, and migration/privacy evidence.
-- **Verified technical location:** current TEST registry records `eu-central-2`;
+- **Verified technical location:** replacement TEST registry records
+  `eu-central-2`;
   this does not by itself approve future Production transfers or backup posture.
 - **Repository evidence:** [`docs/ENVIRONMENTS.md`](ENVIRONMENTS.md),
   [`docs/DATA-MODEL.md`](DATA-MODEL.md), and committed `supabase/` migrations.

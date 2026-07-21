@@ -43,7 +43,7 @@ function database(initialRoles, { ignoreRevoke = new Set() } = {}) {
 }
 
 describe("local pgTAP creator membership lifecycle", () => {
-  it("preserves existing creator memberships and adds only the login carrier", async () => {
+  it("preserves the exact existing direct-role creator memberships", async () => {
     const sql = database(["app_runtime", "gioia_mutator", "gioia_migrator"]);
     const callback = vi.fn(async () => "passed");
 
@@ -54,8 +54,6 @@ describe("local pgTAP creator membership lifecycle", () => {
     const statements = sql.unsafe.mock.calls.map(([query]) => query);
     expect(statements).toEqual([
       LOCAL_PGTAP_CREATOR_MEMBERSHIP_SQL,
-      "grant app_runtime_login to postgres with admin true, inherit false, set false granted by current_user",
-      "revoke app_runtime_login from postgres granted by current_user",
       LOCAL_PGTAP_CREATOR_MEMBERSHIP_SQL,
     ]);
     expect(statements).not.toContain(
@@ -112,7 +110,7 @@ describe("local pgTAP creator membership lifecycle", () => {
 
   it("fails when final memberships differ from the preflight snapshot", async () => {
     const sql = database([], {
-      ignoreRevoke: new Set(["app_runtime_login"]),
+      ignoreRevoke: new Set(["gioia_migrator"]),
     });
 
     await expect(

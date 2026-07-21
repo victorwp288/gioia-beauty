@@ -9,9 +9,7 @@ import { GREENFIELD_REFERENCE_CHECKSUM } from "./test-target-fingerprint-sql.mjs
 import { GREENFIELD_TARGET_VERSIONS } from "./test-target-migrations.mjs";
 
 const words = (value) => Object.freeze(value.split(" "));
-const CUSTOM_ROLES = words(
-  "app_runtime app_runtime_login gioia_migrator gioia_mutator",
-);
+const CUSTOM_ROLES = words("app_runtime gioia_migrator gioia_mutator");
 const AUTH_TABLES = words(
   "audit_log_entries custom_oauth_providers flow_state identities instances mfa_amr_claims mfa_challenges mfa_factors oauth_authorizations oauth_client_states oauth_clients oauth_consents one_time_tokens refresh_tokens saml_providers saml_relay_states sessions sso_domains sso_providers users webauthn_challenges webauthn_credentials",
 );
@@ -80,12 +78,14 @@ begin
 
   if exists (select 1 from pg_catalog.pg_roles r
     where r.rolname=any(${textArray(CUSTOM_ROLES)}) and
-      (r.rolcanlogin or r.rolsuper or r.rolcreatedb or r.rolcreaterole or
+      ((r.rolname='app_runtime' and not r.rolcanlogin) or
+       (r.rolname<>'app_runtime' and r.rolcanlogin) or
+       r.rolsuper or r.rolcreatedb or r.rolcreaterole or
        r.rolinherit or r.rolreplication or r.rolbypassrls or r.rolconnlimit <> -1 or
-       (r.rolname in ('app_runtime','app_runtime_login') and
+       (r.rolname='app_runtime' and
          r.rolvaliduntil is not null and
          r.rolvaliduntil<>'infinity'::timestamptz) or
-       (r.rolname not in ('app_runtime','app_runtime_login') and
+       (r.rolname<>'app_runtime' and
          r.rolvaliduntil is not null) or
        (select pg_catalog.array_agg(setting order by setting)
           from pg_catalog.unnest(coalesce(r.rolconfig,'{}')) as config(setting))
@@ -94,76 +94,42 @@ begin
           else array['lock_timeout=3s','statement_timeout=10s']::text[] end)) then
     raise exception 'Greenfield TEST custom role attributes are not exact';
   end if;
-  if exists (select 1 from pg_catalog.pg_authid r
-      where r.rolname=any(${textArray(CUSTOM_ROLES)}) and
+  if not exists (select 1 from pg_catalog.pg_authid r
+      where r.rolname='app_runtime' and
+        r.rolpassword like 'SCRAM-SHA-256$%') or
+     exists (select 1 from pg_catalog.pg_authid r
+      where r.rolname in ('gioia_migrator','gioia_mutator') and
         r.rolpassword is not null) then
-    raise exception 'Greenfield TEST custom role credentials are not contained';
+    raise exception 'Greenfield TEST custom role credentials are not exact';
   end if;
   if (select count(*) from pg_catalog.pg_auth_members m
       join pg_catalog.pg_roles granted on granted.oid=m.roleid
       join pg_catalog.pg_roles member on member.oid=m.member
       join pg_catalog.pg_roles grantor on grantor.oid=m.grantor
       where granted.rolname=any(${textArray(CUSTOM_ROLES)}) or
-        member.rolname=any(${textArray(CUSTOM_ROLES)})) <> 5 or
+        member.rolname=any(${textArray(CUSTOM_ROLES)})) <> 3 or
      exists (select 1 from pg_catalog.pg_auth_members m
       join pg_catalog.pg_roles granted on granted.oid=m.roleid
       join pg_catalog.pg_roles member on member.oid=m.member
       join pg_catalog.pg_roles grantor on grantor.oid=m.grantor
       where (granted.rolname=any(${textArray(CUSTOM_ROLES)}) or
         member.rolname=any(${textArray(CUSTOM_ROLES)})) and not (
-          (granted.rolname=any(${textArray(CUSTOM_ROLES)}) and
+          granted.rolname=any(${textArray(CUSTOM_ROLES)}) and
             member.rolname='postgres' and grantor.rolname='supabase_admin' and
             m.admin_option and not m.inherit_option and not m.set_option)
-          or
-          (granted.rolname='app_runtime' and member.rolname='app_runtime_login' and
-            grantor.rolname='postgres' and not m.admin_option and
-            not m.inherit_option and m.set_option)
-        )) then
+        ) then
     raise exception 'Greenfield TEST custom role memberships are not exact';
   end if;
   if exists (
-    select 1 from pg_catalog.pg_namespace n
-      where n.nspowner='app_runtime_login'::regrole
-    union all
-    select 1 from pg_catalog.pg_class c
-      where c.relowner='app_runtime_login'::regrole
-    union all
-    select 1 from pg_catalog.pg_proc p
-      where p.proowner='app_runtime_login'::regrole
-    union all
-    select 1 from pg_catalog.pg_type t
-      where t.typowner='app_runtime_login'::regrole
-    union all
-    select 1 from pg_catalog.pg_extension e
-      where e.extowner='app_runtime_login'::regrole
-    union all
-    select 1 from pg_catalog.pg_default_acl d
-      where d.defaclrole='app_runtime_login'::regrole
+    select 1 from pg_catalog.pg_database where datdba='app_runtime'::regrole
+    union all select 1 from pg_catalog.pg_namespace where nspowner='app_runtime'::regrole
+    union all select 1 from pg_catalog.pg_class where relowner='app_runtime'::regrole
+    union all select 1 from pg_catalog.pg_proc where proowner='app_runtime'::regrole
+    union all select 1 from pg_catalog.pg_type where typowner='app_runtime'::regrole
+    union all select 1 from pg_catalog.pg_extension where extowner='app_runtime'::regrole
+    union all select 1 from pg_catalog.pg_default_acl where defaclrole='app_runtime'::regrole
   ) then
-    raise exception 'Greenfield TEST runtime login ownership is not empty';
-  end if;
-  if exists (
-    select 1 from pg_catalog.pg_namespace n
-      cross join lateral pg_catalog.aclexplode(n.nspacl) a
-      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
-    union all
-    select 1 from pg_catalog.pg_class c
-      cross join lateral pg_catalog.aclexplode(c.relacl) a
-      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
-    union all
-    select 1 from pg_catalog.pg_proc p
-      cross join lateral pg_catalog.aclexplode(p.proacl) a
-      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
-    union all
-    select 1 from pg_catalog.pg_type t
-      cross join lateral pg_catalog.aclexplode(t.typacl) a
-      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
-    union all
-    select 1 from pg_catalog.pg_database d
-      cross join lateral pg_catalog.aclexplode(d.datacl) a
-      where 'app_runtime_login'::regrole in (a.grantee,a.grantor)
-  ) then
-    raise exception 'Greenfield TEST runtime login direct ACL is not empty';
+    raise exception 'Greenfield TEST runtime ownership is not empty';
   end if;
   if (select count(*) from pg_catalog.pg_default_acl d join pg_catalog.pg_roles r
       on r.oid=d.defaclrole where r.rolname=any(${textArray(CUSTOM_ROLES)})) <> 2 or
@@ -209,7 +175,7 @@ begin
   end if;
   if exists (select 1 from pg_catalog.pg_stat_activity where pid<>pg_catalog.pg_backend_pid()
       and datname=pg_catalog.current_database() and
-      (usename in ('app_runtime','app_runtime_login') or
+      (usename='app_runtime' or
         application_name='gioia_public_api')) then
     raise exception 'Greenfield TEST application sessions are active';
   end if;

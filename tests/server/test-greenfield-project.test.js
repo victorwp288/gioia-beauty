@@ -11,7 +11,6 @@ const fingerprint = {
 function harness(overrides = {}) {
   const calls = [];
   const worker = { synthetic: "operator-worker" };
-  const recoverRuntimeRole = vi.fn(async () => calls.push("recover"));
   const cli = {
     lintPrivateSchema: vi.fn(async () => calls.push("lint")),
     verifyVersion: vi.fn(async () => calls.push("version")),
@@ -19,7 +18,7 @@ function harness(overrides = {}) {
   const config = {
     getDatabaseCaCertificate: vi.fn(() => "synthetic-ca"),
     getOperatorSessionDatabaseUrl: vi.fn(() => "private-operator-url"),
-    projectRef: "lxvsspniipcotimbsfqm",
+    projectRef: "hzibzwhrwmljgjjdzspi",
   };
   let rebuildIndex = 0;
   const targetCount = GREENFIELD_TARGET_VERSIONS.length;
@@ -48,7 +47,7 @@ function harness(overrides = {}) {
     }),
     withLock: vi.fn(async (_config, callback) => {
       calls.push("lock");
-      return callback({ recoverRuntimeRole, worker });
+      return callback({ worker });
     }),
     ...overrides,
   };
@@ -57,7 +56,6 @@ function harness(overrides = {}) {
     cli,
     config,
     operationOverrides,
-    recoverRuntimeRole,
     worker,
   };
 }
@@ -82,25 +80,22 @@ describe("greenfield TEST two-cycle operator", () => {
       "manifest",
       "version",
       "lint",
-      "recover",
       "rebuild",
       "accept-A",
       "preflight",
       "manifest",
       "version",
       "lint",
-      "recover",
       "rebuild",
       "accept-B",
       "preflight",
       "manifest",
-      "recover",
     ]);
     expect(result).toEqual({
       cycles: 2,
       ciRunId: "29068500383",
       commitSha: "c".repeat(40),
-      projectRef: "lxvsspniipcotimbsfqm",
+      projectRef: "hzibzwhrwmljgjjdzspi",
       removedMigrations: [
         GREENFIELD_TARGET_VERSIONS.length,
         GREENFIELD_TARGET_VERSIONS.length,
@@ -154,7 +149,6 @@ describe("greenfield TEST two-cycle operator", () => {
       ),
     ).rejects.toBe(rebuildFailure);
     expect(state.operationOverrides.runAcceptance).not.toHaveBeenCalled();
-    expect(state.recoverRuntimeRole).toHaveBeenCalledTimes(2);
     expect(state.operationOverrides.withLock).toHaveBeenCalledOnce();
   });
 
@@ -194,23 +188,5 @@ describe("greenfield TEST two-cycle operator", () => {
         { operationOverrides: state.operationOverrides },
       ),
     ).rejects.toThrow("preflight evidence changed");
-    expect(state.recoverRuntimeRole).toHaveBeenCalledTimes(3);
-  });
-
-  it("preserves an operation failure and a final recovery failure", async () => {
-    const operationFailure = new Error("synthetic atomic failure");
-    const recoveryFailure = new Error("synthetic recovery failure");
-    const state = harness();
-    state.operationOverrides.rebuild.mockRejectedValueOnce(operationFailure);
-    state.recoverRuntimeRole
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(recoveryFailure);
-
-    const error = await runGreenfieldTestProject(
-      {},
-      { operationOverrides: state.operationOverrides },
-    ).catch((caught) => caught);
-    expect(error).toBeInstanceOf(AggregateError);
-    expect(error.errors).toEqual([operationFailure, recoveryFailure]);
   });
 });

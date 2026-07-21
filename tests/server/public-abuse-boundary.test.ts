@@ -16,7 +16,7 @@ import {
 import { requestPrincipalScopeHash } from "@/lib/server/bookingSecurity.ts";
 
 const REQUEST_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const PROJECT_REF = "lxvsspniipcotimbsfqm";
+const PROJECT_REF = "hzibzwhrwmljgjjdzspi";
 const HUMAN_TOKEN = Buffer.alloc(32, 0x4a).toString("base64url");
 
 function isolatedEnvironment(
@@ -55,8 +55,8 @@ function previewEnvironment() {
     NEXT_PUBLIC_SUPABASE_URL: `https://${PROJECT_REF}.supabase.co`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: `sb_publishable_${"p".repeat(24)}`,
     SUPABASE_DATABASE_URL:
-      `postgresql://app_runtime_login.${PROJECT_REF}:synthetic@` +
-      "aws-0-eu-central-2.pooler.supabase.com:6543/postgres" +
+      `postgresql://app_runtime.${PROJECT_REF}:synthetic@` +
+      "aws-1-eu-central-2.pooler.supabase.com:6543/postgres" +
       "?sslmode=verify-full",
   };
 }

@@ -35,7 +35,7 @@ describe("greenfield TEST ephemeral runtime fixtures", () => {
       "httponly",
     );
     expect(GREENFIELD_OWNER_COOKIE_SECURITY.supabase).toMatchObject({
-      namePrefix: "sb-lxvsspniipcotimbsfqm-auth-token",
+      namePrefix: "sb-hzibzwhrwmljgjjdzspi-auth-token",
     });
     expect(GREENFIELD_OWNER_COOKIE_SECURITY.supabase.required).toContain(
       "secure",

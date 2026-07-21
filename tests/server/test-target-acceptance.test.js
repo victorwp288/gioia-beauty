@@ -58,10 +58,6 @@ function harness(overrides = {}) {
       calls.push("runtime-db");
       return callback({ synthetic: "runtime" });
     }),
-    withRuntimeRole: vi.fn(async ({ callback }) => {
-      calls.push("runtime-role");
-      return callback({ runtimeDatabaseUrl: "postgresql://runtime.invalid" });
-    }),
     verifyAuthConfiguration: vi.fn(async () => calls.push("auth-config")),
     ...overrides,
   };
@@ -73,10 +69,10 @@ function options(cli, overrides = {}) {
     cli,
     config: {
       getDatabaseCaCertificate: () => "synthetic-ca",
-      projectRef: "lxvsspniipcotimbsfqm",
+      getRuntimeDatabaseUrl: () => "postgresql://runtime.invalid",
+      projectRef: "hzibzwhrwmljgjjdzspi",
     },
     cycle: "A",
-    recoverRuntimeRole: vi.fn(async () => {}),
     worker: { synthetic: "operator" },
     ...overrides,
   };
@@ -100,7 +96,6 @@ describe("greenfield TEST acceptance cycle", () => {
       "provision",
       "provision-concurrency",
       "auth-config",
-      "runtime-role",
       "runtime-db",
       "booking",
       "server",

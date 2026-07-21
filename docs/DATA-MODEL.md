@@ -343,27 +343,29 @@ the keyset order and prove the physical scan plan in TEST before activation.
 
 - Supabase Auth contains the single owner/admin identity; invite/reset rather than attempting to migrate Firebase password hashes.
 - Authorization uses owner-controlled `app_metadata` or an explicit server-side allowlist. Never authorize from editable `user_metadata`.
-- Business operations remain behind server routes using the stable,
-  least-privilege `app_runtime` authorization role against the private
-  `gioia_private` schema. It can execute only allowlisted definer functions and
-  has no table privileges. `anon`, `authenticated`, and `service_role` have
-  neither business-table nor business-function access.
-- `app_runtime` is always `NOLOGIN`; its permissions and object grants never
-  move to a credential-bearing role. The application authenticates to the
-  transaction pooler as `app_runtime_login`, then every transaction explicitly
-  runs `SET LOCAL ROLE app_runtime` before business SQL.
-- `app_runtime_login` is a credential-only `NOINHERIT` carrier with `SET TRUE`
-  membership in `app_runtime`. It owns no database object and has no direct
-  schema, table, sequence, or function ACL. A TEST/Production operator
-  separately provisions its strong password/login capability and protected
-  transaction-pooler secret; the application never connects as `postgres` or
-  directly as `app_runtime`.
-- A destructive TEST checkpoint suspends only `app_runtime_login` to the
-  committed `NOLOGIN`/password-null state. Before releasing its project lock it
-  must restore the exact protected credential, prove a fresh carrier login and
-  `SET LOCAL ROLE app_runtime`, and recheck zero direct carrier ACL/ownership.
-  Any failure is contained by disabling and clearing the carrier credential;
-  the `app_runtime` authorization surface remains unchanged.
+- Business operations remain behind server routes using one stable,
+  least-privilege `app_runtime` login against the private `gioia_private`
+  schema. It owns no object, has no table or sequence privileges, and can
+  execute only explicitly allowlisted security-definer functions. `anon`,
+  `authenticated`, and `service_role` have neither business-table nor
+  business-function access.
+- The application authenticates to the transaction pooler directly as
+  `app_runtime.<project-ref>`. Migrations define the safe role attributes and
+  grants but never contain its password. A protected operator provisions the
+  strong SCRAM credential once, and the runtime never connects as `postgres` or
+  changes role inside a request transaction.
+- `gioia_mutator` remains a separate `NOLOGIN` owner for the allowlisted
+  security-definer functions and their narrow table privileges. This boundary
+  prevents a leaked runtime credential from obtaining direct table access.
+  `gioia_migrator` also remains `NOLOGIN` and is retained only through the
+  import, cutover, and recovery window.
+- A destructive TEST checkpoint preserves the `app_runtime` role and SCRAM
+  credential, proves their fingerprint is unchanged, requires zero active
+  runtime sessions, and serializes operators with the project advisory lock.
+  This is safe while the resettable TEST project has no active Preview runtime.
+  Before a future checkpoint on an actively served environment, traffic must
+  be independently quiesced or runtime transactions must participate in the
+  matching shared/exclusive advisory-lock protocol.
 
 ## 3. Booking and privacy decisions
 

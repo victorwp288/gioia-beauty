@@ -8,7 +8,6 @@ import { getLocalRouteStatus } from "./local-owner-auth-harness.mjs";
 
 export const LOCAL_PGTAP_CREATOR_ROLES = Object.freeze([
   "app_runtime",
-  "app_runtime_login",
   "gioia_mutator",
   "gioia_migrator",
 ]);
@@ -20,7 +19,7 @@ export const LOCAL_PGTAP_CREATOR_MEMBERSHIP_SQL = `
   join pg_catalog.pg_roles member on member.oid = membership.member
   join pg_catalog.pg_roles grantor on grantor.oid = membership.grantor
   where granted.rolname in (
-    'app_runtime','app_runtime_login','gioia_mutator','gioia_migrator'
+    'app_runtime','gioia_mutator','gioia_migrator'
   )
     and member.rolname = 'postgres'
   order by granted.rolname, grantor.rolname

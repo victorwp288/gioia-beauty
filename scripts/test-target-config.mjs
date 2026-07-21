@@ -16,7 +16,7 @@ import {
   isProtectedOperatorEnvironmentKey,
 } from "../config/operatorEnvironmentPolicy.mjs";
 
-export const TEST_TARGET_REF = "lxvsspniipcotimbsfqm";
+export const TEST_TARGET_REF = "hzibzwhrwmljgjjdzspi";
 export const TEST_TARGET_API_URL = `https://${TEST_TARGET_REF}.supabase.co`;
 export const TEST_TARGET_REGION = "eu-central-2";
 export const TEST_TARGET_CA_RELATIVE_PATH =
@@ -25,9 +25,9 @@ export const TEST_TARGET_CA_RELATIVE_PATH =
 const PUBLISHABLE_KEY_PATTERN = /^sb_publishable_[A-Za-z0-9_-]{20,}$/;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const POOLER_HOST_PATTERN = /^aws-[0-9]+-eu-central-2\.pooler\.supabase\.com$/;
+const POOLER_HOST = "aws-1-eu-central-2.pooler.supabase.com";
 const OPERATOR_USERNAME = `postgres.${TEST_TARGET_REF}`;
-const RUNTIME_LOGIN_USERNAME = `app_runtime_login.${TEST_TARGET_REF}`;
+const RUNTIME_USERNAME = `app_runtime.${TEST_TARGET_REF}`;
 const TEST_TARGET_CA_FINGERPRINT =
   "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
 const ALLOWED_SUPABASE_ENV_KEYS = new Set([
@@ -38,7 +38,7 @@ const ALLOWED_SUPABASE_ENV_KEYS = new Set([
 const ALLOWED_OPERATOR_ENV_KEYS = new Set([
   ...ALLOWED_SUPABASE_ENV_KEYS,
   "GIOIA_TEST_OPERATOR_DATABASE_URL",
-  "GIOIA_TEST_PREVIEW_DATABASE_URL",
+  "GIOIA_TEST_RUNTIME_DATABASE_URL",
 ]);
 const FORBIDDEN_EXACT_ENV_KEYS = new Set([
   ...PROTECTED_OPERATOR_ENV_KEYS.filter(
@@ -219,7 +219,7 @@ function parseOperatorDatabaseUrl(value, errors) {
       url.protocol !== "postgresql:" ||
       decodeURIComponent(url.username) !== OPERATOR_USERNAME ||
       !url.password ||
-      !POOLER_HOST_PATTERN.test(url.hostname) ||
+      url.hostname !== POOLER_HOST ||
       url.port !== "5432" ||
       url.pathname !== "/postgres" ||
       url.hash ||
@@ -237,9 +237,9 @@ function parseOperatorDatabaseUrl(value, errors) {
   }
 }
 
-function parsePreviewDatabaseUrl(value, operatorUrl, errors) {
+function parseRuntimeDatabaseUrl(value, operatorUrl, errors) {
   if (!hasValue(value)) {
-    errors.push("GIOIA_TEST_PREVIEW_DATABASE_URL is required");
+    errors.push("GIOIA_TEST_RUNTIME_DATABASE_URL is required");
     return null;
   }
 
@@ -251,7 +251,7 @@ function parsePreviewDatabaseUrl(value, operatorUrl, errors) {
       url.searchParams.get("sslmode") === "verify-full";
     if (
       url.protocol !== "postgresql:" ||
-      decodeURIComponent(url.username) !== RUNTIME_LOGIN_USERNAME ||
+      decodeURIComponent(url.username) !== RUNTIME_USERNAME ||
       password.trim() !== password ||
       password.includes("\0") ||
       Buffer.byteLength(password, "utf8") < 32 ||
@@ -265,33 +265,15 @@ function parsePreviewDatabaseUrl(value, operatorUrl, errors) {
       !validQuery
     ) {
       errors.push(
-        "GIOIA_TEST_PREVIEW_DATABASE_URL does not match the exact TEST Preview transaction pooler",
+        "GIOIA_TEST_RUNTIME_DATABASE_URL does not match the exact TEST runtime transaction pooler",
       );
       return null;
     }
     return url;
   } catch {
-    errors.push("GIOIA_TEST_PREVIEW_DATABASE_URL is not a valid URL");
+    errors.push("GIOIA_TEST_RUNTIME_DATABASE_URL is not a valid URL");
     return null;
   }
-}
-
-function runtimeDatabaseUrl(operatorWorkerUrl, password) {
-  if (
-    typeof password !== "string" ||
-    password.trim() !== password ||
-    password.includes("\0") ||
-    Buffer.byteLength(password, "utf8") < 32 ||
-    Buffer.byteLength(password, "utf8") > 256
-  ) {
-    throw new TestTargetConfigError([
-      "in-memory app_runtime_login password must contain 32 to 256 bytes",
-    ]);
-  }
-  const url = new URL(operatorWorkerUrl);
-  url.username = RUNTIME_LOGIN_USERNAME;
-  url.password = password;
-  return url.href;
 }
 
 function safeConfig(
@@ -299,7 +281,7 @@ function safeConfig(
   runId,
   apiUrl,
   operatorUrl,
-  previewUrl,
+  runtimeUrl,
   certificatePem,
 ) {
   const operatorSessionUrl = operatorUrl.href;
@@ -320,12 +302,9 @@ function safeConfig(
   };
 
   Object.defineProperties(config, {
-    deriveAppRuntimeDatabaseUrl: {
-      value: (password) => runtimeDatabaseUrl(operatorWorkerUrl, password),
-    },
     getOperatorSessionDatabaseUrl: { value: () => operatorSessionUrl },
     getOperatorWorkerDatabaseUrl: { value: () => operatorWorkerUrl },
-    getPreviewRuntimeDatabaseUrl: { value: () => previewUrl.href },
+    getRuntimeDatabaseUrl: { value: () => runtimeUrl.href },
     getPublishableKey: { value: () => publishableKey },
     getDatabaseCaCertificate: { value: () => certificatePem },
   });
@@ -361,8 +340,8 @@ export function parseTestTargetConfig(
     env.GIOIA_TEST_OPERATOR_DATABASE_URL,
     errors,
   );
-  const previewUrl = parsePreviewDatabaseUrl(
-    env.GIOIA_TEST_PREVIEW_DATABASE_URL,
+  const runtimeUrl = parseRuntimeDatabaseUrl(
+    env.GIOIA_TEST_RUNTIME_DATABASE_URL,
     operatorUrl,
     errors,
   );
@@ -375,7 +354,7 @@ export function parseTestTargetConfig(
     runId,
     apiUrl,
     operatorUrl,
-    previewUrl,
+    runtimeUrl,
     certificatePem,
   );
 }

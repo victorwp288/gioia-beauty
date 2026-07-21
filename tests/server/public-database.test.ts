@@ -33,7 +33,7 @@ describe("runtime Postgres adapter", () => {
     const database = createRuntimeDatabase({
       env: {
         SUPABASE_DATABASE_URL:
-          "postgresql://app_runtime:synthetic@127.0.0.1:54322/postgres",
+          "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
       },
       clientFactory,
     });
@@ -73,13 +73,13 @@ describe("runtime Postgres adapter", () => {
       transaction.unsafe("select owner_command()"),
     );
 
-    expect(unsafe.mock.calls[1]?.[0]).toContain("request.jwt.claim.sub");
-    expect(unsafe.mock.calls[1]?.[0]).toContain("request.jwt.claim.session_id");
-    expect(unsafe.mock.calls[1]?.[1]).toEqual([
+    expect(unsafe.mock.calls[0]?.[0]).toContain("request.jwt.claim.sub");
+    expect(unsafe.mock.calls[0]?.[0]).toContain("request.jwt.claim.session_id");
+    expect(unsafe.mock.calls[0]?.[1]).toEqual([
       identity.userId,
       identity.sessionId,
     ]);
-    expect(unsafe.mock.calls[2]?.[0]).toBe("select owner_command()");
+    expect(unsafe.mock.calls[1]?.[0]).toBe("select owner_command()");
   });
 
   it("rejects malformed owner context before opening a transaction", async () => {
@@ -122,9 +122,9 @@ describe("runtime Postgres adapter", () => {
     const database = createRuntimeDatabase({
       env: {
         SUPABASE_DATABASE_CA_CERTIFICATE: SUPABASE_CA_CERTIFICATE,
-        SUPABASE_PROJECT_REF: "lxvsspniipcotimbsfqm",
+        SUPABASE_PROJECT_REF: "hzibzwhrwmljgjjdzspi",
         SUPABASE_DATABASE_URL:
-          "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:synthetic@" +
+          "postgresql://app_runtime.hzibzwhrwmljgjjdzspi:synthetic@" +
           "aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
       },
       clientFactory,
@@ -137,6 +137,10 @@ describe("runtime Postgres adapter", () => {
       ca: SUPABASE_CA_CERTIFICATE,
       rejectUnauthorized: true,
     });
+    expect(unsafe.mock.calls.map(([query]) => query)).toEqual([
+      expect.stringContaining("request.jwt.claim.sub"),
+      "select bounded_call()",
+    ]);
   });
 
   it("keeps IPv6 loopback local without requiring a remote CA", async () => {
@@ -150,7 +154,7 @@ describe("runtime Postgres adapter", () => {
     const database = createRuntimeDatabase({
       env: {
         SUPABASE_DATABASE_URL:
-          "postgresql://app_runtime:synthetic@[::1]:54322/postgres",
+          "postgresql://postgres:postgres@[::1]:54322/postgres",
       },
       clientFactory,
     });
@@ -158,6 +162,7 @@ describe("runtime Postgres adapter", () => {
     await database.transaction((tx) => tx.unsafe("select bounded_call()"));
 
     expect(clientFactory.mock.calls[0]?.[1]).not.toHaveProperty("ssl");
+    expect(unsafe.mock.calls[0]?.[0]).toBe("set local role app_runtime");
   });
 
   it.each([
@@ -172,9 +177,9 @@ describe("runtime Postgres adapter", () => {
       const database = createRuntimeDatabase({
         env: {
           ...(ca ? { SUPABASE_DATABASE_CA_CERTIFICATE: ca } : {}),
-          SUPABASE_PROJECT_REF: "lxvsspniipcotimbsfqm",
+          SUPABASE_PROJECT_REF: "hzibzwhrwmljgjjdzspi",
           SUPABASE_DATABASE_URL:
-            "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:synthetic@" +
+            "postgresql://app_runtime.hzibzwhrwmljgjjdzspi:synthetic@" +
             "aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
         },
         clientFactory,
@@ -196,9 +201,9 @@ describe("runtime Postgres adapter", () => {
     const database = createRuntimeDatabase({
       env: {
         SUPABASE_DATABASE_CA_CERTIFICATE: SUPABASE_CA_CERTIFICATE,
-        SUPABASE_PROJECT_REF: "lxvsspniipcotimbsfqm",
+        SUPABASE_PROJECT_REF: "hzibzwhrwmljgjjdzspi",
         SUPABASE_DATABASE_URL:
-          "postgresql://app_runtime_login.lxvsspniipcotimbsfqm:synthetic@" +
+          "postgresql://app_runtime.hzibzwhrwmljgjjdzspi:synthetic@" +
           "aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=require",
       },
       clientFactory,
@@ -212,20 +217,24 @@ describe("runtime Postgres adapter", () => {
 
   it.each([
     [
-      "app_runtime authorization role",
-      "postgresql://app_runtime.lxvsspniipcotimbsfqm:synthetic@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+      "legacy carrier role",
+      "postgresql://app_runtime_login.hzibzwhrwmljgjjdzspi:synthetic@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
     ],
     [
       "postgres role",
-      "postgresql://postgres.lxvsspniipcotimbsfqm:synthetic@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+      "postgresql://postgres.hzibzwhrwmljgjjdzspi:synthetic@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
     ],
     [
       "other role",
-      "postgresql://other.lxvsspniipcotimbsfqm:synthetic@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+      "postgresql://other.hzibzwhrwmljgjjdzspi:synthetic@aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+    ],
+    [
+      "wrong transaction pooler",
+      "postgresql://app_runtime.hzibzwhrwmljgjjdzspi:synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
     ],
     [
       "direct connection",
-      "postgresql://app_runtime_login:synthetic@db.lxvsspniipcotimbsfqm.supabase.co:5432/postgres?sslmode=verify-full",
+      "postgresql://app_runtime:synthetic@db.hzibzwhrwmljgjjdzspi.supabase.co:5432/postgres?sslmode=verify-full",
     ],
   ])("rejects a remote %s before client creation", async (_, databaseUrl) => {
     const clientFactory =
@@ -233,7 +242,7 @@ describe("runtime Postgres adapter", () => {
     const database = createRuntimeDatabase({
       env: {
         SUPABASE_DATABASE_CA_CERTIFICATE: SUPABASE_CA_CERTIFICATE,
-        SUPABASE_PROJECT_REF: "lxvsspniipcotimbsfqm",
+        SUPABASE_PROJECT_REF: "hzibzwhrwmljgjjdzspi",
         SUPABASE_DATABASE_URL: databaseUrl,
       },
       clientFactory,

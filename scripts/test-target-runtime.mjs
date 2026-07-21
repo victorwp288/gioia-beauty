@@ -30,7 +30,7 @@ export const GREENFIELD_OWNER_COOKIE_SECURITY = Object.freeze({
     forbidden: Object.freeze(["httponly", "secure"]),
   }),
   supabase: Object.freeze({
-    namePrefix: "sb-lxvsspniipcotimbsfqm-auth-token",
+    namePrefix: "sb-hzibzwhrwmljgjjdzspi-auth-token",
     required: Object.freeze(["httponly", "path=/", "samesite=lax", "secure"]),
     forbidden: Object.freeze([]),
   }),

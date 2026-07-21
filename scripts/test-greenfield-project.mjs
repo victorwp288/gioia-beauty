@@ -68,29 +68,6 @@ async function reverifyRepository(
   }
 }
 
-async function withFinalRuntimeRecovery(recoverRuntimeRole, callback) {
-  let operationError;
-  let result;
-  try {
-    result = await callback();
-  } catch (error) {
-    operationError = error;
-  }
-  try {
-    await recoverRuntimeRole();
-  } catch (recoveryError) {
-    if (operationError) {
-      throw new AggregateError(
-        [operationError, recoveryError],
-        "Greenfield TEST operation and final runtime recovery both failed",
-      );
-    }
-    throw recoveryError;
-  }
-  if (operationError) throw operationError;
-  return result;
-}
-
 export async function runGreenfieldTestProject(
   env,
   { operationOverrides = {}, rootDirectory = process.cwd() } = {},
@@ -106,67 +83,61 @@ export async function runGreenfieldTestProject(
     rootDirectory,
   });
 
-  return operations.withLock(config, async ({ recoverRuntimeRole, worker }) =>
-    withFinalRuntimeRecovery(recoverRuntimeRole, async () => {
-      const removedMigrations = [];
-      await reverifyRepository(operations, env, rootDirectory, preflight);
-      await cli.verifyVersion();
-      await cli.lintPrivateSchema();
-      await recoverRuntimeRole();
-      const firstRebuild = await rebuildAndApply(
-        worker,
-        plan,
-        operations.rebuild,
-      );
-      removedMigrations.push(Number(firstRebuild.removedMigrations));
-      const firstFingerprint = await operations.runAcceptance({
-        cli,
-        config,
-        cycle: "A",
-        recoverRuntimeRole,
-        worker,
-      });
-      if (!greenfieldFingerprintsMatch(firstRebuild, firstFingerprint)) {
-        throw new Error("Greenfield TEST cycle A fingerprint is unstable");
-      }
+  return operations.withLock(config, async ({ worker }) => {
+    const removedMigrations = [];
+    await reverifyRepository(operations, env, rootDirectory, preflight);
+    await cli.verifyVersion();
+    await cli.lintPrivateSchema();
+    const firstRebuild = await rebuildAndApply(
+      worker,
+      plan,
+      operations.rebuild,
+    );
+    removedMigrations.push(Number(firstRebuild.removedMigrations));
+    const firstFingerprint = await operations.runAcceptance({
+      cli,
+      config,
+      cycle: "A",
+      worker,
+    });
+    if (!greenfieldFingerprintsMatch(firstRebuild, firstFingerprint)) {
+      throw new Error("Greenfield TEST cycle A fingerprint is unstable");
+    }
 
-      await reverifyRepository(operations, env, rootDirectory, preflight);
-      await cli.verifyVersion();
-      await cli.lintPrivateSchema();
-      await recoverRuntimeRole();
-      const secondRebuild = await rebuildAndApply(
-        worker,
-        plan,
-        operations.rebuild,
-      );
-      removedMigrations.push(Number(secondRebuild.removedMigrations));
-      const secondFingerprint = await operations.runAcceptance({
-        cli,
-        config,
-        cycle: "B",
-        expectedFingerprint: firstFingerprint,
-        recoverRuntimeRole,
-        worker,
-      });
-      if (
-        !greenfieldFingerprintsMatch(secondRebuild, secondFingerprint) ||
-        !greenfieldFingerprintsMatch(firstFingerprint, secondFingerprint)
-      ) {
-        throw new Error("Greenfield TEST rebuild fingerprints do not match");
-      }
-      await reverifyRepository(operations, env, rootDirectory, preflight);
+    await reverifyRepository(operations, env, rootDirectory, preflight);
+    await cli.verifyVersion();
+    await cli.lintPrivateSchema();
+    const secondRebuild = await rebuildAndApply(
+      worker,
+      plan,
+      operations.rebuild,
+    );
+    removedMigrations.push(Number(secondRebuild.removedMigrations));
+    const secondFingerprint = await operations.runAcceptance({
+      cli,
+      config,
+      cycle: "B",
+      expectedFingerprint: firstFingerprint,
+      worker,
+    });
+    if (
+      !greenfieldFingerprintsMatch(secondRebuild, secondFingerprint) ||
+      !greenfieldFingerprintsMatch(firstFingerprint, secondFingerprint)
+    ) {
+      throw new Error("Greenfield TEST rebuild fingerprints do not match");
+    }
+    await reverifyRepository(operations, env, rootDirectory, preflight);
 
-      return Object.freeze({
-        cycles: 2,
-        ciRunId: preflight.ciRunId,
-        commitSha: preflight.commitSha,
-        projectRef: config.projectRef,
-        removedMigrations: Object.freeze(removedMigrations),
-        referenceChecksum: secondFingerprint.referenceChecksum,
-        schemaFingerprint: secondFingerprint.schemaFingerprint,
-      });
-    }),
-  );
+    return Object.freeze({
+      cycles: 2,
+      ciRunId: preflight.ciRunId,
+      commitSha: preflight.commitSha,
+      projectRef: config.projectRef,
+      removedMigrations: Object.freeze(removedMigrations),
+      referenceChecksum: secondFingerprint.referenceChecksum,
+      schemaFingerprint: secondFingerprint.schemaFingerprint,
+    });
+  });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -4,6 +4,7 @@ import {
   GREENFIELD_REBUILD_DELETE_HISTORY_SQL,
   GREENFIELD_REBUILD_GUARD_SQL,
   GREENFIELD_REBUILD_MUTATION_SQL,
+  GREENFIELD_REBUILD_RUNTIME_PRESERVATION_SQL,
   GREENFIELD_REBUILD_SNAPSHOT_SQL,
   GREENFIELD_REBUILD_TRANSACTION_SQL,
   GREENFIELD_REBUILD_VERIFY_SQL,
@@ -20,6 +21,7 @@ function verifiedRow(overrides = {}) {
     schemas_exact: true,
     schemas_preserved: true,
     roles_preserved: true,
+    runtime_credential_preserved: true,
     extensions_preserved: true,
     default_acls_preserved: true,
     schema_acls_preserved: true,
@@ -56,16 +58,15 @@ describe("greenfield TEST guarded rebuild SQL", () => {
     expect(GREENFIELD_REBUILD_GUARD_SQL).toContain(
       "migration history is not an exact rebuild state",
     );
-    expect(GREENFIELD_REBUILD_GUARD_SQL).toContain("app_runtime_login");
+    expect(GREENFIELD_REBUILD_GUARD_SQL).not.toContain("app_runtime_login");
   });
 
   it("guards exact roles, memberships, residue, checksums, and dependencies", () => {
     for (const contract of [
       "custom role attributes are not exact",
       "custom role memberships are not exact",
-      "custom role credentials are not contained",
-      "runtime login ownership is not empty",
-      "runtime login direct ACL is not empty",
+      "custom role credentials are not exact",
+      "runtime ownership is not empty",
       "custom default privileges are not exact",
       "migration history metadata is not exact",
       "private tables are not exact",
@@ -91,8 +92,6 @@ describe("greenfield TEST guarded rebuild SQL", () => {
 
   it("restores only custom defaults and drops only the private schema and roles", () => {
     expect(GREENFIELD_REBUILD_MUTATION_SQL).toEqual([
-      "alter role app_runtime_login nologin password null valid until 'infinity'",
-      "alter role app_runtime nologin password null valid until 'infinity'",
       "grant gioia_mutator, gioia_migrator to postgres with inherit true, set false granted by current_user",
       "do $$ begin if not pg_catalog.pg_has_role(current_user,'gioia_mutator','USAGE') or not pg_catalog.pg_has_role(current_user,'gioia_migrator','USAGE') then raise exception 'Greenfield TEST temporary default-ACL membership failed'; end if; end $$",
       "alter default privileges for role gioia_mutator grant execute on functions to public",
@@ -100,10 +99,8 @@ describe("greenfield TEST guarded rebuild SQL", () => {
       "revoke gioia_mutator, gioia_migrator from postgres granted by current_user",
       "do $$ begin if pg_catalog.pg_has_role(current_user,'gioia_mutator','USAGE') or pg_catalog.pg_has_role(current_user,'gioia_migrator','USAGE') then raise exception 'Greenfield TEST temporary default-ACL membership remained'; end if; end $$",
       "revoke usage on schema extensions from gioia_mutator, gioia_migrator",
-      "revoke app_runtime from app_runtime_login granted by postgres",
-      "drop role app_runtime_login",
       "drop schema gioia_private cascade",
-      "drop role app_runtime, gioia_migrator, gioia_mutator",
+      "drop role gioia_migrator, gioia_mutator",
     ]);
     expect(GREENFIELD_REBUILD_DELETE_HISTORY_SQL).toContain(
       "delete from supabase_migrations.schema_migrations",
@@ -116,7 +113,16 @@ describe("greenfield TEST guarded rebuild SQL", () => {
     );
     expect(GREENFIELD_REBUILD_SNAPSHOT_SQL).toContain("default_acls");
     expect(GREENFIELD_REBUILD_SNAPSHOT_SQL).toContain("schema_acls");
+    expect(GREENFIELD_REBUILD_SNAPSHOT_SQL).toContain(
+      "runtime_password_digest",
+    );
+    expect(GREENFIELD_REBUILD_SNAPSHOT_SQL).not.toContain(
+      "as runtime_password,",
+    );
     expect(GREENFIELD_REBUILD_VERIFY_SQL).toContain("extensions_preserved");
+    expect(GREENFIELD_REBUILD_RUNTIME_PRESERVATION_SQL).toContain(
+      "runtime_role_preserved",
+    );
   });
 
   it("runs the exact reviewed target teardown in one transaction", async () => {

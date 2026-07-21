@@ -126,13 +126,11 @@ describe("privacy package launch gates", () => {
 
     expect(acceptance).not.toMatch(/^- \[[xX]\]/m);
     expect(privacy).toContain(
-      `current source manifest contains ${GREENFIELD_TARGET_VERSIONS.length} migrations`,
+      "The current reviewed source manifest and direct-runtime follow-up",
     );
-    expect(privacy).toContain("Phase 3 migrations 38–54");
+    expect(GREENFIELD_TARGET_VERSIONS.length).toBeGreaterThan(0);
     expect(privacy).toContain("have not been applied");
-    expect(privacy).toContain(
-      "The Phase 2 TEST checkpoint also remains unresolved",
-    );
+    expect(privacy).toContain("The Phase 2 TEST checkpoint is still open");
     expect(privacy).toMatch(
       /only after the applicable\s+owner, legal, and provider decisions/,
     );

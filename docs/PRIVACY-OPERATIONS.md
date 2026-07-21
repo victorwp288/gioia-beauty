@@ -33,7 +33,7 @@ and the migration/runbook/tests that enforce it. Until then:
 | Environment/action                         | Permitted data                                                                   | Required label and rule                                                                                                                                                                                   |
 | ------------------------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Local/CI                                   | Synthetic fixtures only                                                          | `[LOCAL]`; reset freely, fake email only.                                                                                                                                                                 |
-| Greenfield Supabase `lxvsspniipcotimbsfqm` | Synthetic or separately approved anonymized data only                            | `[TEST]`; name/verify the target before work. Raw customer data immediately makes the target Production.                                                                                                  |
+| Greenfield Supabase `hzibzwhrwmljgjjdzspi` | Synthetic or separately approved anonymized data only                            | `[TEST]`; replacement for the retired provider-failed TEST project. Name/verify the target before work. Raw customer data immediately makes the target Production.                                        |
 | Preview/staging                            | Synthetic by default; approved anonymized derivative only                        | `[TEST]`; serialized reset, non-delivering email, no Production credentials.                                                                                                                              |
 | Restricted recovery                        | Approved PII-bearing restore, named access, email disabled, destruction deadline | Reading the source is `[PROD-READ]`; creating/restoring the PII-bearing clone is separately `[PROD-DATA]`; later destruction is `[DESTRUCTIVE]`. Each needs exact approval. It is never ordinary staging. |
 | Current Firestore `gioia-beauty-b95e0`     | Live customer/business data                                                      | Every bounded lookup/export is `[PROD-READ]`; every change is separately approved `[PROD-DATA]`, `[PROD-CONFIG]`, or `[DESTRUCTIVE]`.                                                                     |
@@ -159,7 +159,7 @@ and [owner sessions](../supabase/migrations/20260710013427_add_owner_session_rev
 | Legacy `console.*`, free-form errors/debug objects                                                | `U1_UNKNOWN`, potentially `P1_DIRECT`/`P2_FREE_TEXT`                                | `RET-12`              | Launch blocker: `D9_REMOVE_LEGACY_PATH`; never route legacy console output into a retained provider sink.                                                           |
 | Legacy appointment/query caches and component/context state                                       | `P1_DIRECT`, `P2_FREE_TEXT`, `P3_BEHAVIORAL`                                        | `RET-01`, `RET-02`    | Memory only, clear on sign-out/session end, then `D9_REMOVE_LEGACY_PATH` with the legacy cache architecture. No persisted browser PII cache.                        |
 | Browser storage                                                                                   | `U1_UNKNOWN` until key inventory proves otherwise                                   | `RET-12`, `RET-17`    | `D7_INVENTORY_OR_QUARANTINE`; forbid booking/customer PII and credentials beyond reviewed secure session mechanics.                                                 |
-| `app_runtime_login` password/DSN and guarded lifecycle material                                   | `S1_CREDENTIAL`                                                                     | `RET-17`              | Protected operator/Preview secret only; never log, serialize, export, or place in dotenv. Rotate or revoke through the guarded carrier lifecycle.                   |
+| Direct `app_runtime` password/DSN and guarded lifecycle material                                  | `S1_CREDENTIAL`                                                                     | `RET-17`              | Protected operator/Preview secret only; never log, serialize, export, or place in dotenv. Rotate or revoke through the guarded runtime-login lifecycle.             |
 | Future privacy case selector/link, identity/approval digest, snapshot and plan hash               | `P1_DIRECT` at selector input; persisted references are `P4_PSEUDONYM`/`P5_DERIVED` | `RET-14`, `RET-17`    | Keep only in the protected case ledger under the approved expiry. It is personal/pseudonymous evidence, never aggregate telemetry.                                  |
 
 ### Legacy sources, exports, providers, and backups
@@ -412,46 +412,44 @@ succeeded. The full restore and deployment gates in
 ## Migration ordering
 
 This document creates no migration and reserves no Production action.
-The current source manifest contains 62 migrations. Phase 3 migrations 38–54,
-Phase 4 migrations 55–60, the runtime-login carrier migration 61, and the
-Phase 4 minimum-canary follow-up migration 62 exist in source and may have
+The current reviewed source manifest and direct-runtime follow-up may have
 Local/CI evidence, but they have not been applied and accepted by the protected
-hosted-TEST checkpoint. Their presence is not remote schema evidence. The Phase
-2 TEST checkpoint is still open.
+replacement hosted-TEST checkpoint. Their presence is not remote schema
+evidence. The Phase 2 TEST checkpoint is still open.
 
 **The Phase 2 TEST checkpoint also remains unresolved.**
 
-A bounded fresh-role TEST canary authenticated through the transaction pooler
-and reconciled without residue. This proves only that a fresh custom login
-identity can reach the pooler; versioned migration and security tests must
-separately prove the carrier membership and transaction-local `app_runtime`
-switch. The canary does not provision the durable Preview credential, accept
-the hosted migration candidate, or complete the required clean
-rebuild/two-cycle/zero-residue evidence.
+The prior project’s fresh-role canary and pooler-failure evidence is historical
+only and does not transfer to replacement TEST project `hzibzwhrwmljgjjdzspi`.
+It does not establish a replacement Preview binding, accept the hosted migration
+candidate, or complete the required clean rebuild/two-cycle/zero-residue
+evidence.
 
-The durable boundary keeps `app_runtime` as the `NOLOGIN` authorization role.
-Only `app_runtime_login` carries a protected password: it is `NOINHERIT`, may
-`SET ROLE app_runtime`, owns no object, and receives no direct schema, table,
-sequence, or function ACL. Destructive TEST lifecycle/reset work suspends and
-clears only this carrier, then must freshly prove both carrier authentication
-and `SET LOCAL ROLE app_runtime` before unlock. Failed restoration contains the
-carrier back to `NOLOGIN`/password-null without changing the authorization
-surface.
+The replacement boundary uses one durable least-privilege `app_runtime` login
+directly through the transaction pooler. It owns no database object and receives
+no direct table or sequence ACL; only reviewed private-schema usage and runtime
+function execution are allowed. Destructive TEST lifecycle/reset work must first
+prove zero active `app_runtime` sessions and no active Preview traffic, preserve
+the exact durable role and unchanged SCRAM verifier across both rebuild cycles,
+then freshly prove direct `app_runtime` authentication and the reviewed
+function-only authorization boundary before unlock. There is no credential
+disable, rotation, restoration, or recovery flow in this design.
 
-This TEST-only recovery design does not read or change personal data and has no
+This TEST-only durable-runtime design does not read or change personal data and has no
 effect on current Firebase Production, Vercel Production, or a future
 Production Supabase credential. Production provisioning, rotation, or cutover
 remains a separately approved action.
 
 Ordering is therefore:
 
-1. preserve the unresolved Phase 2 checkpoint and fail-closed TEST carrier
-   lifecycle; do not infer Phase 2 or hosted-TEST acceptance from the canary or
-   local migrations;
+1. preserve the unresolved Phase 2 checkpoint and the exact durable
+   `app_runtime` role/SCRAM identity; do not infer Phase 2 or hosted-TEST
+   acceptance from the retired project, replacement registration, or local
+   migrations;
 2. review the exact Phase 3 candidate-head migration manifest and run its
    protected hosted-TEST apply/rebuild, security, concurrency, and reconciliation
-   gates only after the TEST connection blocker is repaired and the named
-   preflight is satisfied; and
+   gates only after the zero-active-session/no-active-Preview condition and the
+   named preflight are satisfied; and
 3. add privacy hold/request/event, scrub/purge, and restore-replay migrations
    only with the next available migration identity and only after the applicable
    owner, legal, and provider decisions below are approved.

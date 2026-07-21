@@ -14,8 +14,8 @@ import { createRemotePgTapRunner } from "./test-target-pgtap.mjs";
 
 export const TEST_TARGET_SUPABASE_CLI_VERSION = "2.109.1";
 
-const TEST_TARGET_REF = "lxvsspniipcotimbsfqm";
-const TEST_TARGET_POOLER = /^aws-[0-9]+-eu-central-2\.pooler\.supabase\.com$/u;
+const TEST_TARGET_REF = "hzibzwhrwmljgjjdzspi";
+const TEST_TARGET_POOLER = /^aws-1-eu-central-2\.pooler\.supabase\.com$/u;
 const MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
 const TEST_TARGET_CA_FINGERPRINT =

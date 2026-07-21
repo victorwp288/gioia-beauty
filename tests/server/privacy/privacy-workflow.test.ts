@@ -95,13 +95,14 @@ describe("privacy access and erasure workflow", () => {
   it("permits only the exact allowlisted Local and TEST target identities", () => {
     expect(
       createPrivacyWorkflowPlan(
-        input({ environment: "test", targetId: "lxvsspniipcotimbsfqm" }),
+        input({ environment: "test", targetId: "hzibzwhrwmljgjjdzspi" }),
       ),
     ).toMatchObject({ ok: true, plan: { environment: "test" } });
     for (const target of [
       { environment: "production", targetId: "gioia-beauty-b95e0" },
       { environment: "test", targetId: "another-project" },
-      { environment: "local", targetId: "lxvsspniipcotimbsfqm" },
+      { environment: "test", targetId: "lxvsspniipcotimbsfqm" },
+      { environment: "local", targetId: "hzibzwhrwmljgjjdzspi" },
     ]) {
       expect(() => createPrivacyWorkflowPlan(input(target))).toThrow(
         "Invalid privacy workflow input",

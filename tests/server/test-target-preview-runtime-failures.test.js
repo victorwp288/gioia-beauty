@@ -4,139 +4,113 @@ import {
   GREENFIELD_RUNTIME_ROLE_SQL,
   withGreenfieldTestLock,
 } from "../../scripts/test-target-harness.mjs";
-import {
-  config,
-  errorText,
-  lifecycleHarness,
-  PREVIEW_PASSWORD,
-  runtimeUrl,
-} from "./test-target-preview-runtime-helpers.js";
 
-describe("greenfield TEST Preview runtime containment failures", () => {
-  it("contains an unsafe active role and rejects the checkpoint", async () => {
-    const state = lifecycleHarness({ attributesAreSafe: false });
+function config() {
+  return {
+    getDatabaseCaCertificate: () => "ca",
+    getOperatorSessionDatabaseUrl: () => "postgresql://operator-session",
+    getOperatorWorkerDatabaseUrl: () => "postgresql://operator-worker",
+    getRuntimeDatabaseUrl: () =>
+      "postgresql://app_runtime.ref:runtime-password@pooler.test:6543/postgres?sslmode=verify-full",
+  };
+}
+
+function state({ cleanupFailures = {}, credentialFailure = null } = {}) {
+  const lockClient = {
+    begin: vi.fn(),
+    release: vi.fn(async () => {
+      if (cleanupFailures.release) throw cleanupFailures.release;
+    }),
+    unsafe: vi.fn(async (query) => {
+      if (query.includes("pg_try_advisory_lock")) return [{ acquired: true }];
+      if (query.includes("pg_advisory_unlock")) {
+        if (cleanupFailures.unlock) throw cleanupFailures.unlock;
+        return [{ released: true }];
+      }
+      if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
+        return [
+          {
+            attributes_are_safe: true,
+            credential_is_missing: false,
+            credential_is_safe: true,
+            has_unsafe_access: false,
+            has_unsafe_membership: false,
+            rolcanlogin: true,
+          },
+        ];
+      }
+      if (query === GREENFIELD_RUNTIME_ROLE_SQL.sessions)
+        return [{ active: 0 }];
+      return [];
+    }),
+  };
+  const lockPool = {
+    reserve: vi.fn(async () => lockClient),
+    end: vi.fn(async () => {
+      if (cleanupFailures.pool) throw cleanupFailures.pool;
+    }),
+  };
+  const worker = {
+    end: vi.fn(async () => {
+      if (cleanupFailures.worker) throw cleanupFailures.worker;
+    }),
+  };
+  return {
+    credentialPropagationWait: vi.fn(async () => {}),
+    credentialVerifier: vi.fn(async () => {
+      if (credentialFailure) throw credentialFailure;
+    }),
+    clientFactory: vi
+      .fn()
+      .mockReturnValueOnce(lockPool)
+      .mockReturnValueOnce(worker),
+    lockClient,
+    lockPool,
+    worker,
+  };
+}
+
+describe("greenfield TEST direct runtime failures", () => {
+  it("does not retry or expose a credential transport failure", async () => {
+    const secret = "protected-runtime-secret";
+    const harness = state({ credentialFailure: new Error(secret) });
     const callback = vi.fn();
-
-    await expect(
-      withGreenfieldTestLock(config(), callback, {
-        ...state.options,
-      }),
-    ).rejects.toThrow("unsafe Preview role containment failed");
-    expect(callback).not.toHaveBeenCalled();
-    expect(state.roleCanLogin()).toBe(false);
-    expect(state.events.at(-1)).toBe("unlock");
-  });
-
-  it("terminates sessions for an unsafe interrupted suspended role", async () => {
-    const state = lifecycleHarness({
-      attributesAreSafe: false,
-      initialLogin: false,
-    });
-    const callback = vi.fn();
-
-    await expect(
-      withGreenfieldTestLock(config(), callback, {
-        ...state.options,
-      }),
-    ).rejects.toThrow("unsafe Preview role containment failed");
-    expect(callback).not.toHaveBeenCalled();
-    expect(state.lockClient.unsafe).toHaveBeenCalledWith(
-      GREENFIELD_RUNTIME_ROLE_SQL.sessions[0],
-    );
-    expect(state.roleCanLogin()).toBe(false);
-    expect(state.events.at(-1)).toBe("unlock");
-  });
-
-  it("still terminates unsafe sessions when NOLOGIN cannot be applied", async () => {
-    const state = lifecycleHarness({
-      attributesAreSafe: false,
-      disableFailure: new Error("synthetic alter failure"),
-    });
-    const callback = vi.fn();
-
-    await expect(
-      withGreenfieldTestLock(config(), callback, {
-        ...state.options,
-      }),
-    ).rejects.toThrow("unsafe Preview role containment failed");
-    expect(callback).not.toHaveBeenCalled();
-    expect(state.lockClient.unsafe).toHaveBeenCalledWith(
-      GREENFIELD_RUNTIME_ROLE_SQL.sessions[0],
-    );
-    expect(state.events.at(-1)).toBe("unlock");
-  });
-
-  it("does not restore when final zero-session containment fails", async () => {
-    const operationFailure = new Error("synthetic checkpoint failure");
-    const state = lifecycleHarness({
-      authorizations: [true],
-      terminateFailureAfter: 2,
-    });
-
     const error = await withGreenfieldTestLock(
       config(),
-      async () => {
-        throw operationFailure;
-      },
-      state.options,
+      callback,
+      harness,
     ).catch((caught) => caught);
-
-    expect(error).toBeInstanceOf(AggregateError);
-    expect(error.errors[0]).toBe(operationFailure);
     expect(error.message).toBe(
-      "Greenfield TEST operation and final containment both failed",
+      "Greenfield TEST durable runtime credential could not authenticate",
     );
-    expect(state.events).not.toContain("restore");
-    expect(state.roleCanLogin()).toBe(false);
-    expect(state.events.at(-1)).toBe("unlock");
+    expect(error.message).not.toContain(secret);
+    expect(harness.credentialVerifier).toHaveBeenCalledOnce();
+    expect(callback).not.toHaveBeenCalled();
   });
 
-  it("redacts credential transport and cleanup failures", async () => {
-    const state = lifecycleHarness({
-      authorizations: [new Error(runtimeUrl)],
-      closeFailures: [new Error(PREVIEW_PASSWORD)],
-    });
-
-    const error = await withGreenfieldTestLock(config(), vi.fn(), {
-      ...state.options,
-    }).catch((caught) => caught);
-
-    expect(error).toBeInstanceOf(Error);
-    expect(errorText(error)).not.toContain(runtimeUrl);
-    expect(errorText(error)).not.toContain(PREVIEW_PASSWORD);
-    expect(error.message).toBe(
-      "Greenfield TEST durable Preview credential could not authenticate",
-    );
-    expect(state.credentialVerifier).toHaveBeenCalledOnce();
-  });
-
-  it("preserves the primary failure while attempting every finalizer", async () => {
-    const operationFailure = new Error("synthetic checkpoint failure");
-    const secretFailure = () => new Error(runtimeUrl);
-    const state = lifecycleHarness({
+  it("preserves the operation failure while attempting every finalizer", async () => {
+    const operationFailure = new Error("synthetic operation failure");
+    const cleanupFailure = () => new Error("synthetic cleanup failure");
+    const harness = state({
       cleanupFailures: {
-        pool: secretFailure(),
-        release: secretFailure(),
-        unlock: secretFailure(),
-        worker: secretFailure(),
+        pool: cleanupFailure(),
+        release: cleanupFailure(),
+        unlock: cleanupFailure(),
+        worker: cleanupFailure(),
       },
     });
-
     const error = await withGreenfieldTestLock(
       config(),
       async () => {
         throw operationFailure;
       },
-      state.options,
+      harness,
     ).catch((caught) => caught);
-
     expect(error).toBeInstanceOf(AggregateError);
     expect(error.errors[0]).toBe(operationFailure);
     expect(error.errors).toHaveLength(5);
-    expect(errorText(error)).not.toContain(runtimeUrl);
-    expect(state.worker.end).toHaveBeenCalledOnce();
-    expect(state.lockClient.release).toHaveBeenCalledOnce();
-    expect(state.lockPool.end).toHaveBeenCalledOnce();
-    expect(state.events).toContain("unlock");
+    expect(harness.worker.end).toHaveBeenCalledOnce();
+    expect(harness.lockClient.release).toHaveBeenCalledOnce();
+    expect(harness.lockPool.end).toHaveBeenCalledOnce();
   });
 });

@@ -9,10 +9,10 @@ export { GREENFIELD_REBUILD_GUARD_SQL };
 
 const CUSTOM_ROLES = Object.freeze([
   "app_runtime",
-  "app_runtime_login",
   "gioia_migrator",
   "gioia_mutator",
 ]);
+const DROPPED_ROLES = Object.freeze(["gioia_migrator", "gioia_mutator"]);
 const literal = (value) => `'${value.replaceAll("'", "''")}'`;
 const textArray = (values) => `array[${values.map(literal).join(",")}]::text[]`;
 const CUSTOM_ROLES_SQL = textArray(CUSTOM_ROLES);
@@ -40,7 +40,7 @@ const SURVIVING_SCHEMA_ACLS_SQL = `(select coalesce(jsonb_agg(to_jsonb(x)
       and coalesce(grantee.rolname,'PUBLIC')<>all(${CUSTOM_ROLES_SQL})
       and coalesce(grantor.rolname,'PUBLIC')<>all(${CUSTOM_ROLES_SQL})) x)`;
 const POST_ROLES = GREENFIELD_EXPECTED_ROLE_NAMES.filter(
-  (role) => !CUSTOM_ROLES.includes(role),
+  (role) => !DROPPED_ROLES.includes(role),
 );
 const POST_SCHEMAS = GREENFIELD_EXPECTED_SCHEMA_NAMES.filter(
   (schema) => schema !== "gioia_private",
@@ -53,6 +53,7 @@ const VERIFY_FIELDS = Object.freeze([
   "schemas_exact",
   "schemas_preserved",
   "roles_preserved",
+  "runtime_credential_preserved",
   "extensions_preserved",
   "default_acls_preserved",
   "schema_acls_preserved",
@@ -72,10 +73,16 @@ select
   (select jsonb_agg(jsonb_build_object('name',n.nspname,'owner',r.rolname) order by n.nspname)
     from pg_catalog.pg_namespace n join pg_catalog.pg_roles r on r.oid=n.nspowner
     where n.nspname<>'gioia_private' and n.nspname!~'^pg_temp_' and n.nspname!~'^pg_toast_temp_') as schemas,
-  (select jsonb_agg(to_jsonb(x) order by x.rolname) from (select rolname,rolsuper,rolinherit,
+  (select jsonb_agg(to_jsonb(x) order by x.rolname) from (select oid,rolname,rolsuper,rolinherit,
     rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolconnlimit,rolvaliduntil,
     rolbypassrls,rolconfig from pg_catalog.pg_roles
-    where rolname<>all(${textArray(CUSTOM_ROLES)})) x) as roles,
+    where rolname<>all(${textArray(DROPPED_ROLES)})) x) as roles,
+  (select to_jsonb(x) from (select oid,rolname,rolsuper,rolinherit,
+    rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolconnlimit,rolvaliduntil,
+    rolbypassrls,rolconfig from pg_catalog.pg_roles where rolname='app_runtime') x)
+    as runtime_role,
+  (select pg_catalog.encode(extensions.digest(coalesce(rolpassword,'')::text,'sha256'),'hex')
+    from pg_catalog.pg_authid where rolname='app_runtime') as runtime_password_digest,
   (select jsonb_agg(jsonb_build_object('name',e.extname,'owner',r.rolname,'schema',n.nspname,
     'version',e.extversion,'relocatable',e.extrelocatable,'config',e.extconfig,'condition',e.extcondition)
     order by e.extname) from pg_catalog.pg_extension e join pg_catalog.pg_roles r on r.oid=e.extowner
@@ -86,8 +93,6 @@ select
   ${SURVIVING_SCHEMA_ACLS_SQL} as schema_acls`;
 
 export const GREENFIELD_REBUILD_MUTATION_SQL = Object.freeze([
-  "alter role app_runtime_login nologin password null valid until 'infinity'",
-  "alter role app_runtime nologin password null valid until 'infinity'",
   "grant gioia_mutator, gioia_migrator to postgres with inherit true, set false granted by current_user",
   "do $$ begin if not pg_catalog.pg_has_role(current_user,'gioia_mutator','USAGE') or not pg_catalog.pg_has_role(current_user,'gioia_migrator','USAGE') then raise exception 'Greenfield TEST temporary default-ACL membership failed'; end if; end $$",
   "alter default privileges for role gioia_mutator grant execute on functions to public",
@@ -95,10 +100,8 @@ export const GREENFIELD_REBUILD_MUTATION_SQL = Object.freeze([
   "revoke gioia_mutator, gioia_migrator from postgres granted by current_user",
   "do $$ begin if pg_catalog.pg_has_role(current_user,'gioia_mutator','USAGE') or pg_catalog.pg_has_role(current_user,'gioia_migrator','USAGE') then raise exception 'Greenfield TEST temporary default-ACL membership remained'; end if; end $$",
   "revoke usage on schema extensions from gioia_mutator, gioia_migrator",
-  "revoke app_runtime from app_runtime_login granted by postgres",
-  "drop role app_runtime_login",
   "drop schema gioia_private cascade",
-  "drop role app_runtime, gioia_migrator, gioia_mutator",
+  "drop role gioia_migrator, gioia_mutator",
 ]);
 
 export const GREENFIELD_REBUILD_DELETE_HISTORY_SQL = `
@@ -110,7 +113,8 @@ with removed as (
 export const GREENFIELD_REBUILD_VERIFY_SQL = `
 select
   (select count(*)=0 from supabase_migrations.schema_migrations) as history_empty,
-  (select count(*)=0 from pg_catalog.pg_roles where rolname=any(${textArray(CUSTOM_ROLES)})) as roles_removed,
+  (select count(*)=0 from pg_catalog.pg_roles where rolname=any(${textArray(DROPPED_ROLES)}))
+    and (select count(*)=1 from pg_catalog.pg_roles where rolname='app_runtime') as roles_removed,
   (select count(*)=0 from pg_catalog.pg_namespace where nspname='gioia_private') as schema_removed,
   (select array_agg(rolname::text order by rolname) from pg_catalog.pg_roles)=${textArray(POST_ROLES)} as roles_exact,
   (select array_agg(nspname::text order by nspname) from pg_catalog.pg_namespace
@@ -119,10 +123,13 @@ select
     from pg_catalog.pg_namespace n join pg_catalog.pg_roles r on r.oid=n.nspowner
     where n.nspname!~'^pg_temp_' and n.nspname!~'^pg_toast_temp_')
     =(select schemas from gioia_rebuild_snapshot) as schemas_preserved,
-  (select jsonb_agg(to_jsonb(x) order by x.rolname) from (select rolname,rolsuper,rolinherit,
+  (select jsonb_agg(to_jsonb(x) order by x.rolname) from (select oid,rolname,rolsuper,rolinherit,
     rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolconnlimit,rolvaliduntil,
     rolbypassrls,rolconfig from pg_catalog.pg_roles) x)
     =(select roles from gioia_rebuild_snapshot) as roles_preserved,
+  (select pg_catalog.encode(extensions.digest(coalesce(rolpassword,'')::text,'sha256'),'hex')
+    from pg_catalog.pg_authid where rolname='app_runtime')
+    =(select runtime_password_digest from gioia_rebuild_snapshot) as runtime_credential_preserved,
   (select jsonb_agg(jsonb_build_object('name',e.extname,'owner',r.rolname,'schema',n.nspname,
     'version',e.extversion,'relocatable',e.extrelocatable,'config',e.extconfig,
     'condition',e.extcondition) order by e.extname)
@@ -136,7 +143,19 @@ select
   not exists(select 1 from pg_catalog.pg_class c join pg_catalog.pg_namespace n
     on n.oid=c.relnamespace where n.nspname='public') and
   not exists(select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n
-    on n.oid=p.pronamespace where n.nspname='public') as public_empty`;
+  on n.oid=p.pronamespace where n.nspname='public') as public_empty`;
+
+export const GREENFIELD_REBUILD_RUNTIME_PRESERVATION_SQL = `
+select
+  (select to_jsonb(x) from (select oid,rolname,rolsuper,rolinherit,
+    rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolconnlimit,rolvaliduntil,
+    rolbypassrls,rolconfig from pg_catalog.pg_roles where rolname='app_runtime') x)
+      =(select runtime_role from gioia_rebuild_snapshot) and
+  (select pg_catalog.encode(extensions.digest(coalesce(rolpassword,'')::text,'sha256'),'hex')
+    from pg_catalog.pg_authid where rolname='app_runtime')
+      =(select runtime_password_digest from gioia_rebuild_snapshot)
+    as runtime_role_preserved
+`;
 
 function exactRow(rows, message) {
   if (!Array.isArray(rows) || rows.length !== 1) throw new Error(message);

@@ -75,10 +75,10 @@ describe("migration preflight v2 plan compiler", () => {
       },
     });
     expect(result.planSha256).toBe(
-      "dad7d695092394a8f390226422d43f9b81384a7e94a7de1676b8e60c7532da5f",
+      "488778f3762ecda50d09c5bed1d4af791f176cc3787d2103f6ca4f24a4ba534e",
     );
     expect(result.applyConfirmation).toBe(
-      "GIOIA-MIGRATION-V2:APPLY:test:inventory:lxvsspniipcotimbsfqm:018f5f50-a48b-7f3c-8b28-55f43fd91df0:dad7d695092394a8f390226422d43f9b81384a7e94a7de1676b8e60c7532da5f",
+      "GIOIA-MIGRATION-V2:APPLY:test:inventory:hzibzwhrwmljgjjdzspi:018f5f50-a48b-7f3c-8b28-55f43fd91df0:488778f3762ecda50d09c5bed1d4af791f176cc3787d2103f6ca4f24a4ba534e",
     );
     expect(MIGRATION_PREFLIGHT_CONTRACT_VERSION).toBe(2);
   });

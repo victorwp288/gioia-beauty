@@ -29,7 +29,7 @@ export const PRIVACY_SUBJECT_STORES = Object.freeze([
 ] as const);
 
 const LOCAL_TARGET_ID = "gioia-beauty-local";
-const TEST_TARGET_ID = "lxvsspniipcotimbsfqm";
+const TEST_TARGET_ID = "hzibzwhrwmljgjjdzspi";
 
 type PrivacyOperation = "access" | "erasure_dry_run" | "erasure_apply";
 const issuedPlans = new WeakSet<object>();

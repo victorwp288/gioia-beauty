@@ -181,7 +181,7 @@ No production data is mutated in this phase except explicitly approved backup/co
 
 - [x] **`[LOCAL]`** Write `docs/ADR-001-SUPABASE.md` and obtain explicit approval of the one-migration approach. Production spend and cutover remain separately gated.
 - [x] **`[LOCAL]`** Add local Supabase CLI/Docker configuration, version-pinned tooling, synthetic seed data, and reset commands. Local email uses Mailpit/fake transport.
-- [x] **`[TEST]`** Register the authorized serialized integration/staging Supabase project `lxvsspniipcotimbsfqm` in `eu-central-2` and record its reset ownership in `docs/ENVIRONMENTS.md`. DB-aware Preview/E2E runs take a lock and reset/namespace synthetic data. Never seed it with customer PII.
+- [x] **`[TEST]`** Register replacement serialized integration/staging Supabase project `hzibzwhrwmljgjjdzspi` in `eu-central-2`, retire the provider-failed prior TEST project, and record reset ownership in `docs/ENVIRONMENTS.md`. This registers identity only; hosted Phase 2 acceptance remains unchecked. DB-aware Preview/E2E runs take a lock and reset/namespace synthetic data. Never seed it with customer PII.
 - [ ] **`[PROD-CONFIG]`** Before any real customer write or live traffic, approve/upgrade the full billing and backup tier, record DPA/processor status and ownership/recovery contacts, remove synthetic data/test users, rebuild from committed migrations, prove restore, and reclassify the exact Supabase target as Production.
 - [x] **`[LOCAL]`** Make development/test/CI fail closed if any production Firebase/Supabase project ID or production credential is detected.
 - [x] **`[PROD-CONFIG]`** Audit Vercel Development/Preview/Production env scopes. Preview must use staging data and non-delivering/test-only email.

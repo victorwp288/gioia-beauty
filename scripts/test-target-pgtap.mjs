@@ -7,8 +7,8 @@ import postgres from "postgres";
 import { REVIEWED_REMOTE_PGTAP_DIGESTS } from "./test-target-reviewed-manifest.mjs";
 import { remotePgTapFiles } from "./test-target-migrations.mjs";
 
-const TEST_TARGET_REF = "lxvsspniipcotimbsfqm";
-const TEST_TARGET_POOLER = /^aws-[0-9]+-eu-central-2\.pooler\.supabase\.com$/u;
+const TEST_TARGET_REF = "hzibzwhrwmljgjjdzspi";
+const TEST_TARGET_POOLER = /^aws-1-eu-central-2\.pooler\.supabase\.com$/u;
 const TEST_TARGET_CA_FINGERPRINT =
   "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
 

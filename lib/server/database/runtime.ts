@@ -69,7 +69,13 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPABASE_CA_FINGERPRINT =
   "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
-const RUNTIME_LOGIN_ROLE = "app_runtime_login";
+const RUNTIME_LOGIN_ROLE = "app_runtime";
+const RUNTIME_PROJECT_REF = "hzibzwhrwmljgjjdzspi";
+const RUNTIME_POOLER_HOST = "aws-1-eu-central-2.pooler.supabase.com";
+
+function isLoopbackHostname(hostname: string): boolean {
+  return ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
+}
 
 function requireOwnerIdentity(
   identity: OwnerTransactionIdentity,
@@ -88,9 +94,7 @@ function requireDatabaseUrl(
 
   try {
     const url = new URL(value);
-    const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(
-      url.hostname,
-    );
+    const isLoopback = isLoopbackHostname(url.hostname);
     if (
       !["postgres:", "postgresql:"].includes(url.protocol) ||
       !url.hostname ||
@@ -103,11 +107,11 @@ function requireDatabaseUrl(
       const projectRef = env.SUPABASE_PROJECT_REF;
       const searchParameters = [...url.searchParams.entries()];
       if (
-        !projectRef ||
+        projectRef !== RUNTIME_PROJECT_REF ||
         decodeURIComponent(url.username) !==
           `${RUNTIME_LOGIN_ROLE}.${projectRef}` ||
         !decodeURIComponent(url.password) ||
-        !url.hostname.endsWith(".pooler.supabase.com") ||
+        url.hostname !== RUNTIME_POOLER_HOST ||
         url.port !== "6543" ||
         url.pathname !== "/postgres" ||
         searchParameters.length !== 1 ||
@@ -130,11 +134,7 @@ function remoteDatabaseTls(
   databaseUrl: string,
 ): { ca: string; rejectUnauthorized: true } | undefined {
   const url = new URL(databaseUrl);
-  if (
-    url.hostname === "localhost" ||
-    url.hostname === "127.0.0.1" ||
-    url.hostname === "[::1]"
-  ) {
+  if (isLoopbackHostname(url.hostname)) {
     return undefined;
   }
   const source = env.SUPABASE_DATABASE_CA_CERTIFICATE;
@@ -171,10 +171,14 @@ export function createRuntimeDatabase({
   clientFactory = defaultClientFactory,
 }: RuntimeDatabaseOptions = {}): RuntimeDatabase {
   let lazyClient = client;
+  let assumeLocalRuntimeRole = false;
 
   function getClient(): RuntimeSqlClient {
     if (!lazyClient) {
       const databaseUrl = requireDatabaseUrl(env);
+      assumeLocalRuntimeRole = isLoopbackHostname(
+        new URL(databaseUrl).hostname,
+      );
       const ssl = remoteDatabaseTls(env, databaseUrl);
       lazyClient = clientFactory(databaseUrl, {
         prepare: false,
@@ -197,7 +201,9 @@ export function createRuntimeDatabase({
     work: (transaction: RuntimeTransaction) => Promise<T>,
   ): Promise<T> {
     return getClient().begin(async (transaction) => {
-      await transaction.unsafe("set local role app_runtime");
+      if (assumeLocalRuntimeRole) {
+        await transaction.unsafe("set local role app_runtime");
+      }
       await transaction.unsafe(
         "select set_config('request.jwt.claim.sub', $1, true), " +
           "set_config('request.jwt.claim.session_id', $2, true), " +

@@ -13,10 +13,12 @@ const REMOTE_FIREBASE_PROJECTS = [
   "gioia-beauty-2d043",
 ];
 
-export const GREENFIELD_SUPABASE_REF = "lxvsspniipcotimbsfqm";
+export const GREENFIELD_SUPABASE_REF = "hzibzwhrwmljgjjdzspi";
+export const GREENFIELD_SUPABASE_POOLER_HOST =
+  "aws-1-eu-central-2.pooler.supabase.com";
 export const PRODUCTION_SUPABASE_REF = null;
 export const ISOLATED_FIREBASE_PROJECT_ID = "demo-gioia-beauty";
-export const RUNTIME_LOGIN_ROLE = "app_runtime_login";
+export const RUNTIME_LOGIN_ROLE = "app_runtime";
 
 const FIREBASE_EMULATOR_HOSTS = {
   FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
@@ -81,7 +83,7 @@ function referencesRemoteFirebase(env) {
   });
 }
 
-function isSupabaseUrlForRef(key, value, projectRef) {
+function isSupabaseUrlForRef(key, value, projectRef, poolerHost) {
   if (!hasValue(value)) return true;
 
   try {
@@ -94,7 +96,7 @@ function isSupabaseUrlForRef(key, value, projectRef) {
 
     const username = decodeURIComponent(url.username);
     const isSharedPooler =
-      url.hostname.endsWith(".pooler.supabase.com") &&
+      url.hostname === poolerHost &&
       url.port === "6543" &&
       username === `${RUNTIME_LOGIN_ROLE}.${projectRef}`;
     const searchParameters = [...url.searchParams.entries()];
@@ -116,7 +118,7 @@ function isSupabaseUrlForRef(key, value, projectRef) {
   }
 }
 
-function validateSupabaseTarget(appEnv, env, errors, projectRef) {
+function validateSupabaseTarget(appEnv, env, errors, projectRef, poolerHost) {
   if (!projectRef) {
     errors.push(`No Supabase Production target is registered for ${appEnv}`);
     return;
@@ -143,15 +145,18 @@ function validateSupabaseTarget(appEnv, env, errors, projectRef) {
   }
 
   for (const key of SUPABASE_API_URL_KEYS) {
-    if (!isSupabaseUrlForRef(key, env[key], projectRef)) {
+    if (!isSupabaseUrlForRef(key, env[key], projectRef, poolerHost)) {
       errors.push(`${key} does not match the registered Supabase project ref`);
     }
   }
 
   for (const key of SUPABASE_DATABASE_URL_KEYS) {
-    if (hasValue(env[key]) && !isSupabaseUrlForRef(key, env[key], projectRef)) {
+    if (
+      hasValue(env[key]) &&
+      !isSupabaseUrlForRef(key, env[key], projectRef, poolerHost)
+    ) {
       errors.push(
-        `${key} must use the app_runtime_login credential carrier through the transaction pooler with sslmode=verify-full`,
+        `${key} must use the app_runtime login through the exact transaction pooler with sslmode=verify-full`,
       );
     }
   }
@@ -456,7 +461,13 @@ function validateIsolatedEnvironment(appEnv, env, errors) {
   }
 
   if (appEnv === "preview") {
-    validateSupabaseTarget(appEnv, env, errors, GREENFIELD_SUPABASE_REF);
+    validateSupabaseTarget(
+      appEnv,
+      env,
+      errors,
+      GREENFIELD_SUPABASE_REF,
+      GREENFIELD_SUPABASE_POOLER_HOST,
+    );
   }
 }
 

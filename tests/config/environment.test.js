@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 import {
+  GREENFIELD_SUPABASE_POOLER_HOST,
   GREENFIELD_SUPABASE_REF,
   validateEnvironment,
 } from "@/config/environment.mjs";
@@ -21,8 +22,8 @@ function previewEnvironment(overrides = {}) {
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       "sb_publishable_synthetic_value_123456",
     SUPABASE_DATABASE_URL:
-      `postgresql://app_runtime_login.${GREENFIELD_SUPABASE_REF}:` +
-      "synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres" +
+      `postgresql://app_runtime.${GREENFIELD_SUPABASE_REF}:` +
+      `synthetic@${GREENFIELD_SUPABASE_POOLER_HOST}:6543/postgres` +
       "?sslmode=verify-full",
     BOOKING_HMAC_SECRET: "synthetic-preview-booking-hmac-secret-000000000000",
     OWNER_SESSION_HMAC_SECRET:
@@ -272,7 +273,7 @@ describe("environment isolation", () => {
   });
 
   it.each([
-    ["authorization role", `app_runtime.${GREENFIELD_SUPABASE_REF}`],
+    ["legacy carrier", `app_runtime_login.${GREENFIELD_SUPABASE_REF}`],
     ["privileged role", `postgres.${GREENFIELD_SUPABASE_REF}`],
     ["other role", `other.${GREENFIELD_SUPABASE_REF}`],
   ])("rejects the %s as a Preview database login", (_, username) => {
@@ -280,33 +281,37 @@ describe("environment isolation", () => {
       previewEnvironment({
         SUPABASE_DATABASE_URL:
           `postgresql://${username}:synthetic@` +
-          "aws-0-eu-central-2.pooler.supabase.com:6543/postgres" +
+          `${GREENFIELD_SUPABASE_POOLER_HOST}:6543/postgres` +
           "?sslmode=verify-full",
       }),
     );
 
     expect(result.ok).toBe(false);
     expect(result.errors.join(" ")).toContain(
-      "app_runtime_login credential carrier",
+      "app_runtime login through the exact transaction pooler",
     );
   });
 
   it.each([
     [
       "direct connection",
-      `postgresql://app_runtime_login:synthetic@db.${GREENFIELD_SUPABASE_REF}.supabase.co:5432/postgres?sslmode=verify-full`,
+      `postgresql://app_runtime:synthetic@db.${GREENFIELD_SUPABASE_REF}.supabase.co:5432/postgres?sslmode=verify-full`,
     ],
     [
       "session pooler",
-      `postgresql://app_runtime_login.${GREENFIELD_SUPABASE_REF}:synthetic@aws-0-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=verify-full`,
+      `postgresql://app_runtime.${GREENFIELD_SUPABASE_REF}:synthetic@${GREENFIELD_SUPABASE_POOLER_HOST}:5432/postgres?sslmode=verify-full`,
+    ],
+    [
+      "wrong transaction pooler",
+      `postgresql://app_runtime.${GREENFIELD_SUPABASE_REF}:synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full`,
     ],
     [
       "missing verify-full",
-      `postgresql://app_runtime_login.${GREENFIELD_SUPABASE_REF}:synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres`,
+      `postgresql://app_runtime.${GREENFIELD_SUPABASE_REF}:synthetic@${GREENFIELD_SUPABASE_POOLER_HOST}:6543/postgres`,
     ],
     [
       "weaker TLS mode",
-      `postgresql://app_runtime_login.${GREENFIELD_SUPABASE_REF}:synthetic@aws-0-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=require`,
+      `postgresql://app_runtime.${GREENFIELD_SUPABASE_REF}:synthetic@${GREENFIELD_SUPABASE_POOLER_HOST}:6543/postgres?sslmode=require`,
     ],
   ])("rejects a Preview %s URL", (_, databaseUrl) => {
     const result = validate(

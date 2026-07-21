@@ -14,7 +14,6 @@ import {
   cleanupKnownGreenfieldResidue,
   provisionGreenfieldOwner,
 } from "./test-target-fixtures.mjs";
-import { withTemporaryRuntimeRole } from "./test-target-harness.mjs";
 import { GREENFIELD_TARGET_VERSIONS } from "./test-target-migrations.mjs";
 import {
   GREENFIELD_OWNER_COOKIE_SECURITY,
@@ -37,7 +36,6 @@ const DEFAULT_OPERATIONS = Object.freeze({
   runOwnerScenario: runOwnerAuthRouteScenario,
   withAuthServer: withGreenfieldOwnerAuthServer,
   withRuntimeDatabase: withGreenfieldRuntimeDatabase,
-  withRuntimeRole: withTemporaryRuntimeRole,
   verifyAuthConfiguration: verifyTestTargetAuthConfiguration,
 });
 
@@ -60,7 +58,6 @@ async function runFixtureAcceptance({
   config,
   fingerprint,
   operations,
-  recoverRuntimeRole,
   targets,
   worker,
 }) {
@@ -70,35 +67,29 @@ async function runFixtureAcceptance({
     await operations.provisionOwner(worker, password);
     await operations.provisionConcurrencyOwner(worker);
     await operations.verifyAuthConfiguration(config);
-    await operations.withRuntimeRole({
-      config,
-      worker,
-      recoverRuntimeRole,
-      callback: async ({ runtimeDatabaseUrl }) => {
-        await operations.withRuntimeDatabase(
-          runtimeDatabaseUrl,
-          (runtime) =>
-            operations.runBooking(runtime, {
-              barrierWaiters: GREENFIELD_REMOTE_BARRIER_WAITERS,
-              reconciliationSql: worker,
-              targets,
-              provisionOwner: false,
-            }),
-          { caCertificate: config.getDatabaseCaCertificate() },
-        );
-        await operations.withAuthServer(config, runtimeDatabaseUrl, (baseUrl) =>
-          operations.runOwnerScenario({
-            baseUrl,
-            owner: {
-              email: GREENFIELD_TEST_OWNER.email,
-              password,
-            },
-            cookieSecurity: GREENFIELD_OWNER_COOKIE_SECURITY,
-            reconcileLedger: () => operations.reconcileLedger(worker),
-          }),
-        );
-      },
-    });
+    const runtimeDatabaseUrl = config.getRuntimeDatabaseUrl();
+    await operations.withRuntimeDatabase(
+      runtimeDatabaseUrl,
+      (runtime) =>
+        operations.runBooking(runtime, {
+          barrierWaiters: GREENFIELD_REMOTE_BARRIER_WAITERS,
+          reconciliationSql: worker,
+          targets,
+          provisionOwner: false,
+        }),
+      { caCertificate: config.getDatabaseCaCertificate() },
+    );
+    await operations.withAuthServer(config, runtimeDatabaseUrl, (baseUrl) =>
+      operations.runOwnerScenario({
+        baseUrl,
+        owner: {
+          email: GREENFIELD_TEST_OWNER.email,
+          password,
+        },
+        cookieSecurity: GREENFIELD_OWNER_COOKIE_SECURITY,
+        reconcileLedger: () => operations.reconcileLedger(worker),
+      }),
+    );
     await operations.assertResidue(worker, targets);
   } catch (error) {
     acceptanceError = error;
@@ -136,15 +127,10 @@ function validatedOperations(overrides) {
 }
 
 export async function runGreenfieldAcceptanceCycle(
-  { cli, config, cycle, expectedFingerprint, recoverRuntimeRole, worker },
+  { cli, config, cycle, expectedFingerprint, worker },
   operationOverrides = {},
 ) {
-  if (
-    !new Set(["A", "B"]).has(cycle) ||
-    !cli ||
-    typeof recoverRuntimeRole !== "function" ||
-    !worker
-  ) {
+  if (!new Set(["A", "B"]).has(cycle) || !cli || !worker) {
     throw new Error("Greenfield TEST acceptance cycle is invalid");
   }
   const operations = validatedOperations(operationOverrides);
@@ -171,7 +157,6 @@ export async function runGreenfieldAcceptanceCycle(
     config,
     fingerprint,
     operations,
-    recoverRuntimeRole,
     targets,
     worker,
   });
