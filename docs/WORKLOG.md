@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Bound owner-login abuse residue to the hosted TEST fixture
+**Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
+**Labels/environment:** owner-approved `[TEST]` full-gate attempt and bounded read-only reconciliation; `[LOCAL]` cleanup-contract correction
+**Data impact:** cycle A created synthetic fixtures only; the cleanup transaction rolled back and currently retains 27 commands, 5 entries, 10 fake outbox rows, 5 changes/locks, 2 owners/sessions/Auth users, 1 identity, and 2 owner-login abuse buckets; no customer, Storage, or Production rows
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` plus local `refactor`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** the stopped gate passed 28 pgTAP files/443 assertions, six Data API denials, and four bounded concurrency races; recovery may delete only the enumerated synthetic rows and exactly one structurally pinned `owner_login/network` plus one `owner_login/account` bucket, then must reconcile zero operational/Auth/Storage rows
+**Done:** Exact-head CI `29860536804` passed six-for-six. The full gate reached owner Auth, which created the two expected rate-limit buckets; the Phase 2 residue query omitted that newer Phase 3 table, so final clean-baseline validation correctly rolled back the whole cleanup. Added exact policy/key/hash/count/aligned-window/retention/timestamp recognition, duplicate/extra rejection, and matching narrow cleanup SQL.
+**Verified/reconciled:** live read-only proof finds exactly the reviewed synthetic residue and 0 unknown rows, Auth sessions, refresh tokens, Auth audit/auxiliary rows, Storage rows, or unrelated rows. Local: 170 files/2,099 tests, TS7/TS6, lint, format, DB static, production build, focused 34 tests, and diff checks pass; independent review found no P0/P1.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; serialized synthetic TEST fixture only, with zero customer/Production data
+**Rollback/forward recovery:** revert the cleanup-contract revision; forward recovery is exact cleanup from stored fixture dates, focused hosted owner-auth proof, then a fresh guarded two-cycle gate from exact green head
+**Next:** Finish independent review, commit/push, require exact-head green CI, then run the exact known-residue cleanup. Prove the owner-auth scenario cleans to zero before one final two-cycle gate; tick only hosted-proven checklist items afterward.
+**Gotchas:** On a dirty fixture database, the normal target selector intentionally chooses different empty dates; recovery must reconstruct the five original targets from their exact synthetic notes before cleanup. The two HMAC hashes are intentionally unpredictable, so the guard relies on exact total/scope and immutable structural invariants rather than matching hash values.
+
 ## 2026-07-21 — Repaired the hosted owner-auth child environment
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** owner-approved `[TEST]` full-gate attempt, bounded aggregate/log/readiness diagnostics; `[LOCAL]` harness correction

@@ -144,6 +144,7 @@ export async function cleanupKnownGreenfieldResidue(
     const targetDates = targets.map((target) => target.localDate);
     const parameters = [
       [GREENFIELD_TEST_OWNER.id, GREENFIELD_TEST_OWNER.email],
+      [],
       [GREENFIELD_SCHEDULE_NOTES, targetDates],
       [GREENFIELD_SCHEDULE_NOTES, targetDates, GREENFIELD_VACATION_REASON],
       [GREENFIELD_RACE_COMMAND_KEYS],

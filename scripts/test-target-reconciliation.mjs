@@ -117,6 +117,10 @@ export function assertKnownResidueRow(row) {
     identities: 1,
     unknown_identities: 0,
     unknown_auth_audit_rows: 0,
+    abuse_buckets: 2,
+    owner_login_network_buckets: 1,
+    owner_login_account_buckets: 1,
+    unknown_abuse_buckets: 0,
     auth_sessions: 0,
     unknown_auth_sessions: 0,
     refresh_tokens: 0,
@@ -161,6 +165,7 @@ export function assertOnlyKnownResidueRow(row) {
     "unknown_auth_sessions",
     "unknown_refresh_tokens",
     "unknown_auth_audit_rows",
+    "unknown_abuse_buckets",
     "auth_aux_rows",
     "storage_rows",
     "unrelated_rows",
@@ -190,7 +195,19 @@ export function assertOnlyKnownResidueRow(row) {
     integer(row, "auth_sessions") <= 1 &&
     integer(row, "refresh_tokens") <= 1 &&
     integer(row, "auth_audit_rows") <= 20;
-  if (!bounded || zeroFields.some((field) => integer(row, field) !== 0)) {
+  const abuseBuckets = integer(row, "abuse_buckets");
+  const ownerLoginNetworkBuckets = integer(row, "owner_login_network_buckets");
+  const ownerLoginAccountBuckets = integer(row, "owner_login_account_buckets");
+  const boundedAbuseResidue =
+    abuseBuckets <= 2 &&
+    ownerLoginNetworkBuckets <= 1 &&
+    ownerLoginAccountBuckets <= 1 &&
+    abuseBuckets === ownerLoginNetworkBuckets + ownerLoginAccountBuckets;
+  if (
+    !bounded ||
+    !boundedAbuseResidue ||
+    zeroFields.some((field) => integer(row, field) !== 0)
+  ) {
     throw new Error("Greenfield TEST contains unknown or excessive residue");
   }
   return { commands, entries, vacations, outbox };

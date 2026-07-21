@@ -106,6 +106,10 @@ function residueRow(overrides = {}) {
     unknown_identities: 0,
     auth_audit_rows: 3,
     unknown_auth_audit_rows: 0,
+    abuse_buckets: 2,
+    owner_login_network_buckets: 1,
+    owner_login_account_buckets: 1,
+    unknown_abuse_buckets: 0,
     auth_sessions: 0,
     unknown_auth_sessions: 0,
     refresh_tokens: 0,
@@ -233,6 +237,8 @@ describe("greenfield TEST fixture reconciliation", () => {
     { unknown_auth_sessions: 1 },
     { unknown_refresh_tokens: 1 },
     { unknown_auth_audit_rows: 1 },
+    { unknown_abuse_buckets: 1 },
+    { owner_login_network_buckets: 2 },
     { unrelated_rows: 1 },
     { commands: 26 },
     { owner_sessions: 3 },
@@ -291,6 +297,9 @@ describe("greenfield TEST fixture reconciliation", () => {
           auth_users: 0,
           identities: 0,
           auth_audit_rows: 0,
+          abuse_buckets: 0,
+          owner_login_network_buckets: 0,
+          owner_login_account_buckets: 0,
         }),
       ),
     ).toEqual({ commands: 0, entries: 0, vacations: 0, outbox: 0 });
@@ -305,6 +314,11 @@ describe("greenfield TEST fixture reconciliation", () => {
     ).toThrow("unknown or excessive residue");
     expect(() =>
       assertOnlyKnownResidueRow(residueRow({ auth_audit_rows: 21 })),
+    ).toThrow("unknown or excessive residue");
+    expect(() =>
+      assertOnlyKnownResidueRow(
+        residueRow({ abuse_buckets: 3, unknown_abuse_buckets: 1 }),
+      ),
     ).toThrow("unknown or excessive residue");
   });
 });
@@ -357,10 +371,11 @@ describe("greenfield TEST fixture mutation safety", () => {
     expect(unsafe.mock.calls.at(-2)[0]).toBe(GREENFIELD_STATE_SQL);
     expect(unsafe.mock.calls.at(-1)[0]).toBe(GREENFIELD_FINGERPRINT_SQL);
     const deletionCalls = unsafe.mock.calls.slice(2, -2);
-    expect(deletionCalls[1][1][1]).toEqual(dates);
+    expect(deletionCalls[1][1]).toEqual([]);
     expect(deletionCalls[2][1][1]).toEqual(dates);
-    expect(deletionCalls[4][1][1]).toEqual(dates);
-    expect(deletionCalls[5][1]).toEqual([
+    expect(deletionCalls[3][1][1]).toEqual(dates);
+    expect(deletionCalls[5][1][1]).toEqual(dates);
+    expect(deletionCalls[6][1]).toEqual([
       "Synthetic booking vacation race",
       dates[2],
     ]);
@@ -389,6 +404,17 @@ describe("greenfield TEST fixture mutation safety", () => {
     expect(cleanup).not.toMatch(/delete\s+from\s+auth\.users\s*$/mu);
     expect(cleanup).toContain("where id = any($1::uuid[])");
     expect(cleanup).toContain("local_date = any($2::date[])");
+    expect(cleanup).toContain("bucket.action = 'owner_login'");
+    expect(cleanup).toContain("bucket.scope_kind in ('network', 'account')");
+    expect(cleanup).toContain("bucket.hmac_key_id = 'public_v1'");
+    expect(cleanup).toContain("bucket.request_count = 1");
+    expect(cleanup).toContain("policy.window_seconds = 900");
+    expect(cleanup).toContain("policy.retention_seconds = 86400");
+    expect(cleanup).not.toMatch(
+      /delete\s+from\s+gioia_private\.public_abuse_buckets\s*$/mu,
+    );
+    expect(GREENFIELD_RESIDUE_SQL).toContain("unknown_abuse_buckets");
+    expect(GREENFIELD_RESIDUE_SQL).toContain("owner_login_network_buckets");
     expect(GREENFIELD_RESIDUE_SQL).toContain("payload is null");
     expect(GREENFIELD_RESIDUE_SQL).toContain("($2::date[])[5]");
     expect(GREENFIELD_RESIDUE_SQL).toContain("entry.service_id = $11");

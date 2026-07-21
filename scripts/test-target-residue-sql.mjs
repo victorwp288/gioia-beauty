@@ -37,6 +37,38 @@ export const GREENFIELD_RESIDUE_SQL = `
       and source = 'admin' and created_by = $6::uuid and version = 1
       and legacy_firestore_id is null and imported_at is null
       and cancelled_at is null and cancelled_by is null
+  ), expected_abuse_policies(
+    action, scope_kind, window_seconds, retention_seconds
+  ) as (values
+    ('owner_login', 'network', 900, 86400),
+    ('owner_login', 'account', 900, 86400)
+  ), known_abuse_buckets as (
+    select bucket.action, bucket.scope_kind, bucket.hmac_key_id,
+      bucket.scope_hash, bucket.bucket_start
+    from gioia_private.public_abuse_buckets bucket
+    join expected_abuse_policies expected
+      on expected.action = bucket.action
+      and expected.scope_kind = bucket.scope_kind
+    join gioia_private.public_abuse_policies policy
+      on policy.action = expected.action
+      and policy.scope_kind = expected.scope_kind
+      and policy.window_seconds = expected.window_seconds
+      and policy.retention_seconds = expected.retention_seconds
+    where bucket.hmac_key_id = 'public_v1'
+      and octet_length(bucket.scope_hash) = 32
+      and bucket.request_count = 1
+      and bucket.bucket_start = pg_catalog.to_timestamp(
+        pg_catalog.floor(
+          extract(epoch from bucket.bucket_start) / expected.window_seconds
+        ) * expected.window_seconds
+      )
+      and bucket.bucket_end = bucket.bucket_start
+        + pg_catalog.make_interval(secs => expected.window_seconds)
+      and bucket.expires_at = bucket.bucket_start
+        + pg_catalog.make_interval(secs => expected.retention_seconds)
+      and bucket.created_at = bucket.updated_at
+      and bucket.created_at >= bucket.bucket_start
+      and bucket.created_at < bucket.bucket_end
   ), known_aggregates as (
     select id from known_entries union all select id from known_vacations
   )
@@ -239,6 +271,21 @@ export const GREENFIELD_RESIDUE_SQL = `
         or (coalesce(payload::text, '') not like ('%' || $8::uuid::text || '%')
           and coalesce(payload::text, '') not like ('%' || $10::text || '%')))
       as unknown_auth_audit_rows,
+    (select count(*)::integer from gioia_private.public_abuse_buckets)
+      as abuse_buckets,
+    (select count(*)::integer from known_abuse_buckets
+      where scope_kind = 'network') as owner_login_network_buckets,
+    (select count(*)::integer from known_abuse_buckets
+      where scope_kind = 'account') as owner_login_account_buckets,
+    (select count(*)::integer from gioia_private.public_abuse_buckets bucket
+      where not exists (
+        select 1 from known_abuse_buckets known
+        where known.action = bucket.action
+          and known.scope_kind = bucket.scope_kind
+          and known.hmac_key_id = bucket.hmac_key_id
+          and known.scope_hash = bucket.scope_hash
+          and known.bucket_start = bucket.bucket_start
+      )) as unknown_abuse_buckets,
     ((select count(*) from auth.mfa_factors)
       + (select count(*) from auth.mfa_challenges)
       + (select count(*) from auth.mfa_amr_claims)
@@ -275,6 +322,27 @@ export const GREENFIELD_CLEANUP_SQL = Object.freeze([
   `delete from auth.audit_log_entries
     where payload::text like ('%' || $1::uuid::text || '%')
       or payload::text like ('%' || $2::text || '%')`,
+  `delete from gioia_private.public_abuse_buckets bucket
+    using gioia_private.public_abuse_policies policy
+    where policy.action = bucket.action
+      and policy.scope_kind = bucket.scope_kind
+      and bucket.action = 'owner_login'
+      and bucket.scope_kind in ('network', 'account')
+      and policy.window_seconds = 900
+      and policy.retention_seconds = 86400
+      and bucket.hmac_key_id = 'public_v1'
+      and octet_length(bucket.scope_hash) = 32
+      and bucket.request_count = 1
+      and bucket.bucket_start = pg_catalog.to_timestamp(
+        pg_catalog.floor(extract(epoch from bucket.bucket_start) / 900) * 900
+      )
+      and bucket.bucket_end = bucket.bucket_start
+        + pg_catalog.make_interval(secs => 900)
+      and bucket.expires_at = bucket.bucket_start
+        + pg_catalog.make_interval(secs => 86400)
+      and bucket.created_at = bucket.updated_at
+      and bucket.created_at >= bucket.bucket_start
+      and bucket.created_at < bucket.bucket_end`,
   `delete from gioia_private.email_outbox where aggregate_id in (
     select id from gioia_private.schedule_entries
     where client_note = any($1::text[]) and local_date = any($2::date[])
