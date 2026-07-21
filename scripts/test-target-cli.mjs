@@ -129,6 +129,7 @@ export function createTestTargetCli({
   databaseClient,
   getDatabaseCaCertificate,
   getOperatorSessionDatabaseUrl,
+  remotePgTapQueryBoundaryWait,
   rootDirectory = process.cwd(),
   runProcess = execute,
 } = {}) {
@@ -171,6 +172,7 @@ export function createTestTargetCli({
     databaseClient,
     getDatabaseCaCertificate,
     getOperatorSessionDatabaseUrl,
+    queryBoundaryWait: remotePgTapQueryBoundaryWait,
     rootDirectory: root,
   });
   let versionVerified = false;

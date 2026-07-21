@@ -22,6 +22,7 @@ import {
   REMOTE_PGTAP_ROLLBACK_SQL,
   REMOTE_PGTAP_SETUP_SQL,
   REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY,
+  REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS,
   remotePgTapQuerySegments,
   withRemotePgTapFixtures,
 } from "../../scripts/test-target-pgtap.mjs";
@@ -120,11 +121,16 @@ function fakePgTapDatabase(resultFactory = passingPgTapResults) {
   return { client: vi.fn(() => sql), sql };
 }
 
-function client(runProcess, databaseClient = fakePgTapDatabase().client) {
+function client(
+  runProcess,
+  databaseClient = fakePgTapDatabase().client,
+  remotePgTapQueryBoundaryWait,
+) {
   return createTestTargetCli({
     databaseClient,
     getDatabaseCaCertificate: () => CERTIFICATE_PEM,
     getOperatorSessionDatabaseUrl: () => DATABASE_URL,
+    remotePgTapQueryBoundaryWait,
     runProcess,
   });
 }
@@ -214,7 +220,12 @@ describe("greenfield TEST Supabase CLI", () => {
   it("passes all 28 reviewed remote pgTAP files explicitly", async () => {
     const { run } = fakeRunner();
     const database = fakePgTapDatabase();
-    const result = await client(run, database.client).runRemotePgTap();
+    const boundaryWait = vi.fn(async () => {});
+    const result = await client(
+      run,
+      database.client,
+      boundaryWait,
+    ).runRemotePgTap();
     const suite = remotePgTapFiles();
 
     expect(result).toMatchObject({ assertions: 443, files: suite.files });
@@ -241,6 +252,16 @@ describe("greenfield TEST Supabase CLI", () => {
         source.includes("a fresh double-opt-in cycle"),
       ),
     ).toBe(true);
+    const secondSegmentCall = database.sql.unsafe.mock.calls.findIndex(
+      ([source]) => source.includes("a fresh double-opt-in cycle"),
+    );
+    expect(boundaryWait).toHaveBeenCalledOnce();
+    expect(boundaryWait).toHaveBeenCalledWith(
+      REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS,
+    );
+    expect(boundaryWait.mock.invocationCallOrder[0]).toBeLessThan(
+      database.sql.unsafe.mock.invocationCallOrder[secondSegmentCall],
+    );
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
       31,
       REMOTE_PGTAP_ROLLBACK_SQL,
@@ -261,6 +282,7 @@ describe("greenfield TEST Supabase CLI", () => {
       source.split(REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY),
     ).toHaveLength(2);
     expect(segments).toHaveLength(2);
+    expect(REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS).toBe(5);
     expect(segments[0]).toContain("unknown unsubscribe tokens");
     expect(segments[1]).toContain("a fresh double-opt-in cycle");
     expect(() =>

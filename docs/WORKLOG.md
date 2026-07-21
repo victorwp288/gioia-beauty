@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Separated hosted pgTAP re-subscription timestamps
+**Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
+**Labels/environment:** one owner-approved `[TEST]` exact-head rollback-only pgTAP proof; `[LOCAL]` transport hardening
+**Data impact:** one isolated 28-file hosted pgTAP attempt with temporary `pgtap` create/drop and rollback-only synthetic fixtures; zero retained operational/Auth/Storage/customer rows
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` plus local `refactor`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** one rollback-only 28-file/443-assertion suite; no migration replay, runtime credential lifecycle, or retained table rows
+**Done:** Exact-head CI `29857336008` passed six-for-six. Its isolated hosted pgTAP proof showed that two serial query messages could still begin inside the same canonical millisecond, so `080` correctly repeated SQLSTATE `23514`. Added a filename/digest/marker-pinned 5 ms pause before only the second segment and injected the wait for deterministic ordering coverage; connection, transaction, trigger, rollback, and TAP aggregation remain unchanged.
+**Verified/reconciled:** focused 3 files/30 tests, full 170 files/2,097 tests, build, lint, format, DB static, and diff checks pass. The earlier parallel full-test attempt had two unrelated 5-second timeouts under build contention; the isolated rerun passed all assertions.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; synthetic TEST-only rollback suite and no customer data
+**Rollback/forward recovery:** revert the 5 ms boundary revision; forward recovery is independent review, exact-head green CI, then one isolated hosted pgTAP proof before the full authorized gate
+**Next:** Complete independent review, commit/push this follow-up, require exact-head CI, and rerun the isolated hosted pgTAP suite once. Only a 28-file/443-assertion pass permits the full authorized two-cycle TEST gate.
+**Gotchas:** Separate PostgreSQL query messages do not guarantee distinct millisecond-canonicalized evidence timestamps when sent back-to-back.
+
 ## 2026-07-21 — Fixed hosted pgTAP statement-timestamp parity
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** owner-approved `[TEST]` destructive/synthetic gate attempts and bounded diagnostics; `[LOCAL]` runner correction

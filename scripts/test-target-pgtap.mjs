@@ -25,6 +25,7 @@ export const REMOTE_PGTAP_SETUP_SQL =
   "create extension if not exists pgtap with schema extensions";
 export const REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY =
   "-- gioia-remote-pgtap-statement-timestamp-boundary";
+export const REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS = 5;
 const REMOTE_PGTAP_STATEMENT_TIMESTAMP_FILES = new Set([
   "080_subscriber_commands.test.sql",
 ]);
@@ -56,6 +57,8 @@ insert into gioia_private.newsletter_action_signing_keys (
 const REMOTE_PGTAP_SETUP_FILE = "000_0_pgtap_setup.test.sql";
 const REMOTE_PGTAP_SETUP_PREFIX = `${REMOTE_PGTAP_SETUP_SQL};\n\n`;
 const NEWSLETTER_FIXTURE_FILES = new Set(REMOTE_PGTAP_NEWSLETTER_FIXTURE_FILES);
+const wait = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 function validatedDatabaseUrl(getter) {
   if (typeof getter !== "function") {
@@ -193,10 +196,16 @@ export function createRemotePgTapRunner({
   databaseClient = postgres,
   getDatabaseCaCertificate,
   getOperatorSessionDatabaseUrl,
+  queryBoundaryWait = wait,
   rootDirectory = process.cwd(),
 } = {}) {
   if (typeof databaseClient !== "function") {
     throw new TestTargetPgTapError("TEST pgTAP database client is invalid");
+  }
+  if (typeof queryBoundaryWait !== "function") {
+    throw new TestTargetPgTapError(
+      "TEST pgTAP statement timestamp wait is invalid",
+    );
   }
   const databaseUrl = validatedDatabaseUrl(getOperatorSessionDatabaseUrl);
   const caCertificate = validatedCertificate(getDatabaseCaCertificate);
@@ -234,7 +243,14 @@ export function createRemotePgTapRunner({
         }
         testSource = withRemotePgTapFixtures(file, testSource);
         const results = [];
-        for (const segment of remotePgTapQuerySegments(file, testSource)) {
+        const segments = remotePgTapQuerySegments(file, testSource);
+        for (const [index, segment] of segments.entries()) {
+          if (index > 0) {
+            // Newsletter evidence is canonicalized to milliseconds. The hosted
+            // runner compresses separate user actions into one transaction, so
+            // keep the second query message beyond that precision boundary.
+            await queryBoundaryWait(REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS);
+          }
           const segmentResults = await sql.unsafe(segment, [], {
             simple: true,
           });
