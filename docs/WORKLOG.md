@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Cleared the confirmed TEST network ban and made credential probes truly one-shot
+**Phase:** Phase 2 hosted-TEST recovery; final two-cycle acceptance item remains open
+**Labels/environment:** owner-approved `[REMOTE-CONFIG]` removal of one exact TEST ban; one read-only `[TEST]` transaction-pooler probe; `[LOCAL]` recovery hardening
+**Data impact:** none; zero schema, table, Auth, Storage, customer, or credential writes from the probe; one TEST control-plane ban entry removed
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm` in `eu-central-2`; live Firebase/site/`main`, Vercel, Resend, and Production untouched
+**Expected reads/writes/rows:** one banned-IP list, one exact unban, one no-retry transaction-pooler identity query returning one row, one final banned-IP list, and one bounded carrier-state read
+**Done:** Confirmed the prior `ECONNREFUSED` was a Supabase network ban and removed exactly that entry. Commit `9f9976b` deletes all credential/lock retries, gates runtime fan-out behind one serialized canary, skips durable restoration after any failed checkpoint, and uses one absolute/realpath-allowlisted PostgreSQL 17 `psql` process with pinned CA, isolated secret environment, redacted failure, timeout kill, and bounded reap handling.
+**Verified/reconciled:** the single TEST transaction-pooler probe succeeded with exact `postgres` identity and one row; final banned list is empty; project is `ACTIVE_HEALTHY`; `app_runtime_login` is `NOLOGIN`, password-null, valid indefinitely, with zero active sessions. Local: 167 test files/2,072 tests pass (2 files/4 tests skipped), format, lint, typecheck, SQL static validation, and production build pass. Two independent final reviews found no P0/P1 issues.
+**Production actions performed:** none; no Production read/write/config/deploy, email, secret change, Vercel action, support-access grant, or customer-data access
+**Backup/restore evidence:** n/a; no database data changed
+**Rollback/forward recovery:** revert `9f9976b` for code. Do not restore retry behavior; Supabase will automatically ban repeated invalid authentication again. The TEST carrier is already contained and the protected credentials remain in Keychain.
+**Next:** Push and require exact-head green CI. Then obtain a separate confirmation for one full destructive hosted `npm run db:test:greenfield` gate; tick Phase 2 only after both cycles pass and final migration/data/role/ban reconciliation is clean.
+**Gotchas:** Dropping schemas did not cause this incident. The old five-attempt `28P01` verifier plus restoration after a failed checkpoint could create or extend the provider ban; bare postgres.js was also unsuitable because it may reconnect internally during initial authentication.
+
 ## 2026-07-21 — Advanced hosted TEST to 61 migrations and isolated project pooler refusal
 **Phase:** Phase 2 final hosted-TEST acceptance gate; checklist remains open
 **Labels/environment:** owner-approved `[TEST]` additive schema, protected role, and destructive synthetic checkpoint; `[LOCAL]` fixes and verification
