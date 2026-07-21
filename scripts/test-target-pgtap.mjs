@@ -23,6 +23,11 @@ export const REMOTE_PGTAP_ROLLBACK_SQL = "rollback";
 export const REMOTE_PGTAP_CLEANUP_SQL = "drop extension if exists pgtap";
 export const REMOTE_PGTAP_SETUP_SQL =
   "create extension if not exists pgtap with schema extensions";
+export const REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY =
+  "-- gioia-remote-pgtap-statement-timestamp-boundary";
+const REMOTE_PGTAP_STATEMENT_TIMESTAMP_FILES = new Set([
+  "080_subscriber_commands.test.sql",
+]);
 export const REMOTE_PGTAP_NEWSLETTER_FIXTURE_FILES = Object.freeze([
   "080_subscriber_commands.test.sql",
   "100_verified_webhook_commands.test.sql",
@@ -147,6 +152,22 @@ export function withRemotePgTapFixtures(file, source) {
   return `${transactionPrefix}${REMOTE_PGTAP_NEWSLETTER_FIXTURE_SQL}${source.slice(transactionPrefix.length)}`;
 }
 
+export function remotePgTapQuerySegments(file, source) {
+  const basename = path.basename(file);
+  const segments = source.split(REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY);
+  const requiresBoundary = REMOTE_PGTAP_STATEMENT_TIMESTAMP_FILES.has(basename);
+  if (
+    (requiresBoundary && segments.length !== 2) ||
+    (!requiresBoundary && segments.length !== 1) ||
+    segments.some((segment) => segment.trim().length === 0)
+  ) {
+    throw new TestTargetPgTapError(
+      "Remote pgTAP statement timestamp boundary is invalid",
+    );
+  }
+  return Object.freeze(segments);
+}
+
 function validateTapResult(file, source, results) {
   const expected = expectedAssertions(source);
   const lines = textRows(results);
@@ -212,7 +233,18 @@ export function createRemotePgTapRunner({
           testSource = source.slice(REMOTE_PGTAP_SETUP_PREFIX.length);
         }
         testSource = withRemotePgTapFixtures(file, testSource);
-        const results = await sql.unsafe(testSource, [], { simple: true });
+        const results = [];
+        for (const segment of remotePgTapQuerySegments(file, testSource)) {
+          const segmentResults = await sql.unsafe(segment, [], {
+            simple: true,
+          });
+          if (!Array.isArray(segmentResults)) {
+            throw new TestTargetPgTapError(
+              "Remote pgTAP result shape is invalid",
+            );
+          }
+          results.push(...segmentResults);
+        }
         total += validateTapResult(file, source, results);
       }
       if (total !== suite.assertions) {

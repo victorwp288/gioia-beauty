@@ -190,6 +190,7 @@ select results_eq(
   'unknown unsubscribe tokens do not enumerate subscribers'
 );
 
+-- gioia-remote-pgtap-statement-timestamp-boundary
 select results_eq(
   $actual$
     select command.http_status, command.result ->> 'code'

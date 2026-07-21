@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Fixed hosted pgTAP statement-timestamp parity
+**Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
+**Labels/environment:** owner-approved `[TEST]` destructive/synthetic gate attempts and bounded diagnostics; `[LOCAL]` runner correction
+**Data impact:** two cycle-A atomic 63-migration rebuilds; six rollback-only hosted pgTAP executions with temporary `pgtap` create/drop; zero retained operational/Auth/Storage/customer rows
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` plus local `refactor`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** each attempted cycle replayed the exact 63 migrations/205 references and stopped before fixture provisioning; diagnostics used aggregate state/role/session/lock reads, bounded provider logs, 12 Data API denial reads, and rollback-only synthetic tests
+**Done:** Exact-head CI `29855267054` passed six-for-six and the 150-second drain admitted both cycle-A rebuilds. Both then stopped after hosted pgTAP. Bounded SQLSTATE diagnostics isolated `080_subscriber_commands.test.sql`: sending its whole file as one simple-query message made initial subscribe and re-subscribe share `statement_timestamp()`, so the durability trigger correctly rejected clearing `confirmed_at`. Added one filename- and digest-pinned query-message boundary before re-subscription; the transaction, domain trigger, rollback, assertion count, and no-secret cleanup remain unchanged.
+**Verified/reconciled:** after every stop TEST returned to exact 63 migrations/205 references, canonical schema fingerprint, safe SCRAM runtime role, and zero operational/Auth/Storage rows, public objects, runtime sessions, or advisory locks. Local: 170 test files/2,097 tests, focused 3 files/30 tests, build, lint, format, DB static, and diff checks pass. Independent review found no P0/P1; its 4-file/31-test sweep verified same-connection transaction retention, exact combined TAP evidence, marker/digest fail-closed behavior, redaction, rollback, and cleanup.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; synthetic TEST-only rebuilds with exact clean reconciliation and no customer data
+**Rollback/forward recovery:** revert the boundary/manifest revision; forward recovery is independent review, exact-head green CI, isolated hosted pgTAP proof, then one full authorized two-cycle gate
+**Next:** Finish independent review, commit/push the boundary fix, require exact-head CI, then run the hosted pgTAP suite in isolation once; only a pass permits another full two-cycle TEST gate.
+**Gotchas:** A PostgreSQL simple-query message can contain many semicolon-delimited commands yet retain one `statement_timestamp()` across them; local CLI execution did not model that transport detail.
+
 ## 2026-07-21 — Widened the Supavisor drain margin after a clean timing stop
 **Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
 **Labels/environment:** owner-approved `[TEST]` guarded attempt and bounded read-only reconciliation; `[LOCAL]` timing hardening

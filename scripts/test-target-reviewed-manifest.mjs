@@ -157,7 +157,7 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "075_runtime_function_acl.test.sql":
     "04067eb4bfe3a3433ee1014c21f45e2c1909020e291031cbb8cd37100931534d",
   "080_subscriber_commands.test.sql":
-    "94ffe773d2897063468883f98516716143ae0323110db32564d7c304b5d7cc03",
+    "429be65bde11b35b2310269390bb4c4d92e8d97298194bfcf949523c8b957ffd",
   "090_outbox_worker_commands.test.sql":
     "bbd3eb3fe3bed42708ed3700f840d2812a9b8897d6bc6da86ec89c4db60ee10f",
   "100_verified_webhook_commands.test.sql":

@@ -21,6 +21,8 @@ import {
   REMOTE_PGTAP_NEWSLETTER_FIXTURE_SQL,
   REMOTE_PGTAP_ROLLBACK_SQL,
   REMOTE_PGTAP_SETUP_SQL,
+  REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY,
+  remotePgTapQuerySegments,
   withRemotePgTapFixtures,
 } from "../../scripts/test-target-pgtap.mjs";
 
@@ -77,7 +79,22 @@ function fakeRunner(overrides = {}) {
 }
 
 function passingPgTapResults(source) {
-  const assertions = Number(source.match(/select plan\((\d+)\);/u)?.[1]);
+  const plan = source.match(/select plan\((\d+)\);/u)?.[1];
+  if (source.includes("unknown unsubscribe tokens do not enumerate")) {
+    return [
+      [{ plan: "1..18" }],
+      ...Array.from({ length: 13 }, (_, index) => [
+        { result: `ok ${index + 1} - synthetic pass` },
+      ]),
+    ];
+  }
+  if (source.includes("a fresh double-opt-in cycle")) {
+    return Array.from({ length: 5 }, (_, index) => [
+      { result: `ok ${index + 14} - synthetic pass` },
+    ]);
+  }
+  if (plan === undefined) return [];
+  const assertions = Number(plan);
   return [
     [{ plan: `1..${assertions}` }],
     ...Array.from({ length: assertions }, (_, index) => [
@@ -213,21 +230,51 @@ describe("greenfield TEST Supabase CLI", () => {
     const testCalls = database.sql.unsafe.mock.calls.filter(
       ([, , options]) => options?.simple === true,
     );
-    expect(testCalls).toHaveLength(28);
+    expect(testCalls).toHaveLength(29);
     expect(
       testCalls.every(
         ([, args, options]) => args.length === 0 && options.simple === true,
       ),
     ).toBe(true);
+    expect(
+      testCalls.some(([source]) =>
+        source.includes("a fresh double-opt-in cycle"),
+      ),
+    ).toBe(true);
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
-      30,
+      31,
       REMOTE_PGTAP_ROLLBACK_SQL,
     );
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
-      31,
+      32,
       REMOTE_PGTAP_CLEANUP_SQL,
     );
     expect(database.sql.end).toHaveBeenCalledWith({ timeout: 5 });
+  });
+
+  it("starts a fresh hosted statement timestamp before re-subscription", () => {
+    const file = "supabase/tests/080_subscriber_commands.test.sql";
+    const source = readFileSync(file, "utf8");
+    const segments = remotePgTapQuerySegments(file, source);
+
+    expect(
+      source.split(REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY),
+    ).toHaveLength(2);
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toContain("unknown unsubscribe tokens");
+    expect(segments[1]).toContain("a fresh double-opt-in cycle");
+    expect(() =>
+      remotePgTapQuerySegments(
+        file,
+        source.replace(REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY, ""),
+      ),
+    ).toThrow("statement timestamp boundary is invalid");
+    expect(() =>
+      remotePgTapQuerySegments(
+        "supabase/tests/010_catalog_policy.test.sql",
+        `select plan(1);\n${REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY}\nrollback;`,
+      ),
+    ).toThrow("statement timestamp boundary is invalid");
   });
 
   it("injects rollback-only newsletter configuration into only the dependent remote tests", () => {
