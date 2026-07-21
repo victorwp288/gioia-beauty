@@ -93,12 +93,11 @@ Safety rules:
   postgres.js reserved client has no transaction API; the reserved connection
   continues holding the lock throughout provisioning, the unconditional quiet
   period, the one authentication probe, both cycles, and final reconciliation.
-  After that probe succeeds, the operator may terminate at most one lingering
-  backend matching the current database, `app_runtime`, exact
-  `gioia_greenfield_credential_probe` application name, and client-backend type.
-  Ambiguity or cleanup failure stops the gate, and a fresh zero-application-
-  session proof is required before either rebuild; `gioia_public_api` and
-  unknown sessions are never cleanup targets.
+  After that probe succeeds, the operator waits a second unconditional 125
+  seconds for Supavisor's observed 120-second idle backend timeout, then freshly
+  proves zero application sessions before either rebuild. No backend termination
+  is permitted: Supavisor rewrites the probe application name to `Supavisor`, so
+  application-name targeting is neither exact nor safe.
 - If the initial schema transaction fails, PostgreSQL rolls the entire
   bootstrap back to the pristine baseline. If interruption occurs after that
   commit but before runtime credential verification, a later approved run

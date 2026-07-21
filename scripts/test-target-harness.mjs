@@ -34,6 +34,7 @@ export async function withGreenfieldTestLock(
   callback,
   {
     clientFactory = postgres,
+    credentialDrainWait,
     credentialPropagationWait,
     credentialVerifier,
     initialize,
@@ -78,6 +79,7 @@ export async function withGreenfieldTestLock(
       config,
       credentialVerifier,
       credentialPropagationWait,
+      credentialDrainWait,
     );
     try {
       result = await callback({ initialization, worker });

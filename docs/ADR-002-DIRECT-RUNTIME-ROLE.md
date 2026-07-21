@@ -45,12 +45,12 @@ reserved clients do not expose `begin`. Credential inspection and the single
 password transaction therefore run on the full operator worker pool while the
 reserved session continues to hold the global lock. The unconditional
 125-second propagation wait and one transaction-pooler authentication probe
-remain inside the same locked lifecycle. A successful probe is followed by one
-bounded operator cleanup that accepts zero naturally closed backends or
-terminates exactly one current-database `app_runtime` client backend with the
-probe's exact application name. Multiple matches are never terminated, and
-`gioia_public_api` or unknown sessions are never targeted. The operator then
-re-proves zero application sessions before invoking either rebuild cycle.
+remain inside the same locked lifecycle. A successful probe is followed by a
+separate unconditional 125-second drain wait for Supavisor's observed
+120-second idle backend timeout, then a fresh zero-application-session proof
+before either rebuild cycle. There is no termination path: live evidence shows
+Supavisor rewrites `PGAPPNAME` to `application_name=Supavisor`, making a targeted
+probe-backend kill impossible to distinguish safely.
 
 The replacement starts from the provider's empty hosted baseline, before
 `app_runtime` exists. The operator therefore initializes under its existing

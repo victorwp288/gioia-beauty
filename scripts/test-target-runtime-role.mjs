@@ -3,7 +3,6 @@ import {
   RUNTIME_ROLE_AUTHENTICATE_SQL,
   RUNTIME_ROLE_AUTHORIZE_SQL,
   RUNTIME_ROLE_ASSUME_SQL,
-  RUNTIME_CREDENTIAL_PROBE_REAP_SQL,
   RUNTIME_PASSWORD_CONFIG_SQL,
   RUNTIME_ROLE_PROVISION_SQL,
   RUNTIME_ROLE_STATE_SQL,
@@ -16,6 +15,7 @@ export {
 } from "./test-target-runtime-role-sql.mjs";
 
 export const RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS = 125_000;
+export const RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS = 125_000;
 
 async function singleRow(sql, statement, message) {
   const [row, ...extra] = await sql.unsafe(statement);
@@ -103,40 +103,17 @@ export async function verifyRuntimeCredential(
   }
 }
 
-export async function reapRuntimeCredentialProbe(sql) {
-  let row;
-  try {
-    row = await singleRow(
-      sql,
-      RUNTIME_CREDENTIAL_PROBE_REAP_SQL,
-      "Greenfield TEST credential probe backend did not reconcile",
-    );
-  } catch {
-    throw new Error(
-      "Greenfield TEST credential probe backend did not reconcile",
-    );
-  }
-  const candidates = Number(row.candidates);
-  const terminated = Number(row.terminated);
-  if (
-    !Number.isInteger(candidates) ||
-    !Number.isInteger(terminated) ||
-    candidates < 0 ||
-    candidates > 1 ||
-    terminated < 0 ||
-    terminated > candidates
-  ) {
-    throw new Error(
-      "Greenfield TEST credential probe backend did not reconcile",
-    );
-  }
-  return Object.freeze({ candidates, terminated });
-}
-
-export async function verifyRuntimeBoundary(sql, config, credentialVerifier) {
+export async function verifyRuntimeBoundary(
+  sql,
+  config,
+  credentialVerifier,
+  postProbeDrainWait,
+) {
   await assertRuntimeRoleBoundary(sql);
   await verifyRuntimeCredential(config, credentialVerifier);
-  await reapRuntimeCredentialProbe(sql);
+  // Supavisor retains an idle server backend for up to 120 seconds after the
+  // one-shot client exits and rewrites its application_name to "Supavisor".
+  await postProbeDrainWait(RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS);
   await assertRuntimeRoleBoundary(sql);
 }
 
@@ -146,6 +123,7 @@ export async function prepareRuntimeCredential(
   credentialVerifier,
   propagationWait = (milliseconds) =>
     new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  postProbeDrainWait = propagationWait,
 ) {
   const provisioned = await provisionRuntimeCredentialOnce(sql, config);
   // The wait is unconditional because a prior operator may have been
@@ -153,7 +131,12 @@ export async function prepareRuntimeCredential(
   // durable provision timestamp, an existing SCRAM verifier does not prove the
   // Supavisor quiet period already elapsed.
   await propagationWait(RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS);
-  await verifyRuntimeBoundary(sql, config, credentialVerifier);
+  await verifyRuntimeBoundary(
+    sql,
+    config,
+    credentialVerifier,
+    postProbeDrainWait,
+  );
   return Object.freeze({ provisioned });
 }
 

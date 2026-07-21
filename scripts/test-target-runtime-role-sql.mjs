@@ -6,31 +6,6 @@ export const RUNTIME_SESSION_STATE_SQL = `
     and (usename = 'app_runtime' or application_name = 'gioia_public_api')
 `;
 
-export const RUNTIME_CREDENTIAL_PROBE_REAP_SQL = `
-  with candidates as materialized (
-    select activity.pid
-    from pg_catalog.pg_stat_activity activity
-    where activity.pid <> pg_catalog.pg_backend_pid()
-      and activity.datname = pg_catalog.current_database()
-      and activity.usename = 'app_runtime'
-      and activity.application_name = 'gioia_greenfield_credential_probe'
-      and activity.backend_type = 'client backend'
-  ), candidate_count as materialized (
-    select count(*)::integer as candidates from candidates
-  ), terminated as materialized (
-    select pg_catalog.pg_terminate_backend(
-      candidate.pid, 2000::bigint
-    ) as terminated
-    from candidates candidate
-    cross join candidate_count counts
-    where counts.candidates <= 1
-  )
-  select counts.candidates,
-    coalesce((select count(*) filter (where terminated)::integer
-      from terminated), 0) as terminated
-  from candidate_count counts
-`;
-
 export const RUNTIME_ROLE_STATE_SQL = `
   select runtime_role.rolcanlogin,
     not runtime_role.rolsuper and not runtime_role.rolinherit and
@@ -137,7 +112,6 @@ export const GREENFIELD_RUNTIME_ROLE_SQL = Object.freeze({
     RUNTIME_PASSWORD_CONFIG_SQL,
     RUNTIME_ROLE_PROVISION_SQL,
   ]),
-  reapProbe: RUNTIME_CREDENTIAL_PROBE_REAP_SQL,
   sessions: RUNTIME_SESSION_STATE_SQL,
   state: RUNTIME_ROLE_STATE_SQL,
 });

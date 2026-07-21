@@ -6,6 +6,7 @@ import {
 } from "../../scripts/test-target-harness.mjs";
 import {
   RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS,
+  RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS,
   verifyRuntimeCredential,
 } from "../../scripts/test-target-runtime-role.mjs";
 
@@ -23,15 +24,11 @@ function config() {
 
 function harness({
   missingCredential = false,
-  probeCandidates = 1,
-  probeSessionCount = probeCandidates,
-  reapFailure,
-  reaped = probeCandidates === 1 ? 1 : 0,
+  postProbeSessions = 0,
   sessions = 0,
 } = {}) {
   let credentialIsMissing = missingCredential;
   let activeSessions = sessions;
-  let activeProbeCandidates = 0;
   const events = [];
   const runtimeQuery = async (query, source) => {
     if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
@@ -50,18 +47,6 @@ function harness({
     if (query === GREENFIELD_RUNTIME_ROLE_SQL.sessions) {
       events.push(`${source}-sessions`);
       return [{ active: activeSessions }];
-    }
-    if (query === GREENFIELD_RUNTIME_ROLE_SQL.reapProbe) {
-      events.push(`${source}-reap-probe`);
-      if (reapFailure) throw reapFailure;
-      const terminated = Math.min(reaped, activeProbeCandidates);
-      activeSessions = Math.max(0, activeSessions - terminated);
-      return [
-        {
-          candidates: activeProbeCandidates,
-          terminated,
-        },
-      ];
     }
     return [];
   };
@@ -107,8 +92,7 @@ function harness({
     .mockReturnValueOnce(worker);
   const credentialVerifier = vi.fn(async () => {
     events.push("probe");
-    activeProbeCandidates = probeCandidates;
-    activeSessions += probeSessionCount;
+    activeSessions = postProbeSessions;
   });
   return {
     clientFactory,
@@ -137,30 +121,22 @@ describe("greenfield TEST durable direct runtime", () => {
     );
   });
 
-  it("scopes probe cleanup to one exact app_runtime probe backend", () => {
-    const reap = GREENFIELD_RUNTIME_ROLE_SQL.reapProbe;
-    expect(reap).toContain("activity.datname = pg_catalog.current_database()");
-    expect(reap).toContain("activity.usename = 'app_runtime'");
-    expect(reap).toContain(
-      "activity.application_name = 'gioia_greenfield_credential_probe'",
+  it("contains no backend termination path", () => {
+    expect(JSON.stringify(GREENFIELD_RUNTIME_ROLE_SQL)).not.toContain(
+      "pg_terminate_backend",
     );
-    expect(reap).toContain("activity.backend_type = 'client backend'");
-    expect(reap).toContain("activity.pid <> pg_catalog.pg_backend_pid()");
-    expect(reap).toContain("where counts.candidates <= 1");
-    expect(reap).toContain("pg_catalog.pg_terminate_backend(");
-    expect(reap).toContain("2000::bigint");
-    expect(reap).not.toContain("gioia_public_api");
-    expect(reap).not.toMatch(/usename\s*=\s*'app_runtime'\s+or/iu);
   });
 
   it("uses an existing credential after one quiet period and no lifecycle mutation", async () => {
     const state = harness();
     const wait = vi.fn(async () => {});
+    const drainWait = vi.fn(async () => {});
     const callback = vi.fn(async () => "ok");
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
         clientFactory: state.clientFactory,
+        credentialDrainWait: drainWait,
         credentialPropagationWait: wait,
         credentialVerifier: state.credentialVerifier,
       }),
@@ -169,6 +145,10 @@ describe("greenfield TEST durable direct runtime", () => {
     expect(wait).toHaveBeenCalledOnce();
     expect(wait).toHaveBeenCalledWith(
       RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS,
+    );
+    expect(drainWait).toHaveBeenCalledOnce();
+    expect(drainWait).toHaveBeenCalledWith(
+      RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS,
     );
     expect(state.lockClient.begin).toBeUndefined();
     expect(state.worker.begin).not.toHaveBeenCalled();
@@ -181,13 +161,15 @@ describe("greenfield TEST durable direct runtime", () => {
     ).toBe(true);
   });
 
-  it("provisions a missing credential once, waits once, then authenticates", async () => {
+  it("provisions once, waits, authenticates once, then drains", async () => {
     const state = harness({ missingCredential: true });
-    const wait = vi.fn(async () => state.events.push("wait"));
+    const wait = vi.fn(async () => state.events.push("propagation-wait"));
+    const drainWait = vi.fn(async () => state.events.push("drain-wait"));
     const callback = vi.fn(async () => state.events.push("callback"));
 
     await withGreenfieldTestLock(config(), callback, {
       clientFactory: state.clientFactory,
+      credentialDrainWait: drainWait,
       credentialPropagationWait: wait,
       credentialVerifier: state.credentialVerifier,
     });
@@ -203,11 +185,11 @@ describe("greenfield TEST durable direct runtime", () => {
       "provision",
       "worker-state",
       "worker-sessions",
-      "wait",
+      "propagation-wait",
       "worker-state",
       "worker-sessions",
       "probe",
-      "worker-reap-probe",
+      "drain-wait",
       "worker-state",
       "worker-sessions",
       "callback",
@@ -223,13 +205,18 @@ describe("greenfield TEST durable direct runtime", () => {
       RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS,
     );
     expect(state.credentialVerifier).toHaveBeenCalledOnce();
+    expect(drainWait).toHaveBeenCalledOnce();
+    expect(drainWait).toHaveBeenCalledWith(
+      RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS,
+    );
     expect(state.worker.end).toHaveBeenCalledOnce();
     expect(state.lockClient.release).toHaveBeenCalledOnce();
     expect(state.lockPool.end).toHaveBeenCalledOnce();
   });
 
-  it("reaps only one exact successful probe before callback", async () => {
+  it("drains Supavisor after the probe before callback", async () => {
     const state = harness();
+    const drainWait = vi.fn(async () => state.events.push("drain-wait"));
     const callback = vi.fn(async () => {
       state.events.push("callback");
       return "complete";
@@ -238,70 +225,37 @@ describe("greenfield TEST durable direct runtime", () => {
     await expect(
       withGreenfieldTestLock(config(), callback, {
         clientFactory: state.clientFactory,
+        credentialDrainWait: drainWait,
         credentialPropagationWait: vi.fn(async () => {}),
         credentialVerifier: state.credentialVerifier,
       }),
     ).resolves.toBe("complete");
 
     expect(state.credentialVerifier).toHaveBeenCalledOnce();
-    expect(state.worker.unsafe).toHaveBeenCalledWith(
-      GREENFIELD_RUNTIME_ROLE_SQL.reapProbe,
-    );
     expect(state.events.indexOf("probe")).toBeLessThan(
-      state.events.indexOf("worker-reap-probe"),
+      state.events.indexOf("drain-wait"),
     );
-    expect(state.events.indexOf("worker-reap-probe")).toBeLessThan(
+    expect(state.events.indexOf("drain-wait")).toBeLessThan(
       state.events.indexOf("callback"),
     );
   });
 
-  it.each([
-    {
-      name: "ambiguous exact probes",
-      options: { probeCandidates: 2, probeSessionCount: 2 },
-      message: "credential probe backend did not reconcile",
-    },
-    {
-      name: "an unrecognized application session",
-      options: { probeCandidates: 0, probeSessionCount: 1 },
-      message: "runtime sessions must be zero",
-    },
-    {
-      name: "a failed termination that remains active",
-      options: { probeCandidates: 1, reaped: 0 },
-      message: "runtime sessions must be zero",
-    },
-  ])("fails closed after one probe for $name", async ({ message, options }) => {
-    const state = harness(options);
+  it("fails after the drain when an unknown application session remains", async () => {
+    const state = harness({ postProbeSessions: 1 });
+    const drainWait = vi.fn(async () => state.events.push("drain-wait"));
     const callback = vi.fn();
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
         clientFactory: state.clientFactory,
+        credentialDrainWait: drainWait,
         credentialPropagationWait: vi.fn(async () => {}),
         credentialVerifier: state.credentialVerifier,
       }),
-    ).rejects.toThrow(message);
+    ).rejects.toThrow("runtime sessions must be zero");
 
     expect(state.credentialVerifier).toHaveBeenCalledOnce();
-    expect(callback).not.toHaveBeenCalled();
-  });
-
-  it("fails generically when exact probe cleanup errors without retrying auth", async () => {
-    const secret = "synthetic cleanup detail";
-    const state = harness({ reapFailure: new Error(secret) });
-    const callback = vi.fn();
-    const error = await withGreenfieldTestLock(config(), callback, {
-      clientFactory: state.clientFactory,
-      credentialPropagationWait: vi.fn(async () => {}),
-      credentialVerifier: state.credentialVerifier,
-    }).catch((caught) => caught);
-
-    expect(error.message).toBe(
-      "Greenfield TEST credential probe backend did not reconcile",
-    );
-    expect(error.message).not.toContain(secret);
-    expect(state.credentialVerifier).toHaveBeenCalledOnce();
+    expect(drainWait).toHaveBeenCalledOnce();
     expect(callback).not.toHaveBeenCalled();
   });
 
