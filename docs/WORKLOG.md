@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Guarded `app_runtime` recovery still failed closed
+**Phase:** Phase 2 final hosted-TEST acceptance gate; no checklist item completed
+**Labels/environment:** bounded `[TEST]` role recovery and identity diagnostics; `[LOCAL]` read-only repo/config validation
+**Data impact:** one serialized `app_runtime` recovery lifecycle attempted; final role remains `NOLOGIN`/password-null with zero sessions or locks; no business/Auth/storage/customer rows
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm` in `eu-central-2`; live Firebase/site/`main`, Vercel Production, Resend, and customer data untouched
+**Expected reads/writes/rows:** one project read, three bounded role/session/lock reads, one guarded credential restore/authenticate/automatic-containment lifecycle, two one-row `postgres` pooler identity probes, and zero business/Auth/storage rows
+**Done:** From clean exact head `ffcaac9`, validated the protected Keychain DSNs, pinned CA, and target topology, then ran exactly one recovery-only no-op lifecycle. It failed generically and safely around `2026-07-21T09:15Z`; no manual retry, password reset, bypass, destructive checkpoint, or provider configuration followed. Separate one-row `postgres` identity probes authenticated through both session `:5432` and transaction `:6543` poolers.
+**Verified/reconciled:** project `ACTIVE_HEALTHY` on PostgreSQL 17.6; final `app_runtime` is `NOLOGIN`, valid indefinitely, password null, with 0 runtime/checkpoint sessions and 0 checkpoint advisory locks. The bounded Postgres log window contained no recovery event. Phase 2 remains unchecked.
+**Production actions performed:** none; 0 Production reads/writes, deployment/config/provider action, email send, secret rotation, support-access grant, or customer-data access
+**Backup/restore evidence:** n/a; isolated synthetic TEST role-state attempt only
+**Rollback/forward recovery:** automatic containment is the rollback; the ephemeral credential launcher was deleted. Do not retry-loop or bypass the guarded pooler path.
+**Next:** Add the `2026-07-21T09:15Z` result to the existing Supabase Database ticket and ask support to inspect/reprovision the project/custom-role Supavisor tenant. After a provider response or repair, run one newly authorized guarded recovery; only then run `npm run db:test:greenfield` and tick Phase 2 on final success JSON plus zero residue.
+**Gotchas:** Both protected DSNs/config and both `postgres` pooler modes now work, but the guarded custom-role lifecycle still does not complete; the customer-visible evidence cannot identify Supavisor's internal failing stage.
+
 ## 2026-07-20 — Rehearsed the Phase 5 Local logical-recovery precursor
 **Phase:** Phase 5 Local precursor only; every hosted TEST and Production checklist item remains open
 **Labels/environment:** [LOCAL] only; disposable synthetic Supabase/PostgreSQL on loopback 56321/56322; production Firebase, `main`, and hosted Supabase untouched
