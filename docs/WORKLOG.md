@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Advanced hosted TEST to 61 migrations and isolated project pooler refusal
+**Phase:** Phase 2 final hosted-TEST acceptance gate; checklist remains open
+**Labels/environment:** owner-approved `[TEST]` additive schema, protected role, and destructive synthetic checkpoint; `[LOCAL]` fixes and verification
+**Data impact:** added 24 reviewed migration-history rows and 11 TEST reference/config rows; one protected credential lifecycle and one destructive rebuild/pgTAP attempt auto-cleaned; final operational/Auth/Storage/customer rows zero
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm` in `eu-central-2`; live Firebase/site/`main`, Vercel Production/Preview secrets, Resend, and customer data untouched
+**Expected reads/writes/rows:** exact 61-migration manifest, 205 reference/config rows, and two clean synthetic cycles; actual hosted run completed one rebuild and reached pgTAP before failing closed, with zero persistent synthetic residue
+**Done:** Applied reviewed migrations 38–61 atomically; provisioned and authenticated a fresh `app_runtime_login` carrier; fixed PostgreSQL 17 verifier aliases in `e53158e`; fixed rollback-only hosted pgTAP fixtures plus bounded credential/pooler retries in `8320c31`.
+**Verified/reconciled:** 2,062 local tests and production build pass; exact-head CI `29830357343` is six-for-six green, including two clean 61-migration/445-assertion Local DB cycles. Hosted reconciliation shows 61 migrations through `20260721104615`, 205 reference/config rows, zero operational/Auth/Storage rows, contained carrier with zero sessions/locks, and zero security lints. The hosted gate failed safely at pgTAP `080` before its fixture fix; final session and transaction pooler probes both returned `08006`/`ECONNREFUSED`.
+**Production actions performed:** none; no Production read/write, deploy/config/provider action, email, secret activation/rotation, support-access grant, or customer-data access
+**Backup/restore evidence:** n/a; empty TEST schema plus rollback-only synthetic acceptance data
+**Rollback/forward recovery:** automatic role containment and transaction rollback completed; the schema is reproducible from the reviewed manifest. When the project pooler accepts connections again, run one newly confirmed guarded `npm run db:test:greenfield` from `8320c31`/CI `29830357343`; do not change Vercel in the same action.
+**Next:** Attach the exact `08006`/`ECONNREFUSED` timeline to the existing Supabase Database ticket and ask support to inspect or reprovision this project's Supavisor tenant. Continue Local/CI development; after provider recovery, run the separately confirmed hosted gate and tick Phase 2 only on two-cycle success plus zero residue.
+**Gotchas:** Supabase's public status and project control plane report healthy while both shared poolers refuse this project; the direct database endpoint is IPv6-only and this workstation has no route. The unrelated `demokrati` stack owns local port 54322 and was not stopped or altered.
+
 ## 2026-07-21 — Replaced the blocked runtime login with a credential-only carrier
 **Phase:** Phase 2 hosted-TEST recovery foundation; final `[TEST]` checklist item remains open
 **Labels/environment:** one owner-approved bounded `[TEST]` fresh-role canary; `[LOCAL]` carrier implementation and disposable synthetic verification
