@@ -28,6 +28,7 @@ export const REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY =
 export const REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS = 5;
 const REMOTE_PGTAP_STATEMENT_TIMESTAMP_FILES = new Set([
   "080_subscriber_commands.test.sql",
+  "100_verified_webhook_commands.test.sql",
 ]);
 export const REMOTE_PGTAP_NEWSLETTER_FIXTURE_FILES = Object.freeze([
   "080_subscriber_commands.test.sql",

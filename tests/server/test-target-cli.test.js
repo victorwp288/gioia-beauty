@@ -241,7 +241,7 @@ describe("greenfield TEST Supabase CLI", () => {
     const testCalls = database.sql.unsafe.mock.calls.filter(
       ([, , options]) => options?.simple === true,
     );
-    expect(testCalls).toHaveLength(29);
+    expect(testCalls).toHaveLength(30);
     expect(
       testCalls.every(
         ([, args, options]) => args.length === 0 && options.simple === true,
@@ -255,42 +255,60 @@ describe("greenfield TEST Supabase CLI", () => {
     const secondSegmentCall = database.sql.unsafe.mock.calls.findIndex(
       ([source]) => source.includes("a fresh double-opt-in cycle"),
     );
-    expect(boundaryWait).toHaveBeenCalledOnce();
-    expect(boundaryWait).toHaveBeenCalledWith(
+    expect(boundaryWait).toHaveBeenCalledTimes(2);
+    expect(boundaryWait).toHaveBeenNthCalledWith(
+      1,
+      REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS,
+    );
+    expect(boundaryWait).toHaveBeenNthCalledWith(
+      2,
       REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS,
     );
     expect(boundaryWait.mock.invocationCallOrder[0]).toBeLessThan(
       database.sql.unsafe.mock.invocationCallOrder[secondSegmentCall],
     );
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
-      31,
+      32,
       REMOTE_PGTAP_ROLLBACK_SQL,
     );
     expect(database.sql.unsafe).toHaveBeenNthCalledWith(
-      32,
+      33,
       REMOTE_PGTAP_CLEANUP_SQL,
     );
     expect(database.sql.end).toHaveBeenCalledWith({ timeout: 5 });
   });
 
-  it("starts a fresh hosted statement timestamp before re-subscription", () => {
-    const file = "supabase/tests/080_subscriber_commands.test.sql";
-    const source = readFileSync(file, "utf8");
-    const segments = remotePgTapQuerySegments(file, source);
+  it("starts fresh hosted statement timestamps before re-subscription", () => {
+    const cases = [
+      {
+        file: "supabase/tests/080_subscriber_commands.test.sql",
+        first: "unknown unsubscribe tokens",
+        second: "a fresh double-opt-in cycle",
+      },
+      {
+        file: "supabase/tests/100_verified_webhook_commands.test.sql",
+        first: "the old generation is unsubscribed",
+        second: "re-subscribe creates a newer pending generation",
+      },
+    ];
 
-    expect(
-      source.split(REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY),
-    ).toHaveLength(2);
-    expect(segments).toHaveLength(2);
     expect(REMOTE_PGTAP_STATEMENT_TIMESTAMP_DELAY_MS).toBe(5);
-    expect(segments[0]).toContain("unknown unsubscribe tokens");
-    expect(segments[1]).toContain("a fresh double-opt-in cycle");
-    expect(() =>
-      remotePgTapQuerySegments(
-        file,
-        source.replace(REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY, ""),
-      ),
-    ).toThrow("statement timestamp boundary is invalid");
+    for (const { file, first, second } of cases) {
+      const source = readFileSync(file, "utf8");
+      const segments = remotePgTapQuerySegments(file, source);
+      expect(
+        source.split(REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY),
+      ).toHaveLength(2);
+      expect(segments).toHaveLength(2);
+      expect(segments[0]).toContain(first);
+      expect(segments[1]).toContain(second);
+      expect(() =>
+        remotePgTapQuerySegments(
+          file,
+          source.replace(REMOTE_PGTAP_STATEMENT_TIMESTAMP_BOUNDARY, ""),
+        ),
+      ).toThrow("statement timestamp boundary is invalid");
+    }
     expect(() =>
       remotePgTapQuerySegments(
         "supabase/tests/010_catalog_policy.test.sql",

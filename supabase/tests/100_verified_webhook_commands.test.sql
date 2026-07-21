@@ -267,7 +267,7 @@ select results_eq(
   )$$,
   $$values (202::smallint)$$,
   'the old generation is unsubscribed'
-);
+); -- gioia-remote-pgtap-statement-timestamp-boundary
 select results_eq(
   $$select http_status from gioia_private.subscribe_public_newsletter(
     decode(repeat('65', 32), 'hex'), 'webhook:resubscribe:0002',

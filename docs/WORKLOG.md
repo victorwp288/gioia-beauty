@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Extended hosted timestamp parity to webhook re-subscription
+**Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
+**Labels/environment:** one owner-approved `[TEST]` rollback-only pgTAP proof plus one bounded Postgres-log read; `[LOCAL]` transport correction
+**Data impact:** one 28-file hosted pgTAP attempt with temporary `pgtap` create/drop and rollback-only synthetic fixtures; zero retained operational/Auth/Storage/customer rows
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` plus local `refactor`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** one rollback-only 28-file/443-assertion suite and one five-minute provider-log window; no migration replay, runtime credential lifecycle, or retained table rows
+**Done:** Exact-head CI `29858144369` passed six-for-six. The isolated hosted suite advanced beyond `080` and stopped safely in `100_verified_webhook_commands.test.sql` with the same SQLSTATE `23514`: its separate stale-webhook scenario also compresses subscribe/confirm/unsubscribe/re-subscribe into one query message. Added the same filename/digest/marker-pinned boundary and 5 ms wait immediately before that re-subscribe. A full suite audit found no other same-subscriber re-subscription cycle; `135` uses explicit fixed evidence timestamps only.
+**Verified/reconciled:** focused 4 files/34 tests pass; the marker splits assertions 1–17 from 18–21 while preserving one transaction, ordered plan 21, rollback, and aggregate 443 assertions. The failed proof dropped `pgtap`; no full gate or rebuild began.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; synthetic TEST-only rollback suite and no customer data
+**Rollback/forward recovery:** revert the `100` boundary/manifest revision; forward recovery is independent review, exact-head green CI, then one isolated hosted pgTAP proof before the authorized full gate
+**Next:** Complete independent review, commit/push this second pinned boundary, require exact-head CI, and rerun the isolated hosted pgTAP suite once. Only a 28-file/443-assertion pass permits the full authorized two-cycle TEST gate.
+**Gotchas:** The earlier failure in `080` masked the later equivalent transport mismatch in `100`; repository-wide command-cycle audit is now explicit rather than relying on first-failure discovery.
+
 ## 2026-07-21 — Separated hosted pgTAP re-subscription timestamps
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** one owner-approved `[TEST]` exact-head rollback-only pgTAP proof; `[LOCAL]` transport hardening
