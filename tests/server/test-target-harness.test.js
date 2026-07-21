@@ -2,7 +2,10 @@ import { EventEmitter } from "node:events";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { withGreenfieldTestLock } from "../../scripts/test-target-harness.mjs";
+import {
+  GREENFIELD_RUNTIME_ROLE_SQL,
+  withGreenfieldTestLock,
+} from "../../scripts/test-target-harness.mjs";
 import {
   greenfieldChildEnvironment,
   stopGreenfieldOwnerAuthServer,
@@ -64,6 +67,10 @@ describe("greenfield TEST advisory lock", () => {
     const worker = {
       end: vi.fn(async () => {}),
       unsafe: vi.fn(async (query) => {
+        if (query === GREENFIELD_RUNTIME_ROLE_SQL.reapProbe) {
+          events.push("reap-probe");
+          return [{ candidates: 0, terminated: 0 }];
+        }
         if (query.includes("runtime_role.rolcanlogin")) {
           events.push("worker-credential-state");
           return [

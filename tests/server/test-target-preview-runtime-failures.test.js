@@ -17,6 +17,9 @@ function config() {
 
 function state({ cleanupFailures = {}, credentialFailure = null } = {}) {
   const runtimeQuery = async (query) => {
+    if (query === GREENFIELD_RUNTIME_ROLE_SQL.reapProbe) {
+      return [{ candidates: 0, terminated: 0 }];
+    }
     if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
       return [
         {

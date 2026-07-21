@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Diagnosed and fixed the one-shot probe session false positive
+**Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
+**Labels/environment:** owner-approved `[TEST]` guarded checkpoint attempt and read-only reconciliation; `[LOCAL]` operator/session lifecycle correction
+**Data impact:** one read-only runtime credential probe succeeded; the first rebuild refused to start and rolled back; final operational/Auth/Storage/customer rows, sessions, and locks are zero
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` plus local `refactor`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** one 125-second quiet period, one runtime auth probe, then two rebuild/acceptance cycles; actual run stopped at the first rebuild guard with no persistent table writes. Future retry adds one bounded probe-session scan/termination and one zero-session proof.
+**Done:** Supavisor accepted the durable `app_runtime` login, then retained its exact one-shot-probe backend after psql exited; the destructive guard correctly raised `P0001` rather than rebuilding around it. Added post-auth cleanup limited to the current database, `app_runtime`, exact `gioia_greenfield_credential_probe` name, and client-backend type. Zero or one candidate is accepted; multiple candidates are not terminated. Cleanup errors, lingering unknown/`gioia_public_api` sessions, and failed termination stop before callback/rebuild. The wait and one-shot/no-retry auth contract are unchanged.
+**Verified/reconciled:** hosted state remains exactly 63 migrations, 205 reference/config rows, valid safe SCRAM runtime role, and zero operational/Auth/Storage rows, sessions, or advisory locks; read-only hosted lint/advisors pass. Local: 170 test files/2,098 tests, production build, DB static, lint, typecheck, format, and diff check pass. Independent review found no P0/P1; its focused 5-file/31-test sweep confirms exact scope, ambiguity/failure handling, order, one wait, and one auth attempt.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; code/tests/docs only
+**Rollback/forward recovery:** revert this local probe-reap batch; forward recovery is reviewed exact-head CI followed by the separately authorized TEST gate
+**Next:** Commit/push, require exact-head green CI, then rerun the already authorized guarded hosted gate without manual broad termination or extra auth attempts.
+**Gotchas:** The successful psql process can exit before Supavisor releases its matching Postgres backend. Broad app-session termination is forbidden; the post-cleanup zero-session proof remains authoritative.
+
 ## 2026-07-21 — Fixed the hosted credential stop on reserved postgres.js clients
 **Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
 **Labels/environment:** `[LOCAL]` harness correction and regression coverage; prior bounded `[TEST]` evidence only

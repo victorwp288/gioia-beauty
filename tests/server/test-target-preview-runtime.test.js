@@ -21,8 +21,17 @@ function config() {
   };
 }
 
-function harness({ missingCredential = false, sessions = 0 } = {}) {
+function harness({
+  missingCredential = false,
+  probeCandidates = 1,
+  probeSessionCount = probeCandidates,
+  reapFailure,
+  reaped = probeCandidates === 1 ? 1 : 0,
+  sessions = 0,
+} = {}) {
   let credentialIsMissing = missingCredential;
+  let activeSessions = sessions;
+  let activeProbeCandidates = 0;
   const events = [];
   const runtimeQuery = async (query, source) => {
     if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
@@ -40,7 +49,19 @@ function harness({ missingCredential = false, sessions = 0 } = {}) {
     }
     if (query === GREENFIELD_RUNTIME_ROLE_SQL.sessions) {
       events.push(`${source}-sessions`);
-      return [{ active: sessions }];
+      return [{ active: activeSessions }];
+    }
+    if (query === GREENFIELD_RUNTIME_ROLE_SQL.reapProbe) {
+      events.push(`${source}-reap-probe`);
+      if (reapFailure) throw reapFailure;
+      const terminated = Math.min(reaped, activeProbeCandidates);
+      activeSessions = Math.max(0, activeSessions - terminated);
+      return [
+        {
+          candidates: activeProbeCandidates,
+          terminated,
+        },
+      ];
     }
     return [];
   };
@@ -84,7 +105,19 @@ function harness({ missingCredential = false, sessions = 0 } = {}) {
     .fn()
     .mockReturnValueOnce(lockPool)
     .mockReturnValueOnce(worker);
-  return { clientFactory, events, lockClient, lockPool, worker };
+  const credentialVerifier = vi.fn(async () => {
+    events.push("probe");
+    activeProbeCandidates = probeCandidates;
+    activeSessions += probeSessionCount;
+  });
+  return {
+    clientFactory,
+    credentialVerifier,
+    events,
+    lockClient,
+    lockPool,
+    worker,
+  };
 }
 
 describe("greenfield TEST durable direct runtime", () => {
@@ -104,17 +137,32 @@ describe("greenfield TEST durable direct runtime", () => {
     );
   });
 
+  it("scopes probe cleanup to one exact app_runtime probe backend", () => {
+    const reap = GREENFIELD_RUNTIME_ROLE_SQL.reapProbe;
+    expect(reap).toContain("activity.datname = pg_catalog.current_database()");
+    expect(reap).toContain("activity.usename = 'app_runtime'");
+    expect(reap).toContain(
+      "activity.application_name = 'gioia_greenfield_credential_probe'",
+    );
+    expect(reap).toContain("activity.backend_type = 'client backend'");
+    expect(reap).toContain("activity.pid <> pg_catalog.pg_backend_pid()");
+    expect(reap).toContain("where counts.candidates <= 1");
+    expect(reap).toContain("pg_catalog.pg_terminate_backend(");
+    expect(reap).toContain("2000::bigint");
+    expect(reap).not.toContain("gioia_public_api");
+    expect(reap).not.toMatch(/usename\s*=\s*'app_runtime'\s+or/iu);
+  });
+
   it("uses an existing credential after one quiet period and no lifecycle mutation", async () => {
     const state = harness();
     const wait = vi.fn(async () => {});
-    const verifier = vi.fn(async () => {});
     const callback = vi.fn(async () => "ok");
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
         clientFactory: state.clientFactory,
         credentialPropagationWait: wait,
-        credentialVerifier: verifier,
+        credentialVerifier: state.credentialVerifier,
       }),
     ).resolves.toBe("ok");
 
@@ -124,10 +172,10 @@ describe("greenfield TEST durable direct runtime", () => {
     );
     expect(state.lockClient.begin).toBeUndefined();
     expect(state.worker.begin).not.toHaveBeenCalled();
-    expect(verifier).toHaveBeenCalledOnce();
+    expect(state.credentialVerifier).toHaveBeenCalledOnce();
     expect(callback).toHaveBeenCalledWith({ worker: state.worker });
     expect(
-      verifier.mock.calls.every(
+      state.credentialVerifier.mock.calls.every(
         ([request]) => request.databaseUrl === runtimeUrl,
       ),
     ).toBe(true);
@@ -136,13 +184,12 @@ describe("greenfield TEST durable direct runtime", () => {
   it("provisions a missing credential once, waits once, then authenticates", async () => {
     const state = harness({ missingCredential: true });
     const wait = vi.fn(async () => state.events.push("wait"));
-    const verifier = vi.fn(async () => state.events.push("probe"));
     const callback = vi.fn(async () => state.events.push("callback"));
 
     await withGreenfieldTestLock(config(), callback, {
       clientFactory: state.clientFactory,
       credentialPropagationWait: wait,
-      credentialVerifier: verifier,
+      credentialVerifier: state.credentialVerifier,
     });
 
     expect(state.lockClient.begin).toBeUndefined();
@@ -160,6 +207,9 @@ describe("greenfield TEST durable direct runtime", () => {
       "worker-state",
       "worker-sessions",
       "probe",
+      "worker-reap-probe",
+      "worker-state",
+      "worker-sessions",
       "callback",
       "lock-state",
       "lock-sessions",
@@ -172,10 +222,87 @@ describe("greenfield TEST durable direct runtime", () => {
     expect(wait).toHaveBeenCalledWith(
       RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS,
     );
-    expect(verifier).toHaveBeenCalledOnce();
+    expect(state.credentialVerifier).toHaveBeenCalledOnce();
     expect(state.worker.end).toHaveBeenCalledOnce();
     expect(state.lockClient.release).toHaveBeenCalledOnce();
     expect(state.lockPool.end).toHaveBeenCalledOnce();
+  });
+
+  it("reaps only one exact successful probe before callback", async () => {
+    const state = harness();
+    const callback = vi.fn(async () => {
+      state.events.push("callback");
+      return "complete";
+    });
+
+    await expect(
+      withGreenfieldTestLock(config(), callback, {
+        clientFactory: state.clientFactory,
+        credentialPropagationWait: vi.fn(async () => {}),
+        credentialVerifier: state.credentialVerifier,
+      }),
+    ).resolves.toBe("complete");
+
+    expect(state.credentialVerifier).toHaveBeenCalledOnce();
+    expect(state.worker.unsafe).toHaveBeenCalledWith(
+      GREENFIELD_RUNTIME_ROLE_SQL.reapProbe,
+    );
+    expect(state.events.indexOf("probe")).toBeLessThan(
+      state.events.indexOf("worker-reap-probe"),
+    );
+    expect(state.events.indexOf("worker-reap-probe")).toBeLessThan(
+      state.events.indexOf("callback"),
+    );
+  });
+
+  it.each([
+    {
+      name: "ambiguous exact probes",
+      options: { probeCandidates: 2, probeSessionCount: 2 },
+      message: "credential probe backend did not reconcile",
+    },
+    {
+      name: "an unrecognized application session",
+      options: { probeCandidates: 0, probeSessionCount: 1 },
+      message: "runtime sessions must be zero",
+    },
+    {
+      name: "a failed termination that remains active",
+      options: { probeCandidates: 1, reaped: 0 },
+      message: "runtime sessions must be zero",
+    },
+  ])("fails closed after one probe for $name", async ({ message, options }) => {
+    const state = harness(options);
+    const callback = vi.fn();
+
+    await expect(
+      withGreenfieldTestLock(config(), callback, {
+        clientFactory: state.clientFactory,
+        credentialPropagationWait: vi.fn(async () => {}),
+        credentialVerifier: state.credentialVerifier,
+      }),
+    ).rejects.toThrow(message);
+
+    expect(state.credentialVerifier).toHaveBeenCalledOnce();
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("fails generically when exact probe cleanup errors without retrying auth", async () => {
+    const secret = "synthetic cleanup detail";
+    const state = harness({ reapFailure: new Error(secret) });
+    const callback = vi.fn();
+    const error = await withGreenfieldTestLock(config(), callback, {
+      clientFactory: state.clientFactory,
+      credentialPropagationWait: vi.fn(async () => {}),
+      credentialVerifier: state.credentialVerifier,
+    }).catch((caught) => caught);
+
+    expect(error.message).toBe(
+      "Greenfield TEST credential probe backend did not reconcile",
+    );
+    expect(error.message).not.toContain(secret);
+    expect(state.credentialVerifier).toHaveBeenCalledOnce();
+    expect(callback).not.toHaveBeenCalled();
   });
 
   it("refuses active runtime sessions before provisioning or callback", async () => {

@@ -3,6 +3,7 @@ import {
   RUNTIME_ROLE_AUTHENTICATE_SQL,
   RUNTIME_ROLE_AUTHORIZE_SQL,
   RUNTIME_ROLE_ASSUME_SQL,
+  RUNTIME_CREDENTIAL_PROBE_REAP_SQL,
   RUNTIME_PASSWORD_CONFIG_SQL,
   RUNTIME_ROLE_PROVISION_SQL,
   RUNTIME_ROLE_STATE_SQL,
@@ -102,9 +103,41 @@ export async function verifyRuntimeCredential(
   }
 }
 
+export async function reapRuntimeCredentialProbe(sql) {
+  let row;
+  try {
+    row = await singleRow(
+      sql,
+      RUNTIME_CREDENTIAL_PROBE_REAP_SQL,
+      "Greenfield TEST credential probe backend did not reconcile",
+    );
+  } catch {
+    throw new Error(
+      "Greenfield TEST credential probe backend did not reconcile",
+    );
+  }
+  const candidates = Number(row.candidates);
+  const terminated = Number(row.terminated);
+  if (
+    !Number.isInteger(candidates) ||
+    !Number.isInteger(terminated) ||
+    candidates < 0 ||
+    candidates > 1 ||
+    terminated < 0 ||
+    terminated > candidates
+  ) {
+    throw new Error(
+      "Greenfield TEST credential probe backend did not reconcile",
+    );
+  }
+  return Object.freeze({ candidates, terminated });
+}
+
 export async function verifyRuntimeBoundary(sql, config, credentialVerifier) {
   await assertRuntimeRoleBoundary(sql);
   await verifyRuntimeCredential(config, credentialVerifier);
+  await reapRuntimeCredentialProbe(sql);
+  await assertRuntimeRoleBoundary(sql);
 }
 
 export async function prepareRuntimeCredential(

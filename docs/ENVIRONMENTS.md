@@ -93,6 +93,12 @@ Safety rules:
   postgres.js reserved client has no transaction API; the reserved connection
   continues holding the lock throughout provisioning, the unconditional quiet
   period, the one authentication probe, both cycles, and final reconciliation.
+  After that probe succeeds, the operator may terminate at most one lingering
+  backend matching the current database, `app_runtime`, exact
+  `gioia_greenfield_credential_probe` application name, and client-backend type.
+  Ambiguity or cleanup failure stops the gate, and a fresh zero-application-
+  session proof is required before either rebuild; `gioia_public_api` and
+  unknown sessions are never cleanup targets.
 - If the initial schema transaction fails, PostgreSQL rolls the entire
   bootstrap back to the pristine baseline. If interruption occurs after that
   commit but before runtime credential verification, a later approved run
