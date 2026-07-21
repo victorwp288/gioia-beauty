@@ -214,7 +214,7 @@ Everything remains `[LOCAL]` or `[TEST]`.
 - [x] **`[LOCAL]`** Add an append-only, PII-minimized domain change log/high-water sequence covering schedule entries, blocks, vacations, and subscribers so post-cutover mutations are discoverable for audit and rollback.
 - [x] **`[LOCAL]`** Decide and document: same-day/lead time, maximum advance window, slot alignment, admin overrides, buffer meaning, statuses consuming availability, vacation-over-existing-booking behavior, and completed-status semantics.
 - [x] **`[LOCAL]`** Exhaustively test adjacent/partial/exact overlap, variable durations, buffer/closing boundaries, blocks, cancelled records, vacations, leap dates, Rome midnight/DST, stale requests, reschedules, and parallel requests.
-- [ ] **`[TEST]`** Run migrations from zero, seed, reset, rerun, advisors, RLS-negative tests, and concurrency tests in staging. Many parallel overlapping requests must yield exactly one accepted booking.
+- [x] **`[TEST]`** Run migrations from zero, seed, reset, rerun, advisors, RLS-negative tests, and concurrency tests in staging. Many parallel overlapping requests must yield exactly one accepted booking.
 
 **Done when:** a clean local database can be recreated from version control; the database—not UI timing—prevents overlap; and every business rule has an executable test.
 
@@ -224,7 +224,7 @@ Everything remains `[LOCAL]` or `[TEST]`.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement `GET /api/availability?date=&serviceId=&variantId=` returning slots only, with bounded reads and no PII.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement idempotent `POST /api/bookings`; derive catalog data server-side and return 409 for occupied slots.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement authenticated appointment/block create, edit, reschedule, soft-cancel, vacation, subscriber, count, and bounded export operations.
-- [ ] **`[LOCAL]` / `[TEST]`** Implement Supabase Auth for the owner with explicit admin authorization, secure SSR cookies, CSRF defenses, bounded session lifetime, refresh, logout/revocation, and correct 401/403 behavior. Sensitive mutations recheck fresh user/session state and current authorization rather than trusting cached claims alone.
+- [x] **`[LOCAL]` / `[TEST]`** Implement Supabase Auth for the owner with explicit admin authorization, secure SSR cookies, CSRF defenses, bounded session lifetime, refresh, logout/revocation, and correct 401/403 behavior. Sensitive mutations recheck fresh user/session state and current authorization rather than trusting cached claims alone.
 - [ ] **`[LOCAL]` / `[TEST]`** Add public abuse defenses: IP/account limits plus CAPTCHA/App Check-equivalent verification where useful. Public GET cost must also be bounded.
 - [ ] **`[LOCAL]` / `[TEST]`** Commit domain changes and immutable recipient/template snapshots atomically with the outbox. Drain it with a Vercel Cron worker authenticated by the exact `CRON_SECRET` bearer (not a request signature or replay fence), using a database claim lease/`SKIP LOCKED`, stale-lease recovery, provider idempotency within its proven retention window, dead-letter alerting, and signed/replay-deduplicated delivery webhooks; tolerate duplicate and missed Cron delivery, and support customer, admin, and newsletter confirmation mail.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement newsletter normalized uniqueness, consent timestamp/source/policy version, non-enumerating responses, signed one-click unsubscribe, and preferably double opt-in.

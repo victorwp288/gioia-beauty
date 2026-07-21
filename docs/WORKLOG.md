@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Completed the hosted Phase 2 gate and owner Auth proof
+**Phase:** Phase 2 complete; Phase 3 owner Auth complete; remaining Phase 3/4 hosted/Preview/provider gates stay open
+**Labels/environment:** owner-approved `[TEST]` two-cycle destructive/synthetic acceptance and final bounded read-only reconciliation; `[LOCAL]` documentation only afterward
+**Data impact:** two atomic 63-migration rebuilds with synthetic pgTAP, booking, owner, Auth, outbox, and abuse fixtures; every cycle cleaned to zero operational/Auth/Storage rows; no customer or Production data
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` in `eu-central-2`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** exactly two 63-migration rebuilds, 205 reference rows, 28 pgTAP files/443 assertions per cycle, six Data API denials per cycle, four bounded concurrency races per cycle, and one owner login/session/logout per cycle; final rows and runtime sessions must be zero
+**Done:** Commit `b3fe610` and exact push CI run `29863407987` passed all six jobs. The guarded gate completed cycles A and B from separate rebuilds with `removedMigrations=[63,63]`, matching schema/reference fingerprints, real hosted owner Auth, and zero residue. Ticked the final Phase 2 TEST item and the now-hosted-proven Phase 3 owner Auth item only.
+**Verified/reconciled:** final JSON: `cycles=2`, `bootstrapped=false`, `referenceRows=205`, schema `9b3613648afba97f55e9272282681a97f1ed1bd24e1534947d5f9232db1d87b3`, references `d54690cdf5617fdcc00ce36e5fa326a84179474f64c230abc23f8caa6b90473e`. Final read-only state: 63 migrations and zero operational/Auth/Storage rows or runtime sessions. Local: 2,102 tests, TS7/TS6, lint, format, DB static, production build; independent review found no P0/P1.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a for disposable synthetic TEST; Production backup/restore and real-source recovery gates remain open
+**Rollback/forward recovery:** code rollback is reverting `b3fe610` and `16f91e8`; TEST forward recovery is another exact-head locked rebuild. The current TEST target is already clean and needs no rollback.
+**Next:** Obtain separate `[REMOTE-CONFIG]` approval to bind Vercel Preview to this TEST project and fake email, then run hosted API/browser/visual/accessibility/maintenance traffic proof. Keep Sentry/CAPTCHA/provider activation, privacy owner/legal decisions, real-source snapshot import, and Phase 4 source freeze separate.
+**Gotchas:** The healthy replacement proves the schema and app design are sound; the old failure was project-specific pooler state. Keep the environment model to Local + one disposable TEST + future paid Production—provider billing tiers and database roles are separate concerns, not extra app environments.
+
 ## 2026-07-21 — Added the missing inter-cycle Supavisor drain
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** owner-approved `[TEST]` exact-head gate and bounded read-only reconciliation; `[LOCAL]` lifecycle correction
