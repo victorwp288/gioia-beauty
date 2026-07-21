@@ -39,6 +39,25 @@ preserve the role and credential, prove their fingerprint is unchanged, require
 zero active runtime sessions, and retain the serialized advisory lock and full
 two-cycle acceptance gate.
 
+The replacement starts from the provider's empty hosted baseline, before
+`app_runtime` exists. The operator therefore initializes under its existing
+exact target/CI/repository preflight and advisory lock, before credential
+provisioning. It accepts only the pinned provider baseline or the already
+complete reviewed state; partial migrations, unknown roles/schemas/public
+objects, Auth rows, or Storage rows fail closed. The empty path applies the full
+63-file reviewed manifest in one transaction, records and byte-verifies all 63
+migration-history rows, and reconciles 205 reference/config rows plus zero
+operational/Auth/Storage residue before the runtime login can be created.
+The registered pristine manifest hashes the full known hosted PG17 provider
+catalog and privilege surface without exporting definitions or credential
+verifiers. Because a brand-new project has no `supabase_migrations` schema, the
+atomic bootstrap creates the canonical `version`/`statements`/`name` history
+table before replay. Resumed managed state must also match the canonical
+private-schema fingerprint, including standalone custom types and immutable
+sequence structure while excluding mutable sequence position. Each destructive
+transaction re-asserts that fingerprint immediately before teardown; migration
+history alone is insufficient evidence.
+
 ## Consequences
 
 - The obsolete carrier role, role switch, repeated password rotations, recovery
@@ -51,3 +70,6 @@ two-cycle acceptance gate.
   advisory-lock protocol before destructive reset.
 - The broken prior project is retained only as incident evidence and is not a
   migration source or fallback environment.
+- Bootstrap failure before commit leaves the empty provider baseline unchanged;
+  interruption after commit is resumable only from the exact verified managed
+  state and never causes a second migration application.

@@ -87,8 +87,6 @@ select
     'version',e.extversion,'relocatable',e.extrelocatable,'config',e.extconfig,'condition',e.extcondition)
     order by e.extname) from pg_catalog.pg_extension e join pg_catalog.pg_roles r on r.oid=e.extowner
     join pg_catalog.pg_namespace n on n.oid=e.extnamespace) as extensions,
-  (select min(created_by) from supabase_migrations.schema_migrations)
-    as migration_created_by,
   ${SURVIVING_DEFAULT_ACLS_SQL} as default_acls,
   ${SURVIVING_SCHEMA_ACLS_SQL} as schema_acls`;
 
@@ -162,8 +160,15 @@ function exactRow(rows, message) {
   return rows[0];
 }
 
-export async function rebuildGreenfieldTestDatabaseInTransaction(transaction) {
-  if (!transaction || typeof transaction.unsafe !== "function") {
+export async function rebuildGreenfieldTestDatabaseInTransaction(
+  transaction,
+  assertManagedState,
+) {
+  if (
+    !transaction ||
+    typeof transaction.unsafe !== "function" ||
+    typeof assertManagedState !== "function"
+  ) {
     throw new Error("Greenfield TEST teardown requires an atomic transaction");
   }
   for (const statement of GREENFIELD_REBUILD_TRANSACTION_SQL) {
@@ -178,6 +183,7 @@ export async function rebuildGreenfieldTestDatabaseInTransaction(transaction) {
     throw new Error("Greenfield TEST rebuild pre-state is invalid");
   }
   await transaction.unsafe(GREENFIELD_REBUILD_SNAPSHOT_SQL);
+  await assertManagedState(transaction);
   for (const statement of GREENFIELD_REBUILD_MUTATION_SQL) {
     await transaction.unsafe(statement);
   }

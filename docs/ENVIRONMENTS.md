@@ -36,6 +36,24 @@ pgTAP byte manifests, two complete rebuild/acceptance cycles, matching schema
 and reference-data fingerprints, and final zero residue. Phase 2 remains open
 until that evidence exists.
 
+The first hosted checkpoint may initialize this replacement only through the
+guarded empty-project path. Under the same exact target, pushed-SHA/green-CI
+preflight, pinned migration-byte manifest, and serialized advisory lock used by
+the two-cycle gate, the initializer accepts exactly two states: the complete
+reviewed 63-migration clean state, or a pristine hosted Supabase baseline with
+zero migration history, no Gioia roles/schema or public user objects, and zero
+Auth/Storage rows. It refuses partial history or catalog/data drift. From the
+pristine state it first requires the live-registered PG17 provider-catalog
+SHA-256 plus exact aggregate bounds across database/role attributes and
+memberships, schemas/ACLs/default ACLs, extensions, relations, columns,
+constraints, indexes, routines, triggers, policies, standalone types, event
+triggers, and publications. The pristine target intentionally has no
+`supabase_migrations` schema; the same transaction creates the current
+three-column CLI-compatible history table, applies all 63 migrations, verifies
+every stored history statement against the reviewed bytes, reconciles exactly 205
+reference/config rows and zero operational/Auth/Storage residue, and only then
+provisions the direct runtime credential and enters cycles A and B.
+
 A current pinned-CA handshake to the replacement pooler chains to Supabase Root
 2021 with SHA-256 fingerprint
 `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`.
@@ -69,6 +87,17 @@ Safety rules:
   the same zero-session/no-Preview precondition and unchanged SCRAM proof.
   Reset/rebuild tooling must also prove `app_runtime` has no object ownership or
   table/sequence ACL and only the reviewed runtime function boundary.
+- If the initial schema transaction fails, PostgreSQL rolls the entire
+  bootstrap back to the pristine baseline. If interruption occurs after that
+  commit but before runtime credential verification, a later approved run
+  recognizes only the exact 63-migration clean state, does not replay the
+  bootstrap, and resumes the one-time credential gate before either rebuild.
+  Managed resume additionally requires the canonical private-schema SHA-256,
+  including standalone enum/domain/range/type definitions and ACLs plus
+  immutable sequence type/start/increment/min/max/cache/cycle settings; mutable
+  sequence position is intentionally excluded. The same canonical fingerprint
+  is re-asserted inside each rebuild transaction immediately before teardown, so
+  a valid 63-row history cannot mask manual catalog drift.
 - Connection mode is fixed by workload. Trusted migration/operator work prefers the
   direct `db.<ref>.supabase.co:5432` endpoint when its runner has IPv6 (or the
   separately purchased IPv4 add-on); an explicitly pinned shared session pooler

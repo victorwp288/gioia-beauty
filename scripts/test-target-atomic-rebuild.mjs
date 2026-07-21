@@ -15,19 +15,15 @@ import { REVIEWED_MIGRATION_DIGESTS } from "./test-target-reviewed-manifest.mjs"
 
 const HISTORY_INSERT_SQL = `
   insert into supabase_migrations.schema_migrations (
-    version, statements, name, created_by
-  ) select $1::text, array[$2::text], $3::text, migration_created_by
-  from gioia_rebuild_snapshot
+    version, statements, name
+  ) values ($1::text, array[$2::text], $3::text)
 `;
 const HISTORY_VERIFY_SQL = `
   select version::text as version, name::text as name,
     statements[1]::text as statement
   from supabase_migrations.schema_migrations history
   where name is not null and octet_length(name) between 1 and 255 and
-    created_by is not null and cardinality(statements)=1 and
-    idempotency_key is null and rollback is null and
-    (select count(distinct created_by)
-      from supabase_migrations.schema_migrations)=1
+    cardinality(statements)=1
   order by version::text
 `;
 const TRANSACTION_CONTROL =
@@ -162,6 +158,57 @@ function validatePlan(plan) {
 
 async function noFault() {}
 
+export async function verifyGreenfieldMigrationHistory(sql, plan) {
+  if (!sql || typeof sql.unsafe !== "function") {
+    throw new Error(
+      "Greenfield TEST migration history requires a database client",
+    );
+  }
+  const migrations = validatePlan(plan);
+  const history = await sql.unsafe(HISTORY_VERIFY_SQL);
+  if (
+    history.length !== migrations.length ||
+    history.some(
+      (row, index) =>
+        row.version !== migrations[index].version ||
+        row.name !== migrations[index].name ||
+        row.statement !== migrations[index].getSource(),
+    )
+  ) {
+    throw new Error("Greenfield TEST atomic migration history is invalid");
+  }
+  return migrations;
+}
+
+export async function applyGreenfieldMigrationPlan(
+  sql,
+  plan,
+  { fault = noFault, historyInsertSql = HISTORY_INSERT_SQL } = {},
+) {
+  if (
+    !sql ||
+    typeof sql.unsafe !== "function" ||
+    typeof fault !== "function" ||
+    typeof historyInsertSql !== "string" ||
+    historyInsertSql.length === 0
+  ) {
+    throw new Error("Greenfield TEST migration application is invalid");
+  }
+  const migrations = validatePlan(plan);
+  for (const [index, migration] of migrations.entries()) {
+    await sql.unsafe(migration.getBody());
+    await fault("after-migration", index);
+    await sql.unsafe(historyInsertSql, [
+      migration.version,
+      migration.getSource(),
+      migration.name,
+    ]);
+    await fault("after-history", index);
+  }
+  await verifyGreenfieldMigrationHistory(sql, plan);
+  return migrations;
+}
+
 export async function rebuildGreenfieldTestAtomically(
   sql,
   plan,
@@ -186,30 +233,13 @@ export async function rebuildGreenfieldTestAtomically(
   const migrations = validatePlan(plan);
 
   return sql.begin(async (transaction) => {
-    const teardown = await rebuild(transaction);
+    const teardown = await rebuild(transaction, async (managedTransaction) => {
+      await fault("before-pre-teardown-check", -1);
+      await assertClean(managedTransaction, GREENFIELD_TARGET_VERSIONS);
+      await fault("after-pre-teardown-check", -1);
+    });
     await fault("after-teardown", -1);
-    for (const [index, migration] of migrations.entries()) {
-      await transaction.unsafe(migration.getBody());
-      await fault("after-migration", index);
-      await transaction.unsafe(HISTORY_INSERT_SQL, [
-        migration.version,
-        migration.getSource(),
-        migration.name,
-      ]);
-      await fault("after-history", index);
-    }
-    const history = await transaction.unsafe(HISTORY_VERIFY_SQL);
-    if (
-      history.length !== migrations.length ||
-      history.some(
-        (row, index) =>
-          row.version !== migrations[index].version ||
-          row.name !== migrations[index].name ||
-          row.statement !== migrations[index].getSource(),
-      )
-    ) {
-      throw new Error("Greenfield TEST atomic migration history is invalid");
-    }
+    await applyGreenfieldMigrationPlan(transaction, plan, { fault });
     const [runtimePreservation, ...extraRuntimePreservation] =
       await transaction.unsafe(GREENFIELD_REBUILD_RUNTIME_PRESERVATION_SQL);
     if (

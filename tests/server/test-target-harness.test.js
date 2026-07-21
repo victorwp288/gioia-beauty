@@ -27,6 +27,70 @@ function config() {
 }
 
 describe("greenfield TEST advisory lock", () => {
+  it("initializes the schema before runtime credential preparation and callback", async () => {
+    const events = [];
+    const lockClient = {
+      unsafe: vi.fn(async (query) => {
+        if (query.includes("pg_try_advisory_lock")) {
+          events.push("lock");
+          return [{ acquired: true }];
+        }
+        if (query.includes("pg_advisory_unlock")) return [{ released: true }];
+        if (query.includes("runtime_role.rolcanlogin")) {
+          events.push("credential-state");
+          return [
+            {
+              attributes_are_safe: true,
+              credential_is_missing: false,
+              credential_is_safe: true,
+              has_unsafe_access: false,
+              has_unsafe_membership: false,
+              rolcanlogin: true,
+            },
+          ];
+        }
+        if (query.includes("pg_stat_activity")) return [{ active: 0 }];
+        throw new Error(`unexpected SQL: ${query}`);
+      }),
+      release: vi.fn(async () => {}),
+    };
+    const lockPool = {
+      reserve: vi.fn(async () => lockClient),
+      end: vi.fn(async () => {}),
+    };
+    const worker = { end: vi.fn(async () => {}) };
+    const clientFactory = vi
+      .fn()
+      .mockReturnValueOnce(lockPool)
+      .mockReturnValueOnce(worker);
+    const initialize = vi.fn(async ({ worker: actualWorker }) => {
+      expect(actualWorker).toBe(worker);
+      events.push("initialize");
+      return { bootstrapped: true };
+    });
+    const callback = vi.fn(async ({ initialization }) => {
+      events.push("callback");
+      expect(initialization).toEqual({ bootstrapped: true });
+      return "complete";
+    });
+
+    await expect(
+      withGreenfieldTestLock(config(), callback, {
+        clientFactory,
+        credentialPropagationWait: async () => events.push("wait"),
+        credentialVerifier: async () => events.push("credential-probe"),
+        initialize,
+      }),
+    ).resolves.toBe("complete");
+    expect(events.indexOf("initialize")).toBeLessThan(events.indexOf("wait"));
+    expect(events.indexOf("wait")).toBeLessThan(
+      events.indexOf("credential-probe"),
+    );
+    expect(events.indexOf("credential-probe")).toBeLessThan(
+      events.indexOf("callback"),
+    );
+  });
+
   it("closes the lock pool when worker initialization fails", async () => {
     const lockPool = { reserve: vi.fn(), end: vi.fn(async () => {}) };
     const failure = new Error("synthetic worker init failure");

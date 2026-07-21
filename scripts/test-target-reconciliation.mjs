@@ -2,7 +2,10 @@ import {
   GREENFIELD_EXPECTED_ROLE_NAMES,
   GREENFIELD_EXPECTED_SCHEMA_NAMES,
 } from "./test-target-fixture-sql.mjs";
-import { GREENFIELD_REFERENCE_CHECKSUM } from "./test-target-fingerprint-sql.mjs";
+import {
+  GREENFIELD_REFERENCE_CHECKSUM,
+  GREENFIELD_SCHEMA_FINGERPRINT,
+} from "./test-target-fingerprint-sql.mjs";
 
 function integer(row, field) {
   const value = Number(row?.[field]);
@@ -71,7 +74,7 @@ export function assertGreenfieldFingerprintRow(row) {
   const schemaFingerprint = String(row?.schema_fingerprint ?? "");
   const referenceChecksum = String(row?.reference_checksum ?? "");
   if (
-    !/^[0-9a-f]{64}$/u.test(schemaFingerprint) ||
+    schemaFingerprint !== GREENFIELD_SCHEMA_FINGERPRINT ||
     referenceChecksum !== GREENFIELD_REFERENCE_CHECKSUM ||
     integer(row, "public_relations") !== 0 ||
     integer(row, "public_functions") !== 0 ||

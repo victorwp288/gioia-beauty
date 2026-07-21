@@ -128,9 +128,10 @@ describe("greenfield TEST guarded rebuild SQL", () => {
   it("runs the exact reviewed target teardown in one transaction", async () => {
     const migrationCount = GREENFIELD_TARGET_VERSIONS.length;
     const sql = database({ migrationCount });
+    const assertManagedState = vi.fn(async () => {});
 
     await expect(
-      rebuildGreenfieldTestDatabaseInTransaction(sql),
+      rebuildGreenfieldTestDatabaseInTransaction(sql, assertManagedState),
     ).resolves.toEqual({
       removedMigrations: migrationCount,
     });
@@ -143,6 +144,12 @@ describe("greenfield TEST guarded rebuild SQL", () => {
     expect(calls.indexOf(GREENFIELD_REBUILD_SNAPSHOT_SQL)).toBeLessThan(
       calls.indexOf(GREENFIELD_REBUILD_MUTATION_SQL[0]),
     );
+    expect(assertManagedState).toHaveBeenCalledExactlyOnceWith(sql);
+    expect(assertManagedState.mock.invocationCallOrder[0]).toBeLessThan(
+      sql.unsafe.mock.invocationCallOrder[
+        calls.indexOf(GREENFIELD_REBUILD_MUTATION_SQL[0])
+      ],
+    );
     expect(calls.at(-1)).toBe(GREENFIELD_REBUILD_VERIFY_SQL);
   });
 
@@ -152,7 +159,7 @@ describe("greenfield TEST guarded rebuild SQL", () => {
       const sql = database({ migrationCount });
 
       await expect(
-        rebuildGreenfieldTestDatabaseInTransaction(sql),
+        rebuildGreenfieldTestDatabaseInTransaction(sql, async () => {}),
       ).rejects.toThrow("pre-state is invalid");
       expect(sql.unsafe).not.toHaveBeenCalledWith(
         GREENFIELD_REBUILD_SNAPSHOT_SQL,
@@ -170,7 +177,7 @@ describe("greenfield TEST guarded rebuild SQL", () => {
       removed: targetCount - 1,
     });
     await expect(
-      rebuildGreenfieldTestDatabaseInTransaction(countMismatch),
+      rebuildGreenfieldTestDatabaseInTransaction(countMismatch, async () => {}),
     ).rejects.toThrow("migration removal did not reconcile");
     expect(countMismatch.unsafe).not.toHaveBeenCalledWith(
       GREENFIELD_REBUILD_VERIFY_SQL,
@@ -181,7 +188,10 @@ describe("greenfield TEST guarded rebuild SQL", () => {
       verify: verifiedRow({ extensions_preserved: false }),
     });
     await expect(
-      rebuildGreenfieldTestDatabaseInTransaction(preservationMismatch),
+      rebuildGreenfieldTestDatabaseInTransaction(
+        preservationMismatch,
+        async () => {},
+      ),
     ).rejects.toThrow("rebuild verification failed");
   });
 });

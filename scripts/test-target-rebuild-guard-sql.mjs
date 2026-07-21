@@ -46,11 +46,7 @@ begin
   end if;
   if exists (select 1 from supabase_migrations.schema_migrations
       where name is null or octet_length(name) not between 1 and 255 or
-        created_by is null or
-        octet_length(created_by) not between 3 and 320 or
-        cardinality(statements)<>1 or idempotency_key is not null or
-        rollback is not null) or
-     (select count(distinct created_by) from supabase_migrations.schema_migrations)<>1 then
+        cardinality(statements)<>1) then
     raise exception 'Greenfield TEST migration history metadata is not exact';
   end if;
 

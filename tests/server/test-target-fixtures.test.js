@@ -10,6 +10,7 @@ import {
   GREENFIELD_OWNER_PROVISION_SQL,
   GREENFIELD_FINGERPRINT_SQL,
   GREENFIELD_REFERENCE_CHECKSUM,
+  GREENFIELD_SCHEMA_FINGERPRINT,
   GREENFIELD_RESIDUE_SQL,
   GREENFIELD_STATE_SQL,
   assertCleanGreenfieldRow,
@@ -34,7 +35,7 @@ const targets = dates.map((localDate) => ({
   variantId: "synthetic-variant",
 }));
 const fingerprint = {
-  schemaFingerprint: "a".repeat(64),
+  schemaFingerprint: GREENFIELD_SCHEMA_FINGERPRINT,
   referenceChecksum: GREENFIELD_REFERENCE_CHECKSUM,
 };
 
@@ -179,6 +180,33 @@ describe("greenfield TEST fixture reconciliation", () => {
     expect(() =>
       assertGreenfieldFingerprintRow(
         fingerprintRow({ reference_checksum: "b".repeat(64) }),
+      ),
+    ).toThrow("catalog fingerprint does not reconcile");
+  });
+
+  it("fingerprints standalone types and immutable sequence structure", () => {
+    expect(GREENFIELD_FINGERPRINT_SQL).toContain("'standalone_type'");
+    expect(GREENFIELD_FINGERPRINT_SQL).toContain("from pg_catalog.pg_type t");
+    expect(GREENFIELD_FINGERPRINT_SQL).toContain("pg_catalog.pg_enum e");
+    expect(GREENFIELD_FINGERPRINT_SQL).toContain("'sequence'");
+    expect(GREENFIELD_FINGERPRINT_SQL).toContain(
+      "from pg_catalog.pg_sequences s",
+    );
+    for (const field of [
+      "data_type",
+      "start_value",
+      "increment_by",
+      "min_value",
+      "max_value",
+      "cache_size",
+      "cycle",
+    ]) {
+      expect(GREENFIELD_FINGERPRINT_SQL).toContain(`s.${field}`);
+    }
+    expect(GREENFIELD_FINGERPRINT_SQL).not.toContain("s.last_value");
+    expect(() =>
+      assertGreenfieldFingerprintRow(
+        fingerprintRow({ schema_fingerprint: "f".repeat(64) }),
       ),
     ).toThrow("catalog fingerprint does not reconcile");
   });

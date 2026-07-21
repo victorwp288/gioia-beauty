@@ -43,14 +43,18 @@ function database(plan, { history = exactHistory(plan) } = {}) {
 }
 
 function operations(fault = async () => {}) {
-  return {
+  const operations = {
     assertClean: vi.fn(async (_transaction, versions) => {
       expect(versions).toEqual(GREENFIELD_TARGET_VERSIONS);
       return fingerprint;
     }),
     fault,
-    rebuild: vi.fn(async () => ({ removedMigrations: 35 })),
+    rebuild: vi.fn(async (transaction, assertManagedState) => {
+      await assertManagedState(transaction);
+      return { removedMigrations: 35 };
+    }),
   };
+  return operations;
 }
 
 describe("greenfield TEST atomic migration plan", () => {
@@ -88,7 +92,7 @@ describe("greenfield TEST atomic migration plan", () => {
 
     expect(sql.begin).toHaveBeenCalledOnce();
     expect(injected.rebuild).toHaveBeenCalledOnce();
-    expect(injected.assertClean).toHaveBeenCalledOnce();
+    expect(injected.assertClean).toHaveBeenCalledTimes(2);
     expect(sql.state.committed).toBe(true);
     expect(sql.unsafe).toHaveBeenCalledTimes(128);
     const migrations = plan.getMigrations();
@@ -100,6 +104,8 @@ describe("greenfield TEST atomic migration plan", () => {
   });
 
   it.each([
+    ["before-pre-teardown-check", -1],
+    ["after-pre-teardown-check", -1],
     ["after-teardown", -1],
     ["after-migration", 0],
     ["after-migration", 58],

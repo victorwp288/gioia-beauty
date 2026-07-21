@@ -23,6 +23,15 @@ function harness(overrides = {}) {
   let rebuildIndex = 0;
   const targetCount = GREENFIELD_TARGET_VERSIONS.length;
   const operationOverrides = {
+    bootstrap: vi.fn(async () => {
+      calls.push("bootstrap");
+      return {
+        bootstrapped: true,
+        migrationCount: targetCount,
+        referenceRows: 205,
+        ...fingerprint,
+      };
+    }),
     createCli: vi.fn(() => cli),
     createPlan: vi.fn(() => {
       calls.push("plan");
@@ -45,9 +54,10 @@ function harness(overrides = {}) {
       calls.push("preflight");
       return { ciRunId: "29068500383", commitSha: "c".repeat(40) };
     }),
-    withLock: vi.fn(async (_config, callback) => {
+    withLock: vi.fn(async (_config, callback, { initialize }) => {
       calls.push("lock");
-      return callback({ worker });
+      const initialization = await initialize({ worker });
+      return callback({ initialization, worker });
     }),
     ...overrides,
   };
@@ -78,6 +88,9 @@ describe("greenfield TEST two-cycle operator", () => {
       "lock",
       "preflight",
       "manifest",
+      "bootstrap",
+      "preflight",
+      "manifest",
       "version",
       "lint",
       "rebuild",
@@ -93,9 +106,11 @@ describe("greenfield TEST two-cycle operator", () => {
     ]);
     expect(result).toEqual({
       cycles: 2,
+      bootstrapped: true,
       ciRunId: "29068500383",
       commitSha: "c".repeat(40),
       projectRef: "hzibzwhrwmljgjjdzspi",
+      referenceRows: 205,
       removedMigrations: [
         GREENFIELD_TARGET_VERSIONS.length,
         GREENFIELD_TARGET_VERSIONS.length,
@@ -114,6 +129,18 @@ describe("greenfield TEST two-cycle operator", () => {
       expectedFingerprint: fingerprint,
       worker: state.worker,
     });
+  });
+
+  it("rejects a missing or invalid bootstrap result before either cycle", async () => {
+    const state = harness({ bootstrap: vi.fn(async () => undefined) });
+    await expect(
+      runGreenfieldTestProject(
+        {},
+        { operationOverrides: state.operationOverrides },
+      ),
+    ).rejects.toThrow("bootstrap result is invalid");
+    expect(state.operationOverrides.rebuild).not.toHaveBeenCalled();
+    expect(state.operationOverrides.runAcceptance).not.toHaveBeenCalled();
   });
 
   it.each([35, 37, GREENFIELD_TARGET_VERSIONS.length - 1])(

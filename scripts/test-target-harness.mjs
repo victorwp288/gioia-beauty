@@ -36,10 +36,14 @@ export async function withGreenfieldTestLock(
     clientFactory = postgres,
     credentialPropagationWait,
     credentialVerifier,
+    initialize,
   } = {},
 ) {
   if (typeof callback !== "function") {
     throw new Error("Greenfield TEST lock requires a callback");
+  }
+  if (initialize !== undefined && typeof initialize !== "function") {
+    throw new Error("Greenfield TEST lock initializer is invalid");
   }
   const caCertificate = config.getDatabaseCaCertificate();
   const lockPool = createTestTargetDatabaseClient(
@@ -64,6 +68,9 @@ export async function withGreenfieldTestLock(
       throw new Error("Greenfield TEST target is already locked");
     }
     locked = true;
+    const initialization = initialize
+      ? await initialize({ worker })
+      : undefined;
     await prepareRuntimeCredential(
       lockClient,
       config,
@@ -71,7 +78,7 @@ export async function withGreenfieldTestLock(
       credentialPropagationWait,
     );
     try {
-      result = await callback({ worker });
+      result = await callback({ initialization, worker });
     } catch (error) {
       operationError = error;
     }

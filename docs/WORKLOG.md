@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Prepared an exact guarded bootstrap for the replacement TEST project
+**Phase:** Phase 2 hosted bootstrap preparation; Phase 2/3/4 hosted acceptance remains open
+**Labels/environment:** owner-approved `[REMOTE-CONFIG]` TEST credential/Auth changes, read-only `[TEST]` catalog inspection, and `[LOCAL]` operator hardening
+**Data impact:** rotated TEST operator password; disabled public signup while Email and Confirm Email remain enabled; zero database/Auth-user/Storage/customer rows and zero schema writes
+**Target:** replacement TEST Supabase `hzibzwhrwmljgjjdzspi` in `eu-central-2`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** completed one Auth config update, two operator-password rotations, and bounded hash/count-only catalog reads; next gate applies 63 migrations/205 reference rows, provisions one runtime SCRAM, runs two synthetic rebuild cycles, and finishes with zero residue
+**Done:** Stored distinct final operator/runtime passwords byte-for-byte in macOS Keychain. Added an advisory-lock/CI/target-guarded empty-project bootstrap that accepts only the live-pinned hosted PG17 provider catalog or exact managed state, atomically applies and byte-verifies all 63 migrations, reconciles 205 reference rows/zero residue, then provisions `app_runtime` before the existing two-cycle gate. Managed fingerprints now include standalone types and immutable sequence structure and are rechecked immediately before teardown.
+**Verified/reconciled:** live pristine catalog SHA-256 `da4e0fd1681a96db8329447303cfe07485066d50d649e1fbf4d6c793f3debddd` with exact aggregate counts; canonical managed SHA-256 `9b3613648afba97f55e9272282681a97f1ed1bd24e1534947d5f9232db1d87b3`; 170 Vitest files/2,092 tests pass (2 files/4 tests skipped), DB static, lint, typecheck, format, production build, and diff check pass. Phase 2 remains unchecked pending the hosted run.
+**Production actions performed:** none; no Production read/write/config/deploy, provider email, support-access, or customer-data action
+**Backup/restore evidence:** n/a; empty TEST target has no customer/operational data and no schema mutation occurred
+**Rollback/forward recovery:** Auth rollback is re-enabling signup; credential forward recovery is another deliberate reset plus Keychain replacement. The schema bootstrap transaction is all-or-nothing and has not run yet.
+**Next:** Commit/push this bootstrap, require exact-head green CI, then run the already approved one-shot hosted gate from that clean SHA. Keep Vercel Preview rebinding separate until the database gate passes.
+**Gotchas:** The first generated operator password appeared in dashboard automation output and was immediately invalidated by the second rotation before any connection. Keychain stores raw passwords rather than DSNs because interactive `security -w` truncated long DSN input; runtime construction must remain in-memory and nonprinting.
+
 ## 2026-07-21 — Rebound TEST and removed the obsolete runtime carrier
 **Phase:** Phase 1 TEST registry; Phase 2 hosted checkpoint preparation; Phase 3/4 hosted gates remain open
 **Labels/environment:** `[LOCAL]` implementation and read-only `[TEST]` inspection; no remote mutation

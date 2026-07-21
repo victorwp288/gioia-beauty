@@ -1,5 +1,7 @@
 export const GREENFIELD_REFERENCE_CHECKSUM =
   "d54690cdf5617fdcc00ce36e5fa326a84179474f64c230abc23f8caa6b90473e";
+export const GREENFIELD_SCHEMA_FINGERPRINT =
+  "9b3613648afba97f55e9272282681a97f1ed1bd24e1534947d5f9232db1d87b3";
 
 export const GREENFIELD_FINGERPRINT_SQL = `
   with private_objects as (
@@ -19,6 +21,13 @@ export const GREENFIELD_FINGERPRINT_SQL = `
     join pg_catalog.pg_namespace n on n.oid = c.relnamespace
     join pg_catalog.pg_roles owner on owner.oid = c.relowner
     where n.nspname = 'gioia_private'
+    union all
+    select 'sequence', s.sequencename,
+      pg_catalog.concat_ws('|', s.data_type::text, s.start_value::text,
+        s.increment_by::text, s.min_value::text, s.max_value::text,
+        s.cache_size::text, s.cycle::text)
+    from pg_catalog.pg_sequences s
+    where s.schemaname = 'gioia_private'
     union all
     select 'column', c.relname || '.' || a.attname,
       pg_catalog.concat_ws('|',
@@ -84,6 +93,34 @@ export const GREENFIELD_FINGERPRINT_SQL = `
     join pg_catalog.pg_class c on c.oid = p.polrelid
     join pg_catalog.pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'gioia_private'
+    union all
+    select 'standalone_type', t.typname,
+      pg_catalog.concat_ws('|', owner.rolname, t.typtype::text,
+        t.typcategory::text, t.typnotnull::text,
+        coalesce(pg_catalog.format_type(t.typbasetype, t.typtypmod), ''),
+        coalesce(t.typdefault, ''),
+        coalesce((select pg_catalog.jsonb_agg(e.enumlabel
+          order by e.enumsortorder)::text
+          from pg_catalog.pg_enum e where e.enumtypid = t.oid), ''),
+        coalesce(pg_catalog.format_type(r.rngsubtype, null), ''))
+    from pg_catalog.pg_type t
+    join pg_catalog.pg_namespace n on n.oid = t.typnamespace
+    join pg_catalog.pg_roles owner on owner.oid = t.typowner
+    left join pg_catalog.pg_range r on r.rngtypid = t.oid
+    where n.nspname = 'gioia_private' and t.typelem = 0 and
+      not exists (select 1 from pg_catalog.pg_class c where c.reltype = t.oid)
+    union all
+    select 'type_acl', t.typname || '.' ||
+        coalesce(grantee.rolname, 'PUBLIC') || '.' || a.privilege_type,
+      pg_catalog.concat_ws('|', coalesce(grantor.rolname, 'PUBLIC'),
+        a.is_grantable::text)
+    from pg_catalog.pg_type t
+    join pg_catalog.pg_namespace n on n.oid = t.typnamespace
+    cross join lateral pg_catalog.aclexplode(t.typacl) a
+    left join pg_catalog.pg_roles grantee on grantee.oid = a.grantee
+    left join pg_catalog.pg_roles grantor on grantor.oid = a.grantor
+    where n.nspname = 'gioia_private' and t.typelem = 0 and
+      not exists (select 1 from pg_catalog.pg_class c where c.reltype = t.oid)
   ), reference_state as (
     select pg_catalog.jsonb_build_object(
       'categories', coalesce((select jsonb_agg(

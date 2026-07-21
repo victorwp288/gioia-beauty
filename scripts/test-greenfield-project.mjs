@@ -8,6 +8,10 @@ import {
   planGreenfieldAtomicRebuild,
   rebuildGreenfieldTestAtomically,
 } from "./test-target-atomic-rebuild.mjs";
+import {
+  GREENFIELD_REFERENCE_ROW_COUNT,
+  bootstrapGreenfieldTestProject,
+} from "./test-target-bootstrap.mjs";
 import { createTestTargetCli } from "./test-target-cli.mjs";
 import { parseTestTargetConfig } from "./test-target-config.mjs";
 import { withGreenfieldTestLock } from "./test-target-harness.mjs";
@@ -18,6 +22,7 @@ import {
 import { verifyGreenfieldTestPreflight } from "./test-target-preflight.mjs";
 
 const DEFAULT_OPERATIONS = Object.freeze({
+  bootstrap: bootstrapGreenfieldTestProject,
   createCli: createTestTargetCli,
   createPlan: planGreenfieldAtomicRebuild,
   parseConfig: parseTestTargetConfig,
@@ -68,6 +73,18 @@ async function reverifyRepository(
   }
 }
 
+function validatedBootstrap(result) {
+  if (
+    !result ||
+    typeof result.bootstrapped !== "boolean" ||
+    Number(result.migrationCount) !== GREENFIELD_TARGET_VERSIONS.length ||
+    Number(result.referenceRows) !== GREENFIELD_REFERENCE_ROW_COUNT
+  ) {
+    throw new Error("Greenfield TEST bootstrap result is invalid");
+  }
+  return result;
+}
+
 export async function runGreenfieldTestProject(
   env,
   { operationOverrides = {}, rootDirectory = process.cwd() } = {},
@@ -83,61 +100,73 @@ export async function runGreenfieldTestProject(
     rootDirectory,
   });
 
-  return operations.withLock(config, async ({ worker }) => {
-    const removedMigrations = [];
-    await reverifyRepository(operations, env, rootDirectory, preflight);
-    await cli.verifyVersion();
-    await cli.lintPrivateSchema();
-    const firstRebuild = await rebuildAndApply(
-      worker,
-      plan,
-      operations.rebuild,
-    );
-    removedMigrations.push(Number(firstRebuild.removedMigrations));
-    const firstFingerprint = await operations.runAcceptance({
-      cli,
-      config,
-      cycle: "A",
-      worker,
-    });
-    if (!greenfieldFingerprintsMatch(firstRebuild, firstFingerprint)) {
-      throw new Error("Greenfield TEST cycle A fingerprint is unstable");
-    }
+  return operations.withLock(
+    config,
+    async ({ initialization, worker }) => {
+      const bootstrap = validatedBootstrap(initialization);
+      const removedMigrations = [];
+      await reverifyRepository(operations, env, rootDirectory, preflight);
+      await cli.verifyVersion();
+      await cli.lintPrivateSchema();
+      const firstRebuild = await rebuildAndApply(
+        worker,
+        plan,
+        operations.rebuild,
+      );
+      removedMigrations.push(Number(firstRebuild.removedMigrations));
+      const firstFingerprint = await operations.runAcceptance({
+        cli,
+        config,
+        cycle: "A",
+        worker,
+      });
+      if (!greenfieldFingerprintsMatch(firstRebuild, firstFingerprint)) {
+        throw new Error("Greenfield TEST cycle A fingerprint is unstable");
+      }
 
-    await reverifyRepository(operations, env, rootDirectory, preflight);
-    await cli.verifyVersion();
-    await cli.lintPrivateSchema();
-    const secondRebuild = await rebuildAndApply(
-      worker,
-      plan,
-      operations.rebuild,
-    );
-    removedMigrations.push(Number(secondRebuild.removedMigrations));
-    const secondFingerprint = await operations.runAcceptance({
-      cli,
-      config,
-      cycle: "B",
-      expectedFingerprint: firstFingerprint,
-      worker,
-    });
-    if (
-      !greenfieldFingerprintsMatch(secondRebuild, secondFingerprint) ||
-      !greenfieldFingerprintsMatch(firstFingerprint, secondFingerprint)
-    ) {
-      throw new Error("Greenfield TEST rebuild fingerprints do not match");
-    }
-    await reverifyRepository(operations, env, rootDirectory, preflight);
+      await reverifyRepository(operations, env, rootDirectory, preflight);
+      await cli.verifyVersion();
+      await cli.lintPrivateSchema();
+      const secondRebuild = await rebuildAndApply(
+        worker,
+        plan,
+        operations.rebuild,
+      );
+      removedMigrations.push(Number(secondRebuild.removedMigrations));
+      const secondFingerprint = await operations.runAcceptance({
+        cli,
+        config,
+        cycle: "B",
+        expectedFingerprint: firstFingerprint,
+        worker,
+      });
+      if (
+        !greenfieldFingerprintsMatch(secondRebuild, secondFingerprint) ||
+        !greenfieldFingerprintsMatch(firstFingerprint, secondFingerprint)
+      ) {
+        throw new Error("Greenfield TEST rebuild fingerprints do not match");
+      }
+      await reverifyRepository(operations, env, rootDirectory, preflight);
 
-    return Object.freeze({
-      cycles: 2,
-      ciRunId: preflight.ciRunId,
-      commitSha: preflight.commitSha,
-      projectRef: config.projectRef,
-      removedMigrations: Object.freeze(removedMigrations),
-      referenceChecksum: secondFingerprint.referenceChecksum,
-      schemaFingerprint: secondFingerprint.schemaFingerprint,
-    });
-  });
+      return Object.freeze({
+        cycles: 2,
+        bootstrapped: bootstrap.bootstrapped,
+        ciRunId: preflight.ciRunId,
+        commitSha: preflight.commitSha,
+        projectRef: config.projectRef,
+        referenceRows: bootstrap.referenceRows,
+        removedMigrations: Object.freeze(removedMigrations),
+        referenceChecksum: secondFingerprint.referenceChecksum,
+        schemaFingerprint: secondFingerprint.schemaFingerprint,
+      });
+    },
+    {
+      initialize: async ({ worker }) => {
+        await reverifyRepository(operations, env, rootDirectory, preflight);
+        return operations.bootstrap(worker, plan);
+      },
+    },
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
