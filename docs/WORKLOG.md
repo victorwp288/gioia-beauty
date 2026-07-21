@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Advanced TEST to 62 migrations but stopped at the durable carrier gate
+**Phase:** Phase 2 hosted-TEST acceptance; Phase 3/4 final hosted gates remain blocked
+**Labels/environment:** owner-approved `[TEST]` additive migration and `[TEST]`/`[DESTRUCTIVE]` two-cycle gate; `[LOCAL]` tracking only
+**Data impact:** one reviewed additive constraint migration; one migration-history version correction; one fail-closed credential lifecycle; zero customer, operational, Auth, or Storage rows
+**Target:** TEST Supabase `lxvsspniipcotimbsfqm` in `eu-central-2`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** exact 62-migration manifest, 205 reference/config rows, two synthetic rebuild cycles, and final zero residue; the operator stopped before either rebuild
+**Done:** Commits `4ea21b6`/`d4ceb62` harden Supavisor quiet-period recovery, owner-login abuse durability, minimum canaries, and proactive maintenance controls. Applied migration 62; corrected only the MCP-generated history version `20260721141848` to reviewed version `20260721150000` with an exact one-row fail-closed guard. No masterplan item was ticked.
+**Verified/reconciled:** exact-head CI `29837964069` is six-for-six green with two 62-migration/443-assertion Local DB cycles. Hosted preflight/config/manifest/CLI/schema lint passed, but durable `app_runtime_login` authentication failed before rebuild A and auto-contained. Final TEST: 62 migrations, 205 reference rows, zero operational/Auth/Storage rows, both runtime roles `NOLOGIN`/password-null, zero related sessions/locks, project `ACTIVE_HEALTHY`, and zero security lints; performance lints are INFO-only.
+**Production actions performed:** none; no Production read/write/config/deploy, email, secret activation, support-access grant, or customer-data access
+**Backup/restore evidence:** n/a; empty TEST operational state and no rebuild/import occurred
+**Rollback/forward recovery:** migration 62 is reproducible from version control; credential rollback is automatic containment. Do not retry authentication or rebuild until the Supavisor carrier path is repaired and a new exact TEST action is approved.
+**Next:** Update the existing Supabase Database ticket with the successful postgres/CLI preflight plus failed durable-carrier authentication and `2026-07-21T14:24:01Z` containment. After provider recovery, obtain one new approval and rerun the complete two-cycle gate; only then tick Phase 2. Separately approve/configure hosted Preview and a bounded real-source snapshot before Phase 3/4 TEST items can close.
+**Gotchas:** Local Docker DB/E2E stayed unavailable because the unrelated `demokrati` Supabase stack owns 54321/54322; exact-head CI supplied both clean DB cycles. Phase 3 privacy decisions and provider/Preview configuration remain owner/external gates, not code omissions.
+
 ## 2026-07-21 — Cleared the confirmed TEST network ban and made credential probes truly one-shot
 **Phase:** Phase 2 hosted-TEST recovery; final two-cycle acceptance item remains open
 **Labels/environment:** owner-approved `[REMOTE-CONFIG]` removal of one exact TEST ban; one read-only `[TEST]` transaction-pooler probe; `[LOCAL]` recovery hardening
