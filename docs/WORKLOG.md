@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Fixed the hosted credential stop on reserved postgres.js clients
+**Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
+**Labels/environment:** `[LOCAL]` harness correction and regression coverage; prior bounded `[TEST]` evidence only
+**Data impact:** none in this repair; hosted TEST remains at 63 migrations/205 reference rows/zero residue with `app_runtime` LOGIN and password null
+**Target:** local `refactor` code for replacement TEST `hzibzwhrwmljgjjdzspi`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** this repair performs zero remote calls/writes/rows; the already owner-approved continuation performs exactly one protected runtime credential transaction before the existing bounded two-cycle contract
+**Done:** Confirmed postgres.js `reserve()` returns a query client without `begin`, which stopped the harness before password SQL. Credential inspection/provisioning now uses the full operator worker pool while the reserved session continuously holds the global advisory lock and performs final boundary verification. One provisioning, unconditional 125-second wait, one auth probe, secret redaction, and cleanup semantics are unchanged.
+**Verified/reconciled:** reserve-shaped focused suite 5 files/36 tests; full 170 files/2,092 tests pass (2 files/4 tests skipped); DB static validation, lint, typecheck, format, production build, and diff check pass. No remote mutation performed.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; code/tests/docs only and hosted TEST contains no customer/operational residue
+**Rollback/forward recovery:** revert this local harness repair; forward recovery is exact-head green CI followed by the separately authorized guarded TEST gate
+**Next:** Commit/push, require exact-head green CI, then continue the approved guarded hosted gate without manual password SQL or additional auth attempts.
+**Gotchas:** A reserve-shaped fake with `begin` masked the real client contract; regressions now require the lock client to lack `begin` and prove worker transaction ordering/cleanup under the held lock.
+
 ## 2026-07-21 — Prepared an exact guarded bootstrap for the replacement TEST project
 **Phase:** Phase 2 hosted bootstrap preparation; Phase 2/3/4 hosted acceptance remains open
 **Labels/environment:** owner-approved `[REMOTE-CONFIG]` TEST credential/Auth changes, read-only `[TEST]` catalog inspection, and `[LOCAL]` operator hardening

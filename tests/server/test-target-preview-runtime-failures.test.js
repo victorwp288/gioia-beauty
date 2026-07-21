@@ -16,8 +16,23 @@ function config() {
 }
 
 function state({ cleanupFailures = {}, credentialFailure = null } = {}) {
+  const runtimeQuery = async (query) => {
+    if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
+      return [
+        {
+          attributes_are_safe: true,
+          credential_is_missing: false,
+          credential_is_safe: true,
+          has_unsafe_access: false,
+          has_unsafe_membership: false,
+          rolcanlogin: true,
+        },
+      ];
+    }
+    if (query === GREENFIELD_RUNTIME_ROLE_SQL.sessions) return [{ active: 0 }];
+    return [];
+  };
   const lockClient = {
-    begin: vi.fn(),
     release: vi.fn(async () => {
       if (cleanupFailures.release) throw cleanupFailures.release;
     }),
@@ -27,21 +42,7 @@ function state({ cleanupFailures = {}, credentialFailure = null } = {}) {
         if (cleanupFailures.unlock) throw cleanupFailures.unlock;
         return [{ released: true }];
       }
-      if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
-        return [
-          {
-            attributes_are_safe: true,
-            credential_is_missing: false,
-            credential_is_safe: true,
-            has_unsafe_access: false,
-            has_unsafe_membership: false,
-            rolcanlogin: true,
-          },
-        ];
-      }
-      if (query === GREENFIELD_RUNTIME_ROLE_SQL.sessions)
-        return [{ active: 0 }];
-      return [];
+      return runtimeQuery(query);
     }),
   };
   const lockPool = {
@@ -54,6 +55,7 @@ function state({ cleanupFailures = {}, credentialFailure = null } = {}) {
     end: vi.fn(async () => {
       if (cleanupFailures.worker) throw cleanupFailures.worker;
     }),
+    unsafe: vi.fn(runtimeQuery),
   };
   return {
     credentialPropagationWait: vi.fn(async () => {}),

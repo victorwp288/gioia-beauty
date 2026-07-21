@@ -39,6 +39,14 @@ preserve the role and credential, prove their fingerprint is unchanged, require
 zero active runtime sessions, and retain the serialized advisory lock and full
 two-cycle acceptance gate.
 
+The session-pooler connection reserved by postgres.js is deliberately limited
+to acquiring/holding/releasing that advisory lock and the final boundary check;
+reserved clients do not expose `begin`. Credential inspection and the single
+password transaction therefore run on the full operator worker pool while the
+reserved session continues to hold the global lock. The unconditional
+125-second propagation wait and one transaction-pooler authentication probe
+remain inside the same locked lifecycle.
+
 The replacement starts from the provider's empty hosted baseline, before
 `app_runtime` exists. The operator therefore initializes under its existing
 exact target/CI/repository preflight and advisory lock, before credential

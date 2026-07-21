@@ -24,7 +24,45 @@ function config() {
 function harness({ missingCredential = false, sessions = 0 } = {}) {
   let credentialIsMissing = missingCredential;
   const events = [];
+  const runtimeQuery = async (query, source) => {
+    if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
+      events.push(`${source}-state`);
+      return [
+        {
+          attributes_are_safe: true,
+          credential_is_missing: credentialIsMissing,
+          credential_is_safe: !credentialIsMissing,
+          has_unsafe_access: false,
+          has_unsafe_membership: false,
+          rolcanlogin: true,
+        },
+      ];
+    }
+    if (query === GREENFIELD_RUNTIME_ROLE_SQL.sessions) {
+      events.push(`${source}-sessions`);
+      return [{ active: sessions }];
+    }
+    return [];
+  };
   const lockClient = {
+    release: vi.fn(async () => events.push("lock-release")),
+    unsafe: vi.fn(async (query) => {
+      if (query.includes("pg_try_advisory_lock")) {
+        events.push("lock");
+        return [{ acquired: true }];
+      }
+      if (query.includes("pg_advisory_unlock")) {
+        events.push("unlock");
+        return [{ released: true }];
+      }
+      return runtimeQuery(query, "lock");
+    }),
+  };
+  const lockPool = {
+    end: vi.fn(async () => events.push("lock-pool-end")),
+    reserve: vi.fn(async () => lockClient),
+  };
+  const worker = {
     begin: vi.fn(async (callback) =>
       callback({
         unsafe: vi.fn(async (query) => {
@@ -39,38 +77,14 @@ function harness({ missingCredential = false, sessions = 0 } = {}) {
         }),
       }),
     ),
-    release: vi.fn(async () => {}),
-    unsafe: vi.fn(async (query) => {
-      if (query.includes("pg_try_advisory_lock")) return [{ acquired: true }];
-      if (query.includes("pg_advisory_unlock")) return [{ released: true }];
-      if (query === GREENFIELD_RUNTIME_ROLE_SQL.state) {
-        return [
-          {
-            attributes_are_safe: true,
-            credential_is_missing: credentialIsMissing,
-            credential_is_safe: !credentialIsMissing,
-            has_unsafe_access: false,
-            has_unsafe_membership: false,
-            rolcanlogin: true,
-          },
-        ];
-      }
-      if (query === GREENFIELD_RUNTIME_ROLE_SQL.sessions) {
-        return [{ active: sessions }];
-      }
-      return [];
-    }),
+    end: vi.fn(async () => events.push("worker-end")),
+    unsafe: vi.fn((query) => runtimeQuery(query, "worker")),
   };
-  const lockPool = {
-    end: vi.fn(async () => {}),
-    reserve: vi.fn(async () => lockClient),
-  };
-  const worker = { end: vi.fn(async () => {}) };
   const clientFactory = vi
     .fn()
     .mockReturnValueOnce(lockPool)
     .mockReturnValueOnce(worker);
-  return { clientFactory, events, lockClient, worker };
+  return { clientFactory, events, lockClient, lockPool, worker };
 }
 
 describe("greenfield TEST durable direct runtime", () => {
@@ -108,7 +122,8 @@ describe("greenfield TEST durable direct runtime", () => {
     expect(wait).toHaveBeenCalledWith(
       RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS,
     );
-    expect(state.lockClient.begin).not.toHaveBeenCalled();
+    expect(state.lockClient.begin).toBeUndefined();
+    expect(state.worker.begin).not.toHaveBeenCalled();
     expect(verifier).toHaveBeenCalledOnce();
     expect(callback).toHaveBeenCalledWith({ worker: state.worker });
     expect(
@@ -120,22 +135,47 @@ describe("greenfield TEST durable direct runtime", () => {
 
   it("provisions a missing credential once, waits once, then authenticates", async () => {
     const state = harness({ missingCredential: true });
-    const wait = vi.fn(async () => {});
-    const verifier = vi.fn(async () => {});
+    const wait = vi.fn(async () => state.events.push("wait"));
+    const verifier = vi.fn(async () => state.events.push("probe"));
+    const callback = vi.fn(async () => state.events.push("callback"));
 
-    await withGreenfieldTestLock(config(), async () => {}, {
+    await withGreenfieldTestLock(config(), callback, {
       clientFactory: state.clientFactory,
       credentialPropagationWait: wait,
       credentialVerifier: verifier,
     });
 
-    expect(state.lockClient.begin).toHaveBeenCalledOnce();
-    expect(state.events).toEqual(["configure", "provision"]);
+    expect(state.lockClient.begin).toBeUndefined();
+    expect(state.worker.begin).toHaveBeenCalledOnce();
+    expect(state.events).toEqual([
+      "lock",
+      "worker-state",
+      "worker-sessions",
+      "worker-state",
+      "configure",
+      "provision",
+      "worker-state",
+      "worker-sessions",
+      "wait",
+      "worker-state",
+      "worker-sessions",
+      "probe",
+      "callback",
+      "lock-state",
+      "lock-sessions",
+      "worker-end",
+      "unlock",
+      "lock-release",
+      "lock-pool-end",
+    ]);
     expect(wait).toHaveBeenCalledOnce();
     expect(wait).toHaveBeenCalledWith(
       RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS,
     );
     expect(verifier).toHaveBeenCalledOnce();
+    expect(state.worker.end).toHaveBeenCalledOnce();
+    expect(state.lockClient.release).toHaveBeenCalledOnce();
+    expect(state.lockPool.end).toHaveBeenCalledOnce();
   });
 
   it("refuses active runtime sessions before provisioning or callback", async () => {
@@ -149,7 +189,8 @@ describe("greenfield TEST durable direct runtime", () => {
       }),
     ).rejects.toThrow("runtime sessions must be zero");
     expect(callback).not.toHaveBeenCalled();
-    expect(state.lockClient.begin).not.toHaveBeenCalled();
+    expect(state.lockClient.begin).toBeUndefined();
+    expect(state.worker.begin).not.toHaveBeenCalled();
   });
 
   it("redacts and does not retry a direct credential failure", async () => {

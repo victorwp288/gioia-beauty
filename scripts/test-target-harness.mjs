@@ -71,8 +71,10 @@ export async function withGreenfieldTestLock(
     const initialization = initialize
       ? await initialize({ worker })
       : undefined;
+    // postgres.js reserve clients do not expose begin; the reserved session
+    // keeps the advisory lock while the full worker pool owns this transaction.
     await prepareRuntimeCredential(
-      lockClient,
+      worker,
       config,
       credentialVerifier,
       credentialPropagationWait,

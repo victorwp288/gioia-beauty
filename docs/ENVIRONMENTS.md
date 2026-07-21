@@ -87,6 +87,12 @@ Safety rules:
   the same zero-session/no-Preview precondition and unchanged SCRAM proof.
   Reset/rebuild tooling must also prove `app_runtime` has no object ownership or
   table/sequence ACL and only the reviewed runtime function boundary.
+- The reserved session connection owns only the session-scoped global advisory
+  lock and final boundary proof. Runtime credential state and the one
+  provisioning transaction use the full operator worker pool because a
+  postgres.js reserved client has no transaction API; the reserved connection
+  continues holding the lock throughout provisioning, the unconditional quiet
+  period, the one authentication probe, both cycles, and final reconciliation.
 - If the initial schema transaction fails, PostgreSQL rolls the entire
   bootstrap back to the pristine baseline. If interruption occurs after that
   commit but before runtime credential verification, a later approved run

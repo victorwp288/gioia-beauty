@@ -35,9 +35,12 @@ describe("greenfield TEST advisory lock", () => {
           events.push("lock");
           return [{ acquired: true }];
         }
-        if (query.includes("pg_advisory_unlock")) return [{ released: true }];
+        if (query.includes("pg_advisory_unlock")) {
+          events.push("unlock");
+          return [{ released: true }];
+        }
         if (query.includes("runtime_role.rolcanlogin")) {
-          events.push("credential-state");
+          events.push("final-lock-state");
           return [
             {
               attributes_are_safe: true,
@@ -58,7 +61,26 @@ describe("greenfield TEST advisory lock", () => {
       reserve: vi.fn(async () => lockClient),
       end: vi.fn(async () => {}),
     };
-    const worker = { end: vi.fn(async () => {}) };
+    const worker = {
+      end: vi.fn(async () => {}),
+      unsafe: vi.fn(async (query) => {
+        if (query.includes("runtime_role.rolcanlogin")) {
+          events.push("worker-credential-state");
+          return [
+            {
+              attributes_are_safe: true,
+              credential_is_missing: false,
+              credential_is_safe: true,
+              has_unsafe_access: false,
+              has_unsafe_membership: false,
+              rolcanlogin: true,
+            },
+          ];
+        }
+        if (query.includes("pg_stat_activity")) return [{ active: 0 }];
+        throw new Error(`unexpected worker SQL: ${query}`);
+      }),
+    };
     const clientFactory = vi
       .fn()
       .mockReturnValueOnce(lockPool)
@@ -89,6 +111,13 @@ describe("greenfield TEST advisory lock", () => {
     expect(events.indexOf("credential-probe")).toBeLessThan(
       events.indexOf("callback"),
     );
+    expect(events.indexOf("callback")).toBeLessThan(
+      events.indexOf("final-lock-state"),
+    );
+    expect(events.indexOf("final-lock-state")).toBeLessThan(
+      events.indexOf("unlock"),
+    );
+    expect(lockClient.begin).toBeUndefined();
   });
 
   it("closes the lock pool when worker initialization fails", async () => {
