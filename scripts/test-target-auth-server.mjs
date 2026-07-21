@@ -85,6 +85,7 @@ export async function stopGreenfieldOwnerAuthServer(
 
 export function greenfieldChildEnvironment(config, runtimeDatabaseUrl) {
   const ephemeralSecret = () => randomBytes(32).toString("base64url");
+  const paginationKeyId = "test_1";
   return {
     APP_ENV: "preview",
     BOOKING_HMAC_SECRET: ephemeralSecret(),
@@ -96,6 +97,10 @@ export function greenfieldChildEnvironment(config, runtimeDatabaseUrl) {
     NEXT_PUBLIC_SUPABASE_URL: config.apiUrl,
     NEXT_TELEMETRY_DISABLED: "1",
     OWNER_SESSION_HMAC_SECRET: ephemeralSecret(),
+    PAGINATION_CURSOR_KEYRING_JSON: JSON.stringify({
+      activeKeyId: paginationKeyId,
+      keys: [{ id: paginationKeyId, secret: ephemeralSecret() }],
+    }),
     PATH: process.env.PATH,
     SUPABASE_DATABASE_URL: runtimeDatabaseUrl,
     SUPABASE_DATABASE_CA_CERTIFICATE: config.getDatabaseCaCertificate(),

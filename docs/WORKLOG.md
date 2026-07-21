@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Repaired the hosted owner-auth child environment
+**Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
+**Labels/environment:** owner-approved `[TEST]` full-gate attempt, bounded aggregate/log/readiness diagnostics; `[LOCAL]` harness correction
+**Data impact:** one cycle-A 63-migration rebuild and synthetic acceptance run through all four concurrency races; cleanup restored zero operational/Auth/Storage/customer rows; readiness proof wrote no fixtures
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` plus local `refactor`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** full gate targeted two cycles but stopped in A after 28 pgTAP files/443 assertions, six Data API denials, and four bounded concurrency races; one aggregate reconciliation and loopback unauthenticated route proof followed
+**Done:** Exact-head CI `29858998060` passed six-for-six and isolated hosted pgTAP passed 28 files/443 assertions. The full gate then passed pgTAP, Data API, and all concurrency races but stopped before any Auth request because the temporary Preview Next server preflight required `PAGINATION_CURSOR_KEYRING_JSON`. Added one fresh 32-byte test-only keyring to the child environment and regression-validates the complete Preview environment.
+**Verified/reconciled:** redacted startup diagnostics proved the single missing-key error; fixed loopback readiness returns exact 401 `OWNER_SESSION_REQUIRED`. TEST reconciles to 63 migrations/205 references, safe credentialed `app_runtime`, zero operational/Auth/Storage/public rows, `pgtap`, runtime sessions, and locks. Local: focused 4 files/62 tests, full 170 files/2,097 tests, build, lint, DB static, and diff checks pass.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; synthetic TEST-only fixtures with exact zero-residue cleanup and no customer data
+**Rollback/forward recovery:** revert the ephemeral keyring revision; forward recovery is independent review, exact-head green CI, then one fresh authorized full two-cycle gate
+**Next:** Finish review, format check, commit/push the child-environment repair, require exact-head CI, and rerun the guarded full TEST gate once; tick Phase 2 only after both cycles and final reconciliation pass.
+**Gotchas:** The harness predated Phase 3 pagination security and its old test shape-matched selected variables instead of validating the entire child environment, so Next exited before Auth and stdio suppression hid the cause.
+
 ## 2026-07-21 — Extended hosted timestamp parity to webhook re-subscription
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** one owner-approved `[TEST]` rollback-only pgTAP proof plus one bounded Postgres-log read; `[LOCAL]` transport correction

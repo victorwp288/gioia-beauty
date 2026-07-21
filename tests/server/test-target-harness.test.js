@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { validateEnvironment } from "../../config/environment.mjs";
 import { withGreenfieldTestLock } from "../../scripts/test-target-harness.mjs";
 import {
   greenfieldChildEnvironment,
@@ -199,6 +200,18 @@ describe("greenfield TEST child environment", () => {
       SUPABASE_DATABASE_URL: runtimeUrl,
       SUPABASE_PROJECT_REF: "hzibzwhrwmljgjjdzspi",
       VERCEL_ENV: "preview",
+    });
+    const keyring = JSON.parse(env.PAGINATION_CURSOR_KEYRING_JSON);
+    expect(keyring).toMatchObject({
+      activeKeyId: "test_1",
+      keys: [{ id: "test_1" }],
+    });
+    expect(keyring.keys[0].secret).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(Buffer.from(keyring.keys[0].secret, "base64url")).toHaveLength(32);
+    expect(validateEnvironment(env, { command: "application" })).toMatchObject({
+      ok: true,
+      appEnv: "preview",
+      errors: [],
     });
     expect(JSON.stringify(env)).not.toContain("operator-session");
   });
