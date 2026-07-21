@@ -130,19 +130,8 @@ export function lifecycleHarness({
     }),
   };
   let authorizationIndex = 0;
-  const credentialClients = authorizations.map((authorization, index) => {
-    const transactionUnsafe = vi.fn(async (query) => {
-      if (query === GREENFIELD_PREVIEW_ROLE_SQL.authenticate) {
-        return [{ authorized: true }];
-      }
-      if (query === GREENFIELD_PREVIEW_ROLE_SQL.assume) return [];
-      if (query === GREENFIELD_PREVIEW_ROLE_SQL.authorize) {
-        events.push(`authenticate-${authorizationIndex++}`);
-        if (authorization instanceof Error) throw authorization;
-        return [{ authorized: authorization }];
-      }
-      return [];
-    });
+  const credentialClients = authorizations.map((_authorization, index) => {
+    const transactionUnsafe = vi.fn(async () => []);
     return {
       begin: vi.fn(async (callback) => callback({ unsafe: transactionUnsafe })),
       end: vi.fn(async () => {
@@ -156,15 +145,33 @@ export function lifecycleHarness({
     .fn()
     .mockReturnValueOnce(lockPool)
     .mockReturnValueOnce(worker);
-  for (const client of credentialClients) {
-    clientFactory.mockReturnValueOnce(client);
-  }
+  const credentialVerifier = vi.fn(async (request) => {
+    const client = credentialClients[authorizationIndex];
+    if (!client) throw new Error("synthetic unexpected credential attempt");
+    const authorization = authorizations[authorizationIndex];
+    events.push(`authenticate-${authorizationIndex++}`);
+    try {
+      await client.begin(async (transaction) => {
+        await transaction.unsafe(request.authenticateSql);
+        await transaction.unsafe(request.assumeSql);
+        await transaction.unsafe(request.authorizeSql);
+        if (authorization instanceof Error) throw authorization;
+        if (authorization !== true) {
+          throw new Error("synthetic unauthorized credential");
+        }
+      });
+    } finally {
+      await client.end();
+    }
+  });
   return {
     clientFactory,
+    credentialVerifier,
     credentialClients,
     events,
     lockClient,
     lockPool,
+    options: { clientFactory, credentialVerifier },
     roleCanLogin: () => roleCanLogin,
     worker,
   };

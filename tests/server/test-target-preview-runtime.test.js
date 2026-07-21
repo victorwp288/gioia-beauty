@@ -56,7 +56,7 @@ describe("greenfield TEST durable Preview runtime", () => {
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("runtime role state is invalid");
 
@@ -70,7 +70,7 @@ describe("greenfield TEST durable Preview runtime", () => {
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("unsafe Preview role containment failed");
 
@@ -85,7 +85,7 @@ describe("greenfield TEST durable Preview runtime", () => {
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("unsafe Preview role containment failed");
 
@@ -95,20 +95,16 @@ describe("greenfield TEST durable Preview runtime", () => {
   });
 
   it("suspends and restores the exact credential before unlocking", async () => {
-    const callbackFailure = new Error("synthetic callback failure");
     const state = lifecycleHarness();
 
-    await expect(
-      withGreenfieldTestLock(
-        config(),
-        async ({ recoverRuntimeRole }) => {
-          expect(recoverRuntimeRole).toBeTypeOf("function");
-          expect(state.roleCanLogin()).toBe(false);
-          throw callbackFailure;
-        },
-        { clientFactory: state.clientFactory },
-      ),
-    ).rejects.toBe(callbackFailure);
+    await withGreenfieldTestLock(
+      config(),
+      async ({ recoverRuntimeRole }) => {
+        expect(recoverRuntimeRole).toBeTypeOf("function");
+        expect(state.roleCanLogin()).toBe(false);
+      },
+      state.options,
+    );
 
     expect(state.roleCanLogin()).toBe(true);
     expect(state.events).toEqual([
@@ -152,9 +148,12 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.clientFactory.mock.calls.map(([url]) => url)).toEqual([
       operatorSessionUrl,
       operatorWorkerUrl,
-      runtimeUrl,
-      runtimeUrl,
     ]);
+    expect(
+      state.credentialVerifier.mock.calls.map(
+        ([request]) => request.databaseUrl,
+      ),
+    ).toEqual([runtimeUrl, runtimeUrl]);
     const [, sessionOptions] = state.clientFactory.mock.calls[0];
     expect(sessionOptions.connection).toEqual({
       application_name: "gioia_greenfield_test",
@@ -176,7 +175,7 @@ describe("greenfield TEST durable Preview runtime", () => {
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("durable Preview credential could not authenticate");
     expect(callback).not.toHaveBeenCalled();
@@ -199,7 +198,7 @@ describe("greenfield TEST durable Preview runtime", () => {
         state.events.push("callback");
         expect(state.roleCanLogin()).toBe(false);
       },
-      { clientFactory: state.clientFactory },
+      state.options,
     );
 
     expect(state.events).toEqual([
@@ -218,32 +217,30 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.roleCanLogin()).toBe(true);
   });
 
-  it("bounds transient session-pooler connection retries before locking", async () => {
-    vi.useFakeTimers();
-    try {
+  it.each(["08006", "ECONNREFUSED", "28P01"])(
+    "stops after one %s lock connection failure",
+    async (code) => {
       const refusal = Object.assign(new Error("synthetic pooler refusal"), {
-        code: "08006",
+        code,
       });
       const state = lifecycleHarness();
-      state.lockPool.reserve
-        .mockRejectedValueOnce(refusal)
-        .mockResolvedValue(state.lockClient);
+      state.lockPool.reserve.mockRejectedValueOnce(refusal);
+      const callback = vi.fn();
 
-      const operation = withGreenfieldTestLock(config(), vi.fn(), {
-        clientFactory: state.clientFactory,
-      });
-      await vi.runAllTimersAsync();
-      await expect(operation).resolves.toBeUndefined();
+      await expect(
+        withGreenfieldTestLock(config(), callback, {
+          ...state.options,
+        }),
+      ).rejects.toBe(refusal);
 
-      expect(state.lockPool.reserve).toHaveBeenCalledTimes(2);
-      expect(state.events[0]).toBe("lock");
-      expect(state.events.at(-1)).toBe("unlock");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+      expect(state.lockPool.reserve).toHaveBeenCalledOnce();
+      expect(callback).not.toHaveBeenCalled();
+      expect(state.worker.end).toHaveBeenCalledOnce();
+      expect(state.lockPool.end).toHaveBeenCalledOnce();
+    },
+  );
 
-  it("retries a transient pooler authentication failure with a fresh client", async () => {
+  it("contains after one pooler authentication failure", async () => {
     const transientFailure = Object.assign(
       new Error("synthetic pooler credential refresh"),
       { code: "28P01" },
@@ -253,122 +250,46 @@ describe("greenfield TEST durable Preview runtime", () => {
       initialLogin: false,
     });
 
-    await withGreenfieldTestLock(
-      config(),
-      async () => {
-        state.events.push("callback");
-      },
-      { clientFactory: state.clientFactory },
-    );
+    const callback = vi.fn();
+
+    await expect(
+      withGreenfieldTestLock(config(), callback, {
+        ...state.options,
+      }),
+    ).rejects.toThrow("durable Preview credential was not restored");
 
     expect(state.events).toEqual([
       "lock",
       "restore",
       "authenticate-0",
       "close-auth",
-      "authenticate-1",
-      "close-auth",
       "suspend",
-      "callback",
-      "suspend",
-      "restore",
-      "authenticate-2",
-      "close-auth",
       "unlock",
     ]);
     expect(state.credentialClients).toHaveLength(3);
-    expect(
-      state.credentialClients.every(({ end }) => end.mock.calls.length === 1),
-    ).toBe(true);
-  });
-
-  it("bounds a hung pooler authentication query without retrying", async () => {
-    vi.useFakeTimers();
-    try {
-      const pendingClient = {
-        begin: vi.fn(() => new Promise(() => {})),
-        end: vi.fn(async () => {}),
-      };
-      const clientFactory = vi.fn().mockReturnValueOnce(pendingClient);
-
-      const verification = verifyPreviewCredential(config(), clientFactory);
-      const outcome = verification.catch((error) => error);
-      await vi.runAllTimersAsync();
-      await expect(outcome).resolves.toMatchObject({
-        message:
-          "Greenfield TEST durable Preview credential could not authenticate",
-      });
-
-      expect(clientFactory).toHaveBeenCalledTimes(1);
-      expect(pendingClient.begin).toHaveBeenCalledTimes(1);
-      expect(pendingClient.end).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(state.credentialClients[0].end).toHaveBeenCalledOnce();
+    expect(state.credentialClients[1].begin).not.toHaveBeenCalled();
+    expect(state.credentialClients[2].begin).not.toHaveBeenCalled();
+    expect(callback).not.toHaveBeenCalled();
   });
 
   it("does not retry transport or provider failures", async () => {
-    for (const code of ["08006", "ECONNREFUSED", "EDBHANDLEREXITED"]) {
+    for (const code of ["28P01", "08006", "ECONNREFUSED", "EDBHANDLEREXITED"]) {
       const failure = Object.assign(new Error(`secret-${code}`), { code });
-      const client = {
-        begin: vi.fn(async () => {
-          throw failure;
-        }),
-        end: vi.fn(async () => {}),
-      };
-      const clientFactory = vi.fn().mockReturnValue(client);
+      const credentialVerifier = vi.fn(async () => {
+        throw failure;
+      });
 
       const error = await verifyPreviewCredential(
         config(),
-        clientFactory,
+        credentialVerifier,
       ).catch((caught) => caught);
 
       expect(error.message).toBe(
         "Greenfield TEST durable Preview credential could not authenticate",
       );
       expect(error.message).not.toContain(`secret-${code}`);
-      expect(clientFactory).toHaveBeenCalledTimes(1);
-      expect(client.end).toHaveBeenCalledTimes(1);
-    }
-  });
-
-  it("caps wrong-password propagation retries at fifteen seconds", async () => {
-    vi.useFakeTimers();
-    try {
-      const wrongPassword = () =>
-        Object.assign(new Error("synthetic protected password"), {
-          code: "28P01",
-        });
-      const clients = [0, 1, 2, 3, 4, 5].map(() => ({
-        begin: vi.fn(async () => {
-          throw wrongPassword();
-        }),
-        end: vi.fn(async () => {}),
-      }));
-      const clientFactory = vi
-        .fn()
-        .mockReturnValueOnce(clients[0])
-        .mockReturnValueOnce(clients[1])
-        .mockReturnValueOnce(clients[2])
-        .mockReturnValueOnce(clients[3])
-        .mockReturnValueOnce(clients[4])
-        .mockReturnValueOnce(clients[5]);
-
-      const verification = verifyPreviewCredential(config(), clientFactory);
-      const outcome = verification.catch((error) => error);
-      await vi.runAllTimersAsync();
-      await expect(outcome).resolves.toMatchObject({
-        message:
-          "Greenfield TEST durable Preview credential could not authenticate",
-      });
-
-      expect(clientFactory).toHaveBeenCalledTimes(5);
-      for (const client of clients.slice(0, 5)) {
-        expect(client.end).toHaveBeenCalledTimes(1);
-      }
-      expect(clients[5].end).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
+      expect(credentialVerifier).toHaveBeenCalledOnce();
     }
   });
 
@@ -380,7 +301,7 @@ describe("greenfield TEST durable Preview runtime", () => {
 
     await expect(
       withGreenfieldTestLock(config(), vi.fn(), {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("durable Preview credential was not restored");
 
@@ -403,7 +324,7 @@ describe("greenfield TEST durable Preview runtime", () => {
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("durable Preview credential was not restored");
     expect(callback).not.toHaveBeenCalled();
@@ -411,7 +332,7 @@ describe("greenfield TEST durable Preview runtime", () => {
     expect(state.events.at(-1)).toBe("unlock");
   });
 
-  it("preserves operation and restoration failures and stays suspended", async () => {
+  it("stays suspended and skips restoration after an operation failure", async () => {
     const operationFailure = new Error("synthetic checkpoint failure");
     const state = lifecycleHarness({ authorizations: [true, false] });
 
@@ -420,15 +341,19 @@ describe("greenfield TEST durable Preview runtime", () => {
       async () => {
         throw operationFailure;
       },
-      { clientFactory: state.clientFactory },
+      state.options,
     ).catch((caught) => caught);
 
-    expect(error).toBeInstanceOf(AggregateError);
-    expect(error.errors[0]).toBe(operationFailure);
-    expect(error.errors[1].message).toBe(
-      "Greenfield TEST durable Preview credential was not restored",
-    );
+    expect(error).toBe(operationFailure);
     expect(state.roleCanLogin()).toBe(false);
-    expect(state.events.at(-1)).toBe("unlock");
+    expect(state.events).toEqual([
+      "lock",
+      "authenticate-0",
+      "close-auth",
+      "suspend",
+      "suspend",
+      "unlock",
+    ]);
+    expect(state.credentialClients[1].begin).not.toHaveBeenCalled();
   });
 });

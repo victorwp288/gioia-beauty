@@ -19,7 +19,7 @@ describe("greenfield TEST Preview runtime containment failures", () => {
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("unsafe Preview role containment failed");
     expect(callback).not.toHaveBeenCalled();
@@ -36,7 +36,7 @@ describe("greenfield TEST Preview runtime containment failures", () => {
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("unsafe Preview role containment failed");
     expect(callback).not.toHaveBeenCalled();
@@ -56,7 +56,7 @@ describe("greenfield TEST Preview runtime containment failures", () => {
 
     await expect(
       withGreenfieldTestLock(config(), callback, {
-        clientFactory: state.clientFactory,
+        ...state.options,
       }),
     ).rejects.toThrow("unsafe Preview role containment failed");
     expect(callback).not.toHaveBeenCalled();
@@ -78,7 +78,7 @@ describe("greenfield TEST Preview runtime containment failures", () => {
       async () => {
         throw operationFailure;
       },
-      { clientFactory: state.clientFactory },
+      state.options,
     ).catch((caught) => caught);
 
     expect(error).toBeInstanceOf(AggregateError);
@@ -91,22 +91,23 @@ describe("greenfield TEST Preview runtime containment failures", () => {
     expect(state.events.at(-1)).toBe("unlock");
   });
 
-  it("redacts authentication and verifier-close failures", async () => {
+  it("redacts credential transport and cleanup failures", async () => {
     const state = lifecycleHarness({
       authorizations: [new Error(runtimeUrl)],
       closeFailures: [new Error(PREVIEW_PASSWORD)],
     });
 
     const error = await withGreenfieldTestLock(config(), vi.fn(), {
-      clientFactory: state.clientFactory,
+      ...state.options,
     }).catch((caught) => caught);
 
-    expect(error).toBeInstanceOf(AggregateError);
+    expect(error).toBeInstanceOf(Error);
     expect(errorText(error)).not.toContain(runtimeUrl);
     expect(errorText(error)).not.toContain(PREVIEW_PASSWORD);
-    expect(errorText(error)).toContain(
-      "Preview authentication and verifier cleanup both failed",
+    expect(error.message).toBe(
+      "Greenfield TEST durable Preview credential could not authenticate",
     );
+    expect(state.credentialVerifier).toHaveBeenCalledOnce();
   });
 
   it("preserves the primary failure while attempting every finalizer", async () => {
@@ -126,7 +127,7 @@ describe("greenfield TEST Preview runtime containment failures", () => {
       async () => {
         throw operationFailure;
       },
-      { clientFactory: state.clientFactory },
+      state.options,
     ).catch((caught) => caught);
 
     expect(error).toBeInstanceOf(AggregateError);

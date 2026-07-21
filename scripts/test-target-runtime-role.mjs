@@ -1,9 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import {
-  createTestTargetDatabaseClient,
-  endTestTargetDatabaseClient,
-} from "./test-target-database-client.mjs";
+import { verifyOneShotRuntimeCredential } from "./test-target-one-shot-credential.mjs";
 import {
   PREVIEW_ROLE_AUTHORIZE_SQL,
   PREVIEW_ROLE_AUTHENTICATE_SQL,
@@ -18,12 +15,6 @@ import {
   RUNTIME_SESSION_STATE_SQL,
   RUNTIME_SESSION_TERMINATE_SQL,
 } from "./test-target-runtime-role-sql.mjs";
-
-const PREVIEW_AUTH_RETRY_DELAYS_MS = Object.freeze([
-  1_000, 2_000, 4_000, 8_000,
-]);
-const PREVIEW_AUTH_TIMEOUT_MS = 15_000;
-const INVALID_PASSWORD_CODE = "28P01";
 
 export {
   GREENFIELD_PREVIEW_ROLE_SQL,
@@ -46,10 +37,6 @@ function isSafeRuntimeRole(state, canLogin) {
     !state.has_unsafe_membership &&
     !state.has_unsafe_access
   );
-}
-
-function isCredentialRefreshFailure(error) {
-  return error instanceof Error && error.code === INVALID_PASSWORD_CODE;
 }
 
 async function assertRuntimeRoleState(sql, canLogin, message) {
@@ -104,99 +91,38 @@ async function suspendRuntimeRole(sql) {
   }
 }
 
-async function authenticatePreviewClient(client) {
-  let timeout;
+async function verifyRuntimeCredential(
+  databaseUrl,
+  caCertificate,
+  credentialLabel,
+  credentialVerifier = verifyOneShotRuntimeCredential,
+) {
   try {
-    return await Promise.race([
-      client.begin(async (transaction) => {
-        const [identity, ...extraIdentity] = await transaction.unsafe(
-          PREVIEW_ROLE_AUTHENTICATE_SQL,
-        );
-        if (identity?.authorized !== true || extraIdentity.length !== 0) {
-          return [{ authorized: false }];
-        }
-        await transaction.unsafe(PREVIEW_ROLE_ASSUME_SQL);
-        return transaction.unsafe(PREVIEW_ROLE_AUTHORIZE_SQL);
-      }),
-      new Promise((_, reject) => {
-        timeout = setTimeout(
-          () =>
-            reject(
-              new Error("Greenfield TEST Preview authentication timed out"),
-            ),
-          PREVIEW_AUTH_TIMEOUT_MS,
-        );
-      }),
-    ]);
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-export async function verifyPreviewCredential(config, clientFactory) {
-  const authenticationError = () =>
-    new Error(
-      "Greenfield TEST durable Preview credential could not authenticate",
+    await credentialVerifier({
+      authenticateSql: PREVIEW_ROLE_AUTHENTICATE_SQL,
+      authorizeSql: PREVIEW_ROLE_AUTHORIZE_SQL,
+      assumeSql: PREVIEW_ROLE_ASSUME_SQL,
+      caCertificate,
+      credentialLabel,
+      databaseUrl,
+    });
+  } catch {
+    throw new Error(
+      `Greenfield TEST ${credentialLabel} could not authenticate`,
     );
-  const attempts = PREVIEW_AUTH_RETRY_DELAYS_MS.length + 1;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    let client;
-    try {
-      client = createTestTargetDatabaseClient(
-        config.getPreviewRuntimeDatabaseUrl(),
-        1,
-        {
-          caCertificate: config.getDatabaseCaCertificate(),
-          clientFactory,
-        },
-      );
-    } catch {
-      throw authenticationError();
-    }
-
-    let credentialRefreshFailure = false;
-    let authenticationFailure = false;
-    let unauthorized = false;
-    try {
-      const [authorization, ...extra] = await authenticatePreviewClient(client);
-      unauthorized = authorization?.authorized !== true || extra.length !== 0;
-    } catch (error) {
-      credentialRefreshFailure = isCredentialRefreshFailure(error);
-      authenticationFailure = true;
-    }
-
-    let failedClose = false;
-    try {
-      await endTestTargetDatabaseClient(client);
-    } catch {
-      failedClose = true;
-    }
-    if ((authenticationFailure || unauthorized) && failedClose) {
-      throw new AggregateError(
-        [
-          authenticationError(),
-          new Error("Greenfield TEST verifier did not close"),
-        ],
-        "Greenfield TEST Preview authentication and verifier cleanup both failed",
-      );
-    }
-    if (failedClose) {
-      throw new Error("Greenfield TEST verifier did not close");
-    }
-    if (unauthorized) throw authenticationError();
-    if (!authenticationFailure) return;
-    if (credentialRefreshFailure && attempt < attempts - 1) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, PREVIEW_AUTH_RETRY_DELAYS_MS[attempt]),
-      );
-      continue;
-    }
-    throw authenticationError();
   }
-  throw authenticationError();
 }
 
-async function restorePreviewRuntimeRole(sql, config, clientFactory) {
+export async function verifyPreviewCredential(config, credentialVerifier) {
+  await verifyRuntimeCredential(
+    config.getPreviewRuntimeDatabaseUrl(),
+    config.getDatabaseCaCertificate(),
+    "durable Preview credential",
+    credentialVerifier,
+  );
+}
+
+async function restorePreviewRuntimeRole(sql, config, credentialVerifier) {
   const previewUrl = new URL(config.getPreviewRuntimeDatabaseUrl());
   const password = decodeURIComponent(previewUrl.password);
   try {
@@ -210,7 +136,7 @@ async function restorePreviewRuntimeRole(sql, config, clientFactory) {
       true,
       "Greenfield TEST Preview runtime role is not exact",
     );
-    await verifyPreviewCredential(config, clientFactory);
+    await verifyPreviewCredential(config, credentialVerifier);
   } catch (restoreError) {
     try {
       await suspendRuntimeRole(sql);
@@ -226,7 +152,7 @@ async function restorePreviewRuntimeRole(sql, config, clientFactory) {
   }
 }
 
-async function ensurePreviewCredential(sql, config, clientFactory) {
+async function ensurePreviewCredential(sql, config, credentialVerifier) {
   const state = await runtimeRoleState(sql);
   if (
     state.attributes_are_safe !== true ||
@@ -250,7 +176,7 @@ async function ensurePreviewCredential(sql, config, clientFactory) {
   }
   if (state.rolcanlogin) {
     try {
-      await verifyPreviewCredential(config, clientFactory);
+      await verifyPreviewCredential(config, credentialVerifier);
       return;
     } catch (verificationError) {
       try {
@@ -264,16 +190,16 @@ async function ensurePreviewCredential(sql, config, clientFactory) {
       throw verificationError;
     }
   }
-  await restorePreviewRuntimeRole(sql, config, clientFactory);
+  await restorePreviewRuntimeRole(sql, config, credentialVerifier);
 }
 
 export async function withSuspendedPreviewCredential(
   sql,
   config,
-  clientFactory,
+  credentialVerifier,
   callback,
 ) {
-  await ensurePreviewCredential(sql, config, clientFactory);
+  await ensurePreviewCredential(sql, config, credentialVerifier);
   let operationError;
   let result;
   try {
@@ -297,18 +223,9 @@ export async function withSuspendedPreviewCredential(
     throw containmentError;
   }
 
-  try {
-    await restorePreviewRuntimeRole(sql, config, clientFactory);
-  } catch (restorationError) {
-    if (operationError) {
-      throw new AggregateError(
-        [operationError, restorationError],
-        "Greenfield TEST operation and Preview restoration both failed",
-      );
-    }
-    throw restorationError;
-  }
   if (operationError) throw operationError;
+
+  await restorePreviewRuntimeRole(sql, config, credentialVerifier);
   return result;
 }
 
@@ -321,6 +238,7 @@ export async function withTemporaryRuntimeRole({
   worker,
   recoverRuntimeRole,
   callback,
+  credentialVerifier,
   passwordFactory = runtimePassword,
 }) {
   if (
@@ -340,6 +258,12 @@ export async function withTemporaryRuntimeRole({
       await transaction.unsafe(RUNTIME_ROLE_GRANT_SQL);
       await transaction.unsafe(RUNTIME_ROLE_ALTER_SQL);
     });
+    await verifyRuntimeCredential(
+      runtimeDatabaseUrl,
+      config.getDatabaseCaCertificate(),
+      "temporary runtime credential",
+      credentialVerifier,
+    );
     result = await callback({ runtimeDatabaseUrl });
   } catch (error) {
     operationError = error;
