@@ -118,6 +118,15 @@ export async function verifyRuntimeBoundary(
   await assertRuntimeRoleBoundary(sql);
 }
 
+export async function drainGreenfieldRuntimeSessions(
+  sql,
+  wait = (milliseconds) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+) {
+  await wait(RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS);
+  await assertRuntimeRoleBoundary(sql);
+}
+
 export async function prepareRuntimeCredential(
   sql,
   config,

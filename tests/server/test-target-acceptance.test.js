@@ -33,6 +33,7 @@ function harness(overrides = {}) {
     assertResidue: vi.fn(async () => calls.push("residue")),
     cleanupResidue: vi.fn(async () => calls.push("cleanup")),
     createOwnerPassword: vi.fn(() => "SyntheticOwner9!password-password"),
+    drainRuntimeSessions: vi.fn(async () => calls.push("drain-runtime")),
     getTargets: vi.fn(async () => {
       calls.push("targets");
       return targets;
@@ -101,6 +102,7 @@ describe("greenfield TEST acceptance cycle", () => {
       "server",
       "auth",
       "ledger",
+      "drain-runtime",
       "residue",
       "cleanup",
       "clean",
@@ -136,6 +138,48 @@ describe("greenfield TEST acceptance cycle", () => {
     ).rejects.toBe(acceptanceFailure);
     expect(calls).toContain("cleanup");
     expect(calls).not.toContain("auth");
+  });
+
+  it("drains runtime sessions after an owner scenario failure", async () => {
+    const ownerFailure = new Error("synthetic owner failure");
+    const { calls, cli, operations } = harness({
+      runOwnerScenario: vi.fn(async () => {
+        calls.push("auth-failed");
+        throw ownerFailure;
+      }),
+    });
+
+    await expect(
+      runGreenfieldAcceptanceCycle(options(cli), operations),
+    ).rejects.toBe(ownerFailure);
+    expect(calls.indexOf("auth-failed")).toBeLessThan(
+      calls.indexOf("drain-runtime"),
+    );
+    expect(calls.indexOf("drain-runtime")).toBeLessThan(
+      calls.indexOf("cleanup"),
+    );
+    expect(calls).not.toContain("residue");
+  });
+
+  it("preserves both owner-scenario and runtime-drain failures", async () => {
+    const ownerFailure = new Error("synthetic owner failure");
+    const drainFailure = new Error("synthetic drain failure");
+    const { cli, operations } = harness({
+      runOwnerScenario: vi.fn(async () => {
+        throw ownerFailure;
+      }),
+      drainRuntimeSessions: vi.fn(async () => {
+        throw drainFailure;
+      }),
+    });
+
+    const error = await runGreenfieldAcceptanceCycle(options(cli), operations)
+      .then(() => null)
+      .catch((caught) => caught);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.errors).toEqual([ownerFailure, drainFailure]);
+    expect(operations.cleanupResidue).toHaveBeenCalledOnce();
+    expect(operations.assertResidue).not.toHaveBeenCalled();
   });
 
   it("preserves both acceptance and cleanup failures", async () => {

@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Added the missing inter-cycle Supavisor drain
+**Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
+**Labels/environment:** owner-approved `[TEST]` exact-head gate and bounded read-only reconciliation; `[LOCAL]` lifecycle correction
+**Data impact:** cycle A atomically rebuilt 63 migrations, ran synthetic database/Auth/concurrency fixtures, and cleaned to zero; cycle B refused before retained mutation while 16 idle runtime pooler backends remained; no customer, Production, or retained operational/Auth/Storage rows
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` plus local `refactor`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** run `29862291215` authorized two cycles; cycle A completed 28 pgTAP files/443 assertions, six Data API denials, four concurrency races, one owner login/session/logout, and exact cleanup. Each future owner-server close adds one fixed 150-second no-query wait and one role/session aggregate proof before residue reconciliation or another rebuild.
+**Done:** The exact abuse-residue fix passed CI six-for-six and a focused hosted owner-auth recovery cleaned to zero. The subsequent full gate proved cycle A end-to-end, then exposed that the Next child leaves 16 Supavisor backends for the same observed idle timeout. Added an unconditional post-server drain with fresh zero-session/role proof on success and failure; no polling, retry, bypass, or termination path.
+**Verified/reconciled:** after the safe stop: 63 migrations, zero operational/Auth/Storage rows, and exactly 16 runtime sessions only. Local: focused 4 files/51 tests, full 170 files/2,102 tests, TS7/TS6, lint, format, DB static, production build, and diff checks pass; independent review found no P0/P1.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; serialized synthetic TEST target with exact zero-row cleanup and no customer data
+**Rollback/forward recovery:** revert the inter-cycle drain revision; forward recovery is exact-head green CI, natural zero-session proof, then one fresh two-cycle gate
+**Next:** Finish independent review, commit/push, require exact-head CI, wait for zero runtime sessions, and rerun the guarded two-cycle TEST gate once. Tick Phase 2 only after both cycles and final reconciliation pass.
+**Gotchas:** A clean table/Auth reconciliation does not imply the pooler has released runtime server backends. Every hosted Next child lifecycle must cross the same fixed drain plus authoritative zero-session boundary before a reset or final success.
+
 ## 2026-07-21 — Bound owner-login abuse residue to the hosted TEST fixture
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** owner-approved `[TEST]` full-gate attempt and bounded read-only reconciliation; `[LOCAL]` cleanup-contract correction

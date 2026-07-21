@@ -7,6 +7,7 @@ import {
 import {
   RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS,
   RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS,
+  drainGreenfieldRuntimeSessions,
   verifyRuntimeCredential,
 } from "../../scripts/test-target-runtime-role.mjs";
 
@@ -133,6 +134,23 @@ describe("greenfield TEST durable direct runtime", () => {
     expect(JSON.stringify(GREENFIELD_RUNTIME_ROLE_SQL)).not.toContain(
       "pg_terminate_backend",
     );
+  });
+
+  it("waits for post-server Supavisor drain before proving zero sessions", async () => {
+    const state = harness();
+    const wait = vi.fn(async () => state.events.push("server-drain-wait"));
+
+    await drainGreenfieldRuntimeSessions(state.worker, wait);
+
+    expect(wait).toHaveBeenCalledOnce();
+    expect(wait).toHaveBeenCalledWith(
+      RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS,
+    );
+    expect(state.events).toEqual([
+      "server-drain-wait",
+      "worker-state",
+      "worker-sessions",
+    ]);
   });
 
   it("uses an existing credential after one quiet period and no lifecycle mutation", async () => {

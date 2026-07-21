@@ -21,12 +21,14 @@ import {
   reconcileGreenfieldOwnerLedger,
   withGreenfieldRuntimeDatabase,
 } from "./test-target-runtime.mjs";
+import { drainGreenfieldRuntimeSessions } from "./test-target-runtime-role.mjs";
 
 const DEFAULT_OPERATIONS = Object.freeze({
   assertClean: assertCleanGreenfield,
   assertResidue: assertKnownGreenfieldResidue,
   cleanupResidue: cleanupKnownGreenfieldResidue,
   createOwnerPassword: createGreenfieldOwnerPassword,
+  drainRuntimeSessions: drainGreenfieldRuntimeSessions,
   getTargets: getBookingConcurrencyTargets,
   probeDataApi: runTestTargetDataApiProbes,
   provisionConcurrencyOwner: provisionBookingConcurrencyOwner,
@@ -79,17 +81,34 @@ async function runFixtureAcceptance({
         }),
       { caCertificate: config.getDatabaseCaCertificate() },
     );
-    await operations.withAuthServer(config, runtimeDatabaseUrl, (baseUrl) =>
-      operations.runOwnerScenario({
-        baseUrl,
-        owner: {
-          email: GREENFIELD_TEST_OWNER.email,
-          password,
-        },
-        cookieSecurity: GREENFIELD_OWNER_COOKIE_SECURITY,
-        reconcileLedger: () => operations.reconcileLedger(worker),
-      }),
-    );
+    let ownerScenarioError;
+    try {
+      await operations.withAuthServer(config, runtimeDatabaseUrl, (baseUrl) =>
+        operations.runOwnerScenario({
+          baseUrl,
+          owner: {
+            email: GREENFIELD_TEST_OWNER.email,
+            password,
+          },
+          cookieSecurity: GREENFIELD_OWNER_COOKIE_SECURITY,
+          reconcileLedger: () => operations.reconcileLedger(worker),
+        }),
+      );
+    } catch (error) {
+      ownerScenarioError = error;
+    }
+    try {
+      await operations.drainRuntimeSessions(worker);
+    } catch (drainError) {
+      if (ownerScenarioError) {
+        throw new AggregateError(
+          [ownerScenarioError, drainError],
+          "Greenfield TEST owner scenario and runtime drain both failed",
+        );
+      }
+      throw drainError;
+    }
+    if (ownerScenarioError) throw ownerScenarioError;
     await operations.assertResidue(worker, targets);
   } catch (error) {
     acceptanceError = error;
