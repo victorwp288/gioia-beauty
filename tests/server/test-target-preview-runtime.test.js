@@ -105,6 +105,14 @@ function harness({
 }
 
 describe("greenfield TEST durable direct runtime", () => {
+  it("keeps a measured safety margin beyond the Supavisor idle timeout", () => {
+    expect(RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS).toBe(125_000);
+    expect(RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS).toBe(150_000);
+    expect(RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS).toBeGreaterThan(
+      RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS,
+    );
+  });
+
   it("authenticates and authorizes as app_runtime without SET ROLE", () => {
     expect(GREENFIELD_RUNTIME_ROLE_SQL.authenticate).toContain(
       "session_user = 'app_runtime'",

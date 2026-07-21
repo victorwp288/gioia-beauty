@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-21 — Widened the Supavisor drain margin after a clean timing stop
+**Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
+**Labels/environment:** owner-approved `[TEST]` guarded attempt and bounded read-only reconciliation; `[LOCAL]` timing hardening
+**Data impact:** no rebuild/schema/business/Auth/Storage writes; exactly one successful runtime auth probe; read-only aggregate/catalog reconciliation only
+**Target:** replacement TEST `hzibzwhrwmljgjjdzspi` plus local `refactor`; Firebase/`main`, Vercel, Resend, customer data, and Production untouched
+**Expected reads/writes/rows:** one locked credential lifecycle, one probe, one post-drain zero-session check, and one bounded reconciliation; zero termination calls and zero persistent row writes
+**Done:** Exact-head CI `29854160572` passed six-for-six. The first launcher invocation failed locally because the modern key used the legacy env name and never reached the database. After correcting that ephemeral launcher, the authorized gate stopped before rebuild A when the 125-second post-probe check narrowly raced Supavisor's backend release. Increased only that drain to 150 seconds, preserving the 125-second propagation wait, exactly one probe per run, fail-closed zero-session proof, and no termination path.
+**Verified/reconciled:** immediate read-only TEST evidence was exact: 63 migrations, 205 reference/config rows, safe SCRAM `app_runtime`, canonical schema fingerprint `9b3613648afba97f55e9272282681a97f1ed1bd24e1534947d5f9232db1d87b3`, and zero operational/Auth/Storage rows, public objects, runtime sessions, or advisory locks. Local: 170 test files/2,096 tests, focused 3 files/16 tests, build, lint, format, DB static, and diff checks pass. Independent review found no code-path P0/P1; its 4-file/25-test sweep passed and its one stale safety-doc finding was fixed.
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; empty synthetic TEST operational state and no rebuild began
+**Rollback/forward recovery:** revert the 150-second margin revision; forward recovery is exact-head green CI followed by one fresh approved gate run
+**Next:** Commit/push the margin revision, require its exact-head CI to pass, then rerun the authorized two-cycle TEST gate once; do not retry inside a run or terminate pooled sessions.
+**Gotchas:** The observed provider timeout is approximate, not an exact scheduling guarantee; the authoritative boundary remains a fresh zero-session query after the 30-second margin.
+
 ## 2026-07-21 — Stopped safely on Supavisor name rewriting and switched to drain-only
 **Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
 **Labels/environment:** owner-approved `[TEST]` guarded checkpoint attempt and read-only reconciliation; `[LOCAL]` operator/session lifecycle correction

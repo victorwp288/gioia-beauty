@@ -15,7 +15,7 @@ export {
 } from "./test-target-runtime-role-sql.mjs";
 
 export const RUNTIME_CREDENTIAL_INITIAL_PROPAGATION_DELAY_MS = 125_000;
-export const RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS = 125_000;
+export const RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS = 150_000;
 
 async function singleRow(sql, statement, message) {
   const [row, ...extra] = await sql.unsafe(statement);
@@ -111,8 +111,9 @@ export async function verifyRuntimeBoundary(
 ) {
   await assertRuntimeRoleBoundary(sql);
   await verifyRuntimeCredential(config, credentialVerifier);
-  // Supavisor retains an idle server backend for up to 120 seconds after the
+  // Supavisor retains an idle server backend for about 120 seconds after the
   // one-shot client exits and rewrites its application_name to "Supavisor".
+  // Keep a 30-second scheduling/network margin before the authoritative check.
   await postProbeDrainWait(RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS);
   await assertRuntimeRoleBoundary(sql);
 }

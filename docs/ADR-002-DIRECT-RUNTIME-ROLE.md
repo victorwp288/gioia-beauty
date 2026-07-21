@@ -46,8 +46,9 @@ password transaction therefore run on the full operator worker pool while the
 reserved session continues to hold the global lock. The unconditional
 125-second propagation wait and one transaction-pooler authentication probe
 remain inside the same locked lifecycle. A successful probe is followed by a
-separate unconditional 125-second drain wait for Supavisor's observed
-120-second idle backend timeout, then a fresh zero-application-session proof
+separate unconditional 150-second drain wait, including a 30-second margin
+beyond Supavisor's observed approximately 120-second idle backend timeout,
+then a fresh zero-application-session proof
 before either rebuild cycle. There is no termination path: live evidence shows
 Supavisor rewrites `PGAPPNAME` to `application_name=Supavisor`, making a targeted
 probe-backend kill impossible to distinguish safely.

@@ -93,9 +93,10 @@ Safety rules:
   postgres.js reserved client has no transaction API; the reserved connection
   continues holding the lock throughout provisioning, the unconditional quiet
   period, the one authentication probe, both cycles, and final reconciliation.
-  After that probe succeeds, the operator waits a second unconditional 125
-  seconds for Supavisor's observed 120-second idle backend timeout, then freshly
-  proves zero application sessions before either rebuild. No backend termination
+  After that probe succeeds, the operator waits a second unconditional 150
+  seconds, including a 30-second margin beyond Supavisor's observed
+  approximately 120-second idle backend timeout, then freshly proves zero
+  application sessions before either rebuild. No backend termination
   is permitted: Supavisor rewrites the probe application name to `Supavisor`, so
   application-name targeting is neither exact nor safe.
 - If the initial schema transaction fails, PostgreSQL rolls the entire
