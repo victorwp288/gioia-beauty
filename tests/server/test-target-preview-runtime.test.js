@@ -42,10 +42,10 @@ describe("greenfield TEST durable Preview runtime", () => {
       "grant app_runtime to postgres with inherit false, set true granted by current_user",
     );
     expect(GREENFIELD_RUNTIME_ROLE_SQL.state).toContain(
-      "login.rolname = 'app_runtime_login'",
+      "login_role.rolname = 'app_runtime_login'",
     );
     expect(GREENFIELD_RUNTIME_ROLE_SQL.state).toContain(
-      "authorization.rolname = 'app_runtime'",
+      "authorization_role.rolname = 'app_runtime'",
     );
     expect(GREENFIELD_RUNTIME_ROLE_SQL.state).toContain("as has_unsafe_access");
   });
