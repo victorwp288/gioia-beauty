@@ -1,4 +1,6 @@
 begin;
+grant gioia_mutator to postgres;
+set local role gioia_mutator;
 set local search_path = extensions, public, pg_catalog;
 select plan(4);
 
@@ -144,5 +146,6 @@ select results_eq(
   'owner login rate limits return the exact ceiling of the bucket retry delay'
 );
 
+reset role;
 select * from finish();
 rollback;

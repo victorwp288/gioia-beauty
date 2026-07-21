@@ -147,7 +147,7 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "060_internal_helpers.test.sql":
     "d0bc5f16e006c14c9fc4e66b1ad486e8758625f6fbb74df8a44404d7b41238b1",
   "062_owner_login_abuse.test.sql":
-    "1e162279f1721b61cbb19b44477d5f3a46ef463e97ed75fd8d2f52c3204aab90",
+    "f4a8467039a7a0d3aa2060db1956542cef9b3600d694b0f19093bdf6efdedbd8",
   "065_command_staleness.test.sql":
     "264cadd9652d54c5f48db3612561deb4449fc59d91716014e06156c7f0e543e7",
   "070_command_boundaries.test.sql":
