@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-22 — Bound refactor Preview to replacement TEST and proved the hosted server/Auth boundary
+**Phase:** Phase 3 server adapter hosted proof; Phase 4 hosted boundary partial; Phase 2 remains complete
+**Labels/environment:** owner-approved `[REMOTE-CONFIG]` Vercel Preview/refactor only; `[TEST]` synthetic Auth/reconciliation; `[LOCAL]` cleanup-contract and documentation
+**Data impact:** 14 current branch-specific Preview bindings, two Preview deployments, one-row maintenance reads, three bounded synthetic owner/Auth fixture lifecycles, and exact final zero operational/Auth/Storage residue; no customer data
+**Target:** Vercel `gioia-beauty` Preview deployment `dpl_bkH62gyhYYhdjvNSzHTcZ7bNr7eR`, source `2a5bdc8`, TEST Supabase `hzibzwhrwmljgjjdzspi`; Production/Firebase/Resend untouched
+**Expected reads/writes/rows:** health 0 DB rows; maintenance 1 control row; each owner proof at most 1 owner/account/session/Auth user/identity, 1 Auth session/refresh/AMR claim, and 2 abuse buckets; all fixture rows deleted and reconciled to zero
+**Done:** Replaced only `refactor` Preview bindings, corrected newline-sensitive CA/DSN bytes, redeployed the exact source, proved server-only `app_runtime`, owner origin/CSRF/cookie/logout/replay behavior, and controlled public `503`; cleanup now permits only one password AMR claim tied by session FK to the exact synthetic owner
+**Verified/reconciled:** Vercel build READY; `/api/health` 200, `/api/maintenance` 200, hosted owner flow passed, public availability 503 fail-closed, final TEST operational/Auth/Storage rows zero; local 170 files/2,103 tests, TS7/TS6, lint, format, DB static, production build, and diff checks pass
+**Production actions performed:** none; no Production env mutation, deployment, database, Auth, email, or customer-data action
+**Backup/restore evidence:** n/a; disposable synthetic TEST fixtures only
+**Rollback/forward recovery:** remove only `refactor` Preview overrides and redeploy the previous fail-closed Preview; forward path is a remote-safe hosted harness plus reviewed distributed abuse/challenge configuration
+**Next:** Commit/push this AMR cleanup compatibility fix, require exact-head CI, then implement the remote-safe Preview browser harness and distributed challenge adapter. Keep source-snapshot `[PROD-READ]`, Sentry/email provider activation, privacy/legal decisions, and production source freeze separately approved.
+**Gotchas:** Real hosted Supabase password login creates one `auth.mfa_amr_claims` row; it cascades from the exact synthetic Auth session and is now narrowly recognized, while every unrelated Auth auxiliary row still fails cleanup.
+
 ## 2026-07-21 — Completed the hosted Phase 2 gate and owner Auth proof
 **Phase:** Phase 2 complete; Phase 3 owner Auth complete; remaining Phase 3/4 hosted/Preview/provider gates stay open
 **Labels/environment:** owner-approved `[TEST]` two-cycle destructive/synthetic acceptance and final bounded read-only reconciliation; `[LOCAL]` documentation only afterward

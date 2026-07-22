@@ -71,6 +71,13 @@ export const GREENFIELD_RESIDUE_SQL = `
       and bucket.created_at < bucket.bucket_end
   ), known_aggregates as (
     select id from known_entries union all select id from known_vacations
+  ), known_mfa_amr_claims as (
+    select claim.id
+    from auth.mfa_amr_claims claim
+    join auth.sessions auth_session on auth_session.id = claim.session_id
+    where auth_session.user_id = $8::uuid
+      and claim.authentication_method = 'password'
+      and claim.created_at <= claim.updated_at
   )
   select
     (select count(*)::integer from gioia_private.command_requests) as commands,
@@ -303,6 +310,26 @@ export const GREENFIELD_RESIDUE_SQL = `
       + (select count(*) from auth.webauthn_credentials)
       + (select count(*) from auth.webauthn_challenges))::integer
       as auth_aux_rows,
+    (select count(*)::integer from known_mfa_amr_claims)
+      as known_mfa_amr_claims,
+    ((select count(*) from auth.mfa_factors)
+      + (select count(*) from auth.mfa_challenges)
+      + (select count(*) from auth.mfa_amr_claims claim
+        where claim.id not in (select id from known_mfa_amr_claims))
+      + (select count(*) from auth.one_time_tokens)
+      + (select count(*) from auth.flow_state)
+      + (select count(*) from auth.sso_providers)
+      + (select count(*) from auth.sso_domains)
+      + (select count(*) from auth.saml_providers)
+      + (select count(*) from auth.saml_relay_states)
+      + (select count(*) from auth.oauth_clients)
+      + (select count(*) from auth.oauth_authorizations)
+      + (select count(*) from auth.oauth_consents)
+      + (select count(*) from auth.oauth_client_states)
+      + (select count(*) from auth.custom_oauth_providers)
+      + (select count(*) from auth.webauthn_credentials)
+      + (select count(*) from auth.webauthn_challenges))::integer
+      as unknown_auth_aux_rows,
     ((select count(*) from storage.buckets)
       + (select count(*) from storage.objects)
       + (select count(*) from storage.s3_multipart_uploads)

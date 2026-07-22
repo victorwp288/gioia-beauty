@@ -19,7 +19,7 @@ traffic.
 | API URL           | <https://hzibzwhrwmljgjjdzspi.supabase.co>                                                                 |
 | Region            | `eu-central-2`                                                                                             |
 | Shared pooler     | `aws-1-eu-central-2.pooler.supabase.com`                                                                   |
-| Current state     | Empty replacement TEST target; hosted migration and acceptance evidence remain open                        |
+| Current state     | Accepted clean TEST target; current `refactor` Preview is bound fail-closed to this project                |
 | Current authority | Non-production integration/staging only; Firestore remains Production authority until the approved cutover |
 
 Project `lxvsspniipcotimbsfqm` is retired from all current configuration after
@@ -28,13 +28,13 @@ Its dated migration, canary, Preview, and acceptance evidence remains historical
 only in the append-only worklog and ADR; none of it transfers to the replacement
 project.
 
-The replacement project is the authorized synthetic rebuild target, but it has
-not passed the hosted checkpoint. The committed operator must still prove the
-exact clean and pushed `refactor` SHA, successful CI, certificate-verified
-session-pooler identity, project-specific confirmation, reviewed migration and
-pgTAP byte manifests, two complete rebuild/acceptance cycles, matching schema
-and reference-data fingerprints, and final zero residue. Phase 2 remains open
-until that evidence exists.
+The replacement project passed the guarded hosted checkpoint on 2026-07-21 at
+commit `b3fe610` with exact-head CI run `29863407987`: two complete 63-migration
+rebuild/acceptance cycles, 205 reference/config rows, 28 pgTAP files and 443
+assertions per cycle, matching schema/reference fingerprints, hosted owner Auth,
+and final zero operational/Auth/Storage residue. Phase 2 is complete. The later
+`refactor` head `2a5bdc8` preserved that accepted state and is the source of the
+current Preview deployment described below.
 
 The first hosted checkpoint may initialize this replacement only through the
 guarded empty-project path. Under the same exact target, pushed-SHA/green-CI
@@ -54,11 +54,11 @@ every stored history statement against the reviewed bytes, reconciles exactly 20
 reference/config rows and zero operational/Auth/Storage residue, and only then
 provisions the direct runtime credential and enters cycles A and B.
 
-A current pinned-CA handshake to the replacement pooler chains to Supabase Root
-2021 with SHA-256 fingerprint
+A pinned-CA handshake and the completed hosted acceptance both chain the
+replacement pooler to Supabase Root 2021 with SHA-256 fingerprint
 `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`.
-This verifies the transport identity only; it is not hosted migration or
-acceptance evidence.
+Transport identity remains only one part of the separately recorded acceptance
+evidence.
 
 Safety rules:
 
@@ -153,14 +153,17 @@ distributed rate-limit/challenge adapter plus its explicit environment and
 provider configuration; no `disabled` flag or process-local cache is accepted
 as a substitute.
 
-The prior Vercel Preview binding targeted the retired project and is not valid
-evidence for this replacement. Preview must remain fail closed until the exact
-replacement migration candidate and direct `app_runtime` login pass the hosted
-two-cycle, security, Auth, concurrency, and zero-residue gates. Rebinding the
-protected Preview project ref, API URL, publishable key, runtime DSN, and pinned
-CA is a separate named `[TEST]` configuration action after acceptance; it has no
-effect on the live Firebase site, Vercel Production, or any future Production
-Supabase target.
+On 2026-07-22, exact source `2a5bdc8` was deployed as Vercel Preview deployment
+`dpl_bkH62gyhYYhdjvNSzHTcZ7bNr7eR` with branch-specific `refactor` overrides for
+the accepted TEST project, fake email, console-only observability, the protected
+`app_runtime` transaction-pooler DSN, and the pinned CA. `/api/health` passed
+without a database read; `/api/maintenance` proved the one-row least-privilege
+database boundary; the real hosted owner login/session/logout/revocation flow
+passed with secure cookies, CSRF/origin enforcement, and final zero
+operational/Auth/Storage residue. Public availability still returns controlled
+`503 SERVICE_UNAVAILABLE` before business-data access because the distributed
+abuse/challenge adapter is intentionally unconfigured. Vercel Production,
+Firebase, Resend, and customer data were not changed.
 
 ## Local and CI
 

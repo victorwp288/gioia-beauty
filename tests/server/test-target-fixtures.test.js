@@ -115,6 +115,8 @@ function residueRow(overrides = {}) {
     refresh_tokens: 0,
     unknown_refresh_tokens: 0,
     auth_aux_rows: 0,
+    known_mfa_amr_claims: 0,
+    unknown_auth_aux_rows: 0,
     storage_rows: 0,
     unrelated_rows: 0,
     ...overrides,
@@ -305,6 +307,39 @@ describe("greenfield TEST fixture reconciliation", () => {
     ).toEqual({ commands: 0, entries: 0, vacations: 0, outbox: 0 });
   });
 
+  it("permits one password AMR claim bound to the synthetic auth session", () => {
+    expect(
+      assertOnlyKnownResidueRow(
+        residueRow({
+          commands: 0,
+          distinct_command_keys: 0,
+          completed_commands: 0,
+          failed_commands: 0,
+          distinct_completed_commands: 0,
+          booking_vacation_completed_commands: 0,
+          entries: 0,
+          outbox: 0,
+          changes: 0,
+          distinct_change_aggregates: 0,
+          locks: 0,
+          owners: 1,
+          owner_sessions: 1,
+          concurrency_session: 0,
+          revoked_route_session: 0,
+          auth_users: 1,
+          auth_sessions: 1,
+          refresh_tokens: 1,
+          auth_audit_rows: 0,
+          abuse_buckets: 2,
+          owner_login_network_buckets: 1,
+          owner_login_account_buckets: 1,
+          auth_aux_rows: 1,
+          known_mfa_amr_claims: 1,
+        }),
+      ),
+    ).toEqual({ commands: 0, entries: 0, vacations: 0, outbox: 0 });
+  });
+
   it("refuses partial cleanup when any row exceeds fixture bounds", () => {
     expect(() =>
       assertOnlyKnownResidueRow(residueRow({ commands: 28 })),
@@ -314,6 +349,20 @@ describe("greenfield TEST fixture reconciliation", () => {
     ).toThrow("unknown or excessive residue");
     expect(() =>
       assertOnlyKnownResidueRow(residueRow({ auth_audit_rows: 21 })),
+    ).toThrow("unknown or excessive residue");
+    expect(() =>
+      assertOnlyKnownResidueRow(
+        residueRow({
+          auth_aux_rows: 1,
+          known_mfa_amr_claims: 0,
+          unknown_auth_aux_rows: 1,
+        }),
+      ),
+    ).toThrow("unknown or excessive residue");
+    expect(() =>
+      assertOnlyKnownResidueRow(
+        residueRow({ auth_aux_rows: 2, known_mfa_amr_claims: 2 }),
+      ),
     ).toThrow("unknown or excessive residue");
     expect(() =>
       assertOnlyKnownResidueRow(
@@ -415,6 +464,11 @@ describe("greenfield TEST fixture mutation safety", () => {
     );
     expect(GREENFIELD_RESIDUE_SQL).toContain("unknown_abuse_buckets");
     expect(GREENFIELD_RESIDUE_SQL).toContain("owner_login_network_buckets");
+    expect(GREENFIELD_RESIDUE_SQL).toContain("known_mfa_amr_claims");
+    expect(GREENFIELD_RESIDUE_SQL).toContain("unknown_auth_aux_rows");
+    expect(GREENFIELD_RESIDUE_SQL).toContain(
+      "claim.authentication_method = 'password'",
+    );
     expect(GREENFIELD_RESIDUE_SQL).toContain("payload is null");
     expect(GREENFIELD_RESIDUE_SQL).toContain("($2::date[])[5]");
     expect(GREENFIELD_RESIDUE_SQL).toContain("entry.service_id = $11");

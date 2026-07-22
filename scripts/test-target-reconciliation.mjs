@@ -126,6 +126,8 @@ export function assertKnownResidueRow(row) {
     refresh_tokens: 0,
     unknown_refresh_tokens: 0,
     auth_aux_rows: 0,
+    known_mfa_amr_claims: 0,
+    unknown_auth_aux_rows: 0,
     storage_rows: 0,
     unrelated_rows: 0,
   };
@@ -166,7 +168,7 @@ export function assertOnlyKnownResidueRow(row) {
     "unknown_refresh_tokens",
     "unknown_auth_audit_rows",
     "unknown_abuse_buckets",
-    "auth_aux_rows",
+    "unknown_auth_aux_rows",
     "storage_rows",
     "unrelated_rows",
   ];
@@ -194,7 +196,9 @@ export function assertOnlyKnownResidueRow(row) {
     integer(row, "identities") <= 1 &&
     integer(row, "auth_sessions") <= 1 &&
     integer(row, "refresh_tokens") <= 1 &&
-    integer(row, "auth_audit_rows") <= 20;
+    integer(row, "auth_audit_rows") <= 20 &&
+    integer(row, "auth_aux_rows") <= 1 &&
+    integer(row, "known_mfa_amr_claims") === integer(row, "auth_aux_rows");
   const abuseBuckets = integer(row, "abuse_buckets");
   const ownerLoginNetworkBuckets = integer(row, "owner_login_network_buckets");
   const ownerLoginAccountBuckets = integer(row, "owner_login_account_buckets");

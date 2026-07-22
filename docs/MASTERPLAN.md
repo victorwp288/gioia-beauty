@@ -220,7 +220,7 @@ Everything remains `[LOCAL]` or `[TEST]`.
 
 ### Phase 3 — Server vertical slice, auth, and reliable side effects
 
-- [ ] **`[LOCAL]` / `[TEST]`** Implement one server-only database adapter; no Supabase secret appears in a client bundle.
+- [x] **`[LOCAL]` / `[TEST]`** Implement one server-only database adapter; no Supabase secret appears in a client bundle.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement `GET /api/availability?date=&serviceId=&variantId=` returning slots only, with bounded reads and no PII.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement idempotent `POST /api/bookings`; derive catalog data server-side and return 409 for occupied slots.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement authenticated appointment/block create, edit, reschedule, soft-cancel, vacation, subscriber, count, and bounded export operations.
@@ -239,6 +239,8 @@ Everything remains `[LOCAL]` or `[TEST]`.
 Firestore remains the untouched production authority. The new Supabase application is exercised only in Local/Preview/staging until Phase 5's approved migration window. This avoids building a disposable canonical Firestore server layer or performing two data transitions.
 
 **Local implementation checkpoint (2026-07-20, `18079b5`):** the public and owner client cutovers, root-provider/direct-client cleanup, and maintenance write-control foundation are implemented and verified against synthetic Local. The combined `[LOCAL] / [TEST]` items remain unchecked until hosted TEST, Preview traffic, visual/accessibility, snapshot-import, and maintenance E2E evidence exists. This checkpoint is not the production source freeze.
+
+**Hosted boundary checkpoint (2026-07-22, Preview `dpl_bkH62gyhYYhdjvNSzHTcZ7bNr7eR`):** exact source `2a5bdc8` builds and runs against replacement TEST through the server-only `app_runtime` adapter. Read-free health, one-row maintenance status, and owner Auth passed with zero final residue. Public operations remain intentionally fail-closed until the distributed abuse/challenge adapter is configured. No Phase 4 item is complete until the remote-safe browser harness, visual/accessibility coverage, snapshot import, complete maintenance E2E, and source freeze exist.
 
 - [ ] **`[LOCAL]` / `[TEST]`** Move public availability and booking UI behind the Supabase-backed server API while preserving pixel output and explicit failure states.
 - [ ] **`[LOCAL]` / `[TEST]`** Move dashboard appointments, blocks, vacations, newsletter, counts, and export behind authenticated server operations.
