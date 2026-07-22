@@ -226,7 +226,7 @@ export const test = base.extend<{}, WorkerFixtures>({
             operator = createRemoteTestMaintenanceOperator({
               database: worker,
               config,
-              tokenBytes: randomBytes,
+              tokenBytes: () => randomBytes(32),
             });
             await operator.assertOpen();
             privacyProbe = await plantPreviewPrivacyProbe(
