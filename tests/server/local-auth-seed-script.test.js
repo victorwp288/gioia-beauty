@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   LOCAL_DISABLED_SIGNUP_PROBE,
   LOCAL_SYNTHETIC_OWNER,
   parseLocalAuthStatus,
+  readLocalAuthSettings,
 } from "../../scripts/test-local-auth-seed.mjs";
 
 describe("local synthetic Auth seed smoke test", () => {
@@ -91,5 +92,44 @@ describe("local synthetic Auth seed smoke test", () => {
       }),
     ).toThrow("local publishable key");
     expect(() => parseLocalAuthStatus(null)).toThrow("must be an object");
+  });
+
+  it("retries only transient local Auth readiness responses", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 502 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({ disable_signup: true, external: { email: true } }),
+      );
+    const pause = vi.fn(async () => undefined);
+
+    await expect(
+      readLocalAuthSettings(
+        new URL("http://127.0.0.1:54321"),
+        "sb_publishable_local_fixture_key",
+        { fetchImpl, pause },
+      ),
+    ).resolves.toMatchObject({ disable_signup: true });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(pause).toHaveBeenCalledTimes(2);
+    expect(pause).toHaveBeenCalledWith(1_000);
+  });
+
+  it("does not retry an authoritative local Auth rejection", async () => {
+    const fetchImpl = vi.fn(async () =>
+      Response.json({ error_code: "unauthorized" }, { status: 401 }),
+    );
+    const pause = vi.fn();
+
+    await expect(
+      readLocalAuthSettings(
+        new URL("http://127.0.0.1:54321"),
+        "sb_publishable_local_fixture_key",
+        { fetchImpl, pause },
+      ),
+    ).rejects.toThrow("settings lookup failed with status 401 (unauthorized)");
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(pause).not.toHaveBeenCalled();
   });
 });

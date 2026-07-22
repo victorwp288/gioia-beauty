@@ -89,13 +89,31 @@ async function responseJson(response, operation) {
   return payload;
 }
 
+export async function readLocalAuthSettings(
+  apiUrl,
+  publishableKey,
+  {
+    fetchImpl = fetch,
+    pause = (milliseconds) =>
+      new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  } = {},
+) {
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const response = await fetchImpl(new URL("/auth/v1/settings", apiUrl), {
+      headers: { apikey: publishableKey },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok || ![502, 503].includes(response.status) || attempt === 5) {
+      return responseJson(response, "settings lookup");
+    }
+    await pause(1_000);
+  }
+  throw new Error("Local Auth settings lookup exhausted readiness attempts");
+}
+
 async function verifyPublicSignupDisabled(apiUrl, publishableKey) {
   const headers = { apikey: publishableKey };
-  const settingsResponse = await fetch(new URL("/auth/v1/settings", apiUrl), {
-    headers,
-    signal: AbortSignal.timeout(10_000),
-  });
-  const settings = await responseJson(settingsResponse, "settings lookup");
+  const settings = await readLocalAuthSettings(apiUrl, publishableKey);
   if (settings.disable_signup !== true || settings.external?.email !== true) {
     throw new Error("Local Auth signup/provider settings are unsafe");
   }
