@@ -69,7 +69,7 @@
     "firebase-admin": "14.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.395.0",
-    "next": "15.5.20",
+    "next": "15.5.21",
     "postgres": "3.4.9",
     "react": "18.3.1",
     "react-datepicker": "^7.3.0",
@@ -83,7 +83,7 @@
     "react-toastify": "^10.0.5",
     "resend": "^3.3.0",
     "server-only": "0.0.1",
-    "sharp": "^0.33.4",
+    "sharp": "^0.35.3",
     "svix": "1.96.1",
     "tailwind-merge": "^2.3.0",
     "vaul": "^0.9.1",
@@ -100,7 +100,7 @@
     "@types/react-dom": "18.3.7",
     "@typescript/native": "npm:typescript@7.0.2",
     "eslint": "9.39.4",
-    "eslint-config-next": "15.5.20",
+    "eslint-config-next": "15.5.21",
     "jsdom": "29.1.1",
     "lint-staged": "16.4.0",
     "postcss": "8.5.16",
@@ -124,6 +124,7 @@
     "@babel/runtime": "7.29.7",
     "brace-expansion@2.0.1": "2.1.2",
     "cross-spawn": "7.0.6",
+    "fast-xml-parser": "5.10.1",
     "js-beautify": {
       "glob": "10.5.0"
     },
@@ -148,6 +149,9 @@
     },
     "readdirp": {
       "picomatch": "2.3.2"
+    },
+    "next": {
+      "sharp": "$sharp"
     },
     "postcss": "$postcss",
     "yaml@2.4.5": "2.9.0"
