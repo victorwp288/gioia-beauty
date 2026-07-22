@@ -100,6 +100,7 @@ export async function createPreviewProtectionStorageState({
       "--silent",
       "--show-error",
       "--fail-with-body",
+      "--location",
       "--header",
       "x-vercel-set-bypass-cookie: true",
       "--cookie-jar",

@@ -67,6 +67,7 @@ describe("Vercel Preview protection bootstrap", () => {
         "/api/health",
         "--deployment",
         `https://${HOST}/`,
+        "--location",
         "x-vercel-set-bypass-cookie: true",
       ]),
       expect.objectContaining({ timeout: 30_000 }),
