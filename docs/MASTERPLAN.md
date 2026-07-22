@@ -273,13 +273,22 @@ The representative source snapshot/import, planted hosted other-customer probe,
 full hosted canary/manual-booking rehearsal, and formal production source freeze
 remain separate unchecked gates.
 
+**Hosted privacy/maintenance checkpoint (2026-07-22, Preview
+`dpl_HryfF4iSzA19CuuDMCeHYsDxiNnp`):** exact source `c112d00` passed the
+planted other-customer privacy probe and the full hosted maintenance lifecycle
+against replacement TEST. Browser traffic exposed neither the planted markers
+nor direct provider business-table access. Freeze, blocked stale/public writes,
+the two-operation canary, owner reconciliation, emergency manual booking,
+cleanup, and evidence-gated unfreeze all passed; final fingerprint
+reconciliation returned TEST to zero operational, Auth, and Storage residue.
+
 - [x] **`[LOCAL]` / `[TEST]`** Move public availability and booking UI behind the Supabase-backed server API while preserving pixel output and explicit failure states.
 - [x] **`[LOCAL]` / `[TEST]`** Move dashboard appointments, blocks, vacations, newsletter, counts, and export behind authenticated server operations.
 - [x] **`[LOCAL]` / `[TEST]`** Remove `AppointmentProvider` from the root layout and prove non-booking public page loads make zero database calls.
 - [x] **`[LOCAL]` / `[TEST]`** Remove latent preloading, raw appointment responses, full-collection reads, client listeners, and client database mutations from the release candidate.
 - [ ] **`[TEST]`** Import the rehearsed staging snapshot and run visual snapshots, keyboard/accessibility flows, booking golden path, admin no-email, cancellation, retry, session expiry, stale-tab, migration, and concurrency E2E suites.
-- [ ] **`[TEST]`** Verify Preview browser traffic contains no direct Firestore/Supabase business-table access and no other customer's appointment document.
-- [ ] **`[LOCAL]` / `[TEST]`** Implement and E2E-test maintenance/freeze behavior before cutover: public booking and every dashboard mutation disabled, owner/customer messaging, stale-client failure, emergency manual-booking procedure, audited operator-canary bypass, cleanup, and unfreeze.
+- [x] **`[TEST]`** Verify Preview browser traffic contains no direct Firestore/Supabase business-table access and no other customer's appointment document.
+- [x] **`[LOCAL]` / `[TEST]`** Implement and E2E-test maintenance/freeze behavior before cutover: public booking and every dashboard mutation disabled, owner/customer messaging, stale-client failure, emergency manual-booking procedure, audited operator-canary bypass, cleanup, and unfreeze.
 - [ ] **`[LOCAL]`** Freeze the exact source commit and dependency lockfile for production and record its environment manifest, smoke tests, and forward-recovery commit. Production-scoped values may be baked at build time, so Preview is not treated as a promotable binary artifact.
 
 **Done when:** the complete Supabase application and data import pass in staging, the public UI is unchanged, maintenance/canary behavior is rehearsed, and the exact source/lockfile are frozen. Production still runs the legacy Firestore application until the controlled Phase 5 window.

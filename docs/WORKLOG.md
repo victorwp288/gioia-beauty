@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-22 — Proved hosted privacy isolation and maintenance recovery
+**Phase:** Phase 4 application-cutover items 6–7
+**Labels/environment:** owner-approved label-only Keychain metadata read and in-memory secret use; owner-approved `[TEST]` Preview browser/Auth/database maintenance rehearsal; `[LOCAL]` harness fixes and verification
+**Data impact:** disposable synthetic TEST creates, updates, cancellations, and exact deletes only; no customer or Production data
+**Target:** TEST Supabase `hzibzwhrwmljgjjdzspi`; immutable Vercel Preview `dpl_HryfF4iSzA19CuuDMCeHYsDxiNnp` at `c112d00f57205b64a4289850b0ab8665c4650bed`; Production/Firebase/Resend/main untouched
+**Expected reads/writes/rows:** bounded reads only; one planted cancelled privacy row, one public booking, one synthetic owner/Auth lifecycle, one freeze/run, two canary grants/events, and two admin appointments each created/cancelled through four exact commands; blocked frozen/reconcile writes create zero command/abuse rows; all owned residue deleted
+**Done:** `3625aa8` added the fail-closed privacy and maintenance harness; `da8993b` encoded maintenance-before-abuse behavior; `59bddff` bounded fresh local Auth readiness; `c112d00` fixed the hosted 32-byte canary-token generator. Ticked Phase 4 items 6–7 only; snapshot/import and formal source freeze remain open.
+**Verified/reconciled:** local focused tests, format, lint, TS, and production build pass. Exact-head CI `29934758447` passed all six lanes, including two clean database cycles. Hosted Preview passed 8/8 in 8.1m; starting and final fingerprints proved zero operational/Auth/Storage residue, maintenance open/null freeze, and no direct browser business-table traffic or planted marker exposure.
+**Production actions performed:** none; no Production env/database/deployment/domain, Firebase, Resend, customer-data, or `main` action
+**Backup/restore evidence:** n/a; disposable synthetic TEST data with exact cleanup and full target rebuild recovery
+**Rollback/forward recovery:** revert `3625aa8`..`c112d00` and rebuild disposable TEST from the reviewed migration manifest; no retained fixture requires cleanup
+**Next:** Obtain exact `[PROD-READ]` approval and a named representative Firestore source snapshot, import/reconcile it only in isolated TEST, then run the remaining Phase 4 item 5 suites. After that, freeze the exact source/lockfile and record its manifest. Privacy owner/legal decisions remain a separate Phase 3 gate.
+**Gotchas:** blocked maintenance writes correctly bypass the abuse limiter and create zero buckets. The first hosted attempt exposed the fixture's missing `randomBytes(32)` argument and failed closed; cleanup/fingerprint proof passed before the successful rerun. Local Auth readiness retry is local-only.
+
 ## 2026-07-22 — Closed the approved Phase 3/4 hosted TEST gates
 **Phase:** Phase 3 technical closeout; Phase 4 application-cutover items 1–4
 **Labels/environment:** owner-approved label-only Keychain metadata read; owner-approved `[TEST]` Preview browser/Auth/database/maintenance/fake-worker actions; `[LOCAL]` fixes, verification, and documentation
