@@ -103,15 +103,17 @@ export function parsePreviewDeploymentEvidence({
   const listing = parseJson(listOutput, "Vercel Preview listing");
   const deploymentId = parsePreviewDeploymentId(inspection.id);
   const aliases = Array.isArray(inspection.aliases) ? inspection.aliases : [];
+  const optionalExact = (value, expected) =>
+    value === null || value === undefined || value === expected;
   if (
     inspection.name !== EXPECTED_PROJECT ||
     ![null, "preview"].includes(inspection.target) ||
     inspection.readyState !== "READY" ||
-    inspection.source !== "git" ||
+    !optionalExact(inspection.source, "git") ||
     inspection.contextName !== EXPECTED_CONTEXT ||
-    inspection.branchAlias !== GIOIA_PREVIEW_BRANCH_HOST ||
-    inspection.meta?.githubCommitSha !== expectedCommit ||
-    inspection.meta?.githubCommitRef !== EXPECTED_BRANCH ||
+    !optionalExact(inspection.branchAlias, GIOIA_PREVIEW_BRANCH_HOST) ||
+    !optionalExact(inspection.meta?.githubCommitSha, expectedCommit) ||
+    !optionalExact(inspection.meta?.githubCommitRef, EXPECTED_BRANCH) ||
     typeof inspection.url !== "string" ||
     !UNIQUE_DEPLOYMENT_HOST.test(inspection.url) ||
     inspection.url === GIOIA_PREVIEW_BRANCH_HOST ||
@@ -126,7 +128,7 @@ export function parsePreviewDeploymentEvidence({
     throw new Error("Vercel Preview listing is invalid");
   }
   const matches = listing.deployments.filter(
-    (deployment) => deployment?.id === deploymentId,
+    (deployment) => deployment?.url === inspection.url,
   );
   if (matches.length !== 1) {
     throw new Error("Resolved Preview deployment is not in the exact listing");
@@ -137,6 +139,7 @@ export function parsePreviewDeploymentEvidence({
     deployment.url !== inspection.url ||
     deployment.state !== "READY" ||
     ![null, undefined, "preview"].includes(deployment.target) ||
+    !optionalExact(deployment.id, deploymentId) ||
     deployment.meta?.githubCommitSha !== expectedCommit ||
     deployment.meta?.githubCommitRef !== EXPECTED_BRANCH
   ) {

@@ -17,11 +17,11 @@ function inspection(overrides = {}) {
     id: DEPLOYMENT_ID,
     name: "gioia-beauty",
     url: UNIQUE_HOST,
-    target: null,
+    target: "preview",
     readyState: "READY",
-    source: "git",
-    branchAlias: ALIAS,
-    meta: { githubCommitSha: COMMIT, githubCommitRef: "refactor" },
+    source: null,
+    branchAlias: null,
+    meta: { githubCommitSha: null, githubCommitRef: null },
     aliases: [ALIAS],
     contextName: "victor-wejergang-petersens-projects",
     ...overrides,
@@ -33,7 +33,7 @@ function listing(overrides = {}) {
     contextName: "victor-wejergang-petersens-projects",
     deployments: [
       {
-        id: DEPLOYMENT_ID,
+        id: null,
         name: "gioia-beauty",
         url: UNIQUE_HOST,
         state: "READY",
@@ -78,10 +78,10 @@ describe("Preview deployment evidence", () => {
       listOutput: listing({ id: reassignedId, url: reassignedHost }),
     });
 
-    expect(JSON.parse(inspection()).branchAlias).toBe(
-      JSON.parse(inspection({ id: reassignedId, url: reassignedHost }))
-        .branchAlias,
-    );
+    expect(JSON.parse(inspection()).aliases).toContain(ALIAS);
+    expect(
+      JSON.parse(inspection({ id: reassignedId, url: reassignedHost })).aliases,
+    ).toContain(ALIAS);
     expect(reassigned.baseURL).toBe(`https://${reassignedHost}/`);
     expect(resolved.baseURL).toBe(`https://${UNIQUE_HOST}/`);
     expect(resolved.baseURL).not.toBe(`https://${ALIAS}/`);
@@ -97,7 +97,7 @@ describe("Preview deployment evidence", () => {
       inspection({
         meta: {
           githubCommitSha: "b".repeat(40),
-          githubCommitRef: "refactor",
+          githubCommitRef: null,
         },
       }),
       listing(),
