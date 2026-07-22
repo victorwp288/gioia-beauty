@@ -36,8 +36,7 @@ export default function Login() {
       await loginOwner(email.trim(), password);
       setEmail("");
       setPassword("");
-      router.push("/dashboard");
-      router.refresh();
+      router.replace("/dashboard");
     } catch (error) {
       if (error instanceof OwnerApiError) {
         if (error.code === "INVALID_CREDENTIALS") {
