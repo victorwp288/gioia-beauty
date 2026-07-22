@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-22 — Applied the Phase 3/4 TEST candidate and repaired Preview attestation
+**Phase:** Phase 3/4 hosted TEST activation; final hosted browser/worker acceptance remains open
+**Labels/environment:** owner-approved `[REMOTE-CONFIG]` Vercel Preview/refactor only; owner-approved `[TEST]` migrations and bounded verification; `[LOCAL]` attestation compatibility fix
+**Data impact:** four additive schema migration rows plus seven empty privacy tables/functions/indexes; five branch-only Preview bindings; zero business/Auth/Storage/customer rows
+**Target:** TEST Supabase `hzibzwhrwmljgjjdzspi`; Vercel `gioia-beauty` Preview/refactor deployments `dpl_AAPi6q3wi37dSYocaBMBhwkoyyje` and `dpl_4qdS4ZYXNKXB1WTds4uVaRCPcFA2`; Production/Firebase/Resend/main untouched
+**Expected reads/writes/rows:** append migrations 64–67 and five Preview variables; health reads 0 DB rows; wrong-Cron probe writes 0; final aggregate reads migration/operational/Auth/Storage counts only
+**Done:** Applied exact reviewed migrations through `20260722113002` with all four stored source SHA-256 digests matching the manifest. Added Turnstile TEST provider/site/secret/hostname plus a fresh sensitive `CRON_SECRET` only to Preview/refactor; replaced the unrecoverable first Cron value once and stored the final value under exact TEST Keychain service `gioia-beauty-test-preview-cron`. Pushed `502c639`; then commit `4e2943a` adapted immutable Preview attestation to Vercel CLI 56.5.0's current omitted inspection/list fields without permitting mutable write targets.
+**Verified/reconciled:** CI runs `29916485928` and `29916942789` passed all six jobs; exact immutable deployment `dpl_4qdS4ZYXNKXB1WTds4uVaRCPcFA2` is READY and attested to `4e2943aa11cd1d86c48aa10981335adc6a70b5b0`; `/api/health` returned 200, an incorrect canonical Cron bearer returned 401, Supabase security advisors returned 0 findings, and final state is 67 migrations with zero privacy/operational/Auth/Storage rows.
+**Production actions performed:** none; no Production env read/write, deployment, database, Firebase, email, customer-data, or `main` action
+**Backup/restore evidence:** n/a; additive empty TEST schema only, with exact source-ledger verification and disposable-target rebuild recovery
+**Rollback/forward recovery:** TEST can be rebuilt from the exact 67-file manifest; remove only the five refactor Preview overrides to deactivate. Forward recovery is the reviewed immutable hosted harness, correct fake-worker invocation, maintenance proof, and exact zero cleanup.
+**Next:** Obtain explicit approval for a label-only Gioia/Supabase Keychain metadata read so the existing operator/runtime TEST passwords can be located without exposing values. Then run `npm run test:e2e:preview`, invoke the fake worker with the exact stored Cron bearer, and reconcile zero residue. Keep real-source `[PROD-READ]`, privacy/legal decisions, Resend/webhook, and every Production action separate.
+**Gotchas:** Vercel sensitive values pull as a redacted placeholder; the first fresh Cron bearer was therefore replaced before use and the final value is protected under a known exact Keychain label. The reviewed harness cannot run until the unrecorded database Keychain item labels are discovered; broad Keychain listing was denied and no workaround was attempted. No Phase 3/4 checkbox was ticked on partial hosted evidence.
+
 ## 2026-07-22 — Completed the Phase 3/4 Local release-candidate foundation
 **Phase:** Phase 3/4 Local readiness; hosted TEST completion remains approval-gated
 **Labels/environment:** `[LOCAL]` implementation and disposable verification only; proposed `[REMOTE-CONFIG]`/`[TEST]` actions not executed
