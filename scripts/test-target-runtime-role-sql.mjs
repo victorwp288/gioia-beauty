@@ -4,6 +4,13 @@ export const RUNTIME_SESSION_STATE_SQL = `
   where pid <> pg_catalog.pg_backend_pid()
     and datname = pg_catalog.current_database()
     and (usename = 'app_runtime' or application_name = 'gioia_public_api')
+    and not (
+      usename = 'app_runtime'
+      and application_name = 'Supavisor'
+      and state = 'idle'
+      and wait_event_type = 'Client'
+      and wait_event = 'ClientRead'
+    )
 `;
 
 export const RUNTIME_ROLE_STATE_SQL = `

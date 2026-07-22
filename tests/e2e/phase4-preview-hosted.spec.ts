@@ -52,7 +52,11 @@ test.describe.serial("Phase 4 hosted Preview acceptance", () => {
       variantId: string;
       slots: number[];
     };
-    expect(available).toMatchObject(target);
+    expect(available).toMatchObject({
+      date: target.localDate,
+      serviceId: target.serviceId,
+      variantId: target.variantId,
+    });
     expect(available.slots.length).toBeLessThanOrEqual(96);
     expect(available.slots).toContain(600);
     expect(JSON.stringify(available)).not.toContain("example.test");

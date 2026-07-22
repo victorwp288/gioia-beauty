@@ -136,6 +136,22 @@ describe("greenfield TEST durable direct runtime", () => {
     );
   });
 
+  it("excludes only the exact provider-owned idle Supavisor backend", () => {
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.sessions).toContain(
+      "application_name = 'Supavisor'",
+    );
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.sessions).toContain("state = 'idle'");
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.sessions).toContain(
+      "wait_event_type = 'Client'",
+    );
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.sessions).toContain(
+      "wait_event = 'ClientRead'",
+    );
+    expect(GREENFIELD_RUNTIME_ROLE_SQL.sessions).toContain(
+      "application_name = 'gioia_public_api'",
+    );
+  });
+
   it("waits for post-server Supavisor drain before proving zero sessions", async () => {
     const state = harness();
     const wait = vi.fn(async () => state.events.push("server-drain-wait"));

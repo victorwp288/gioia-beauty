@@ -111,9 +111,11 @@ export async function verifyRuntimeBoundary(
 ) {
   await assertRuntimeRoleBoundary(sql);
   await verifyRuntimeCredential(config, credentialVerifier);
-  // Supavisor retains an idle server backend for about 120 seconds after the
-  // one-shot client exits and rewrites its application_name to "Supavisor".
-  // Keep a 30-second scheduling/network margin before the authoritative check.
+  // Supavisor rewrites a released transaction-pool backend to its own name and
+  // may retain that exact idle ClientRead state beyond 120 seconds. The session
+  // query excludes only that provider-owned idle state and still rejects every
+  // active or unknown runtime backend. Keep the measured quiet-period margin
+  // before the authoritative check so the provider can complete that handoff.
   await postProbeDrainWait(RUNTIME_CREDENTIAL_POST_PROBE_DRAIN_DELAY_MS);
   await assertRuntimeRoleBoundary(sql);
 }
