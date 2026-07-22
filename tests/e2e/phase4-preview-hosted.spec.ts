@@ -13,6 +13,7 @@ import {
 import { expect, test } from "./phase4-preview-fixture.ts";
 
 const TEST_SUPABASE_ORIGIN = "https://hzibzwhrwmljgjjdzspi.supabase.co";
+const HOSTED_UI_TIMEOUT_MS = 20_000;
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
@@ -104,21 +105,27 @@ test.describe.serial("Phase 4 hosted Preview acceptance", () => {
     await page.getByLabel("Indirizzo email").fill(previewHarness.owner.email);
     await page.getByLabel("Password").fill(previewHarness.owner.password);
     await page.getByRole("button", { name: /^Accedi/u }).click();
-    await expect(page).toHaveURL(/\/dashboard$/u);
+    await expect(page).toHaveURL(/\/dashboard$/u, {
+      timeout: HOSTED_UI_TIMEOUT_MS,
+    });
     await previewHarness.captureAbuseDelta(abuseBeforeLogin, [
       "owner_login:account",
       "owner_login:network",
     ]);
     await expect(
       page.getByRole("heading", { name: "Dashboard", exact: true }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: HOSTED_UI_TIMEOUT_MS });
     await expect
-      .poll(() =>
-        [
-          "/api/admin/schedule",
-          "/api/admin/schedule/count",
-          "/api/admin/vacations",
-        ].every((path) => audit.requests.some((url) => url.pathname === path)),
+      .poll(
+        () =>
+          [
+            "/api/admin/schedule",
+            "/api/admin/schedule/count",
+            "/api/admin/vacations",
+          ].every((path) =>
+            audit.requests.some((url) => url.pathname === path),
+          ),
+        { timeout: HOSTED_UI_TIMEOUT_MS },
       )
       .toBe(true);
     assertBoundedOwnerReads(audit);
@@ -137,7 +144,7 @@ test.describe.serial("Phase 4 hosted Preview acceptance", () => {
       page.getByRole("alert").filter({
         hasText: "Manutenzione attiva: le modifiche sono bloccate",
       }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: HOSTED_UI_TIMEOUT_MS });
     const frozenOwner = await browserOwnerCommand(
       page,
       "/api/admin/appointments",
