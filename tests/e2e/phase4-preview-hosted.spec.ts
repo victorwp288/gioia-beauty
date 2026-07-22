@@ -245,10 +245,7 @@ test.describe.serial("Phase 4 hosted Preview acceptance", () => {
       blockedPublicBody,
       PREVIEW_MAINTENANCE.blockedPublicKey,
     );
-    await previewHarness.captureAbuseDelta(beforeFrozenPublic, [
-      "booking:account",
-      "booking:network",
-    ]);
+    await previewHarness.captureAbuseDelta(beforeFrozenPublic, []);
     expect(frozenPublic).toMatchObject({
       body: { code: "MAINTENANCE_ACTIVE" },
       retryAfter: "300",
@@ -332,10 +329,7 @@ test.describe.serial("Phase 4 hosted Preview acceptance", () => {
       blockedPublicBody,
       PREVIEW_MAINTENANCE.blockedPublicKey,
     );
-    await previewHarness.captureAbuseDelta(beforeReconcilePublic, [
-      "booking:account",
-      "booking:network",
-    ]);
+    await previewHarness.captureAbuseDelta(beforeReconcilePublic, []);
     expect(reconcilePublic).toMatchObject({
       body: { code: "MAINTENANCE_ACTIVE" },
       status: 503,
