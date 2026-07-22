@@ -101,7 +101,9 @@ function exactAbuseKey(key) {
     typeof key.scopeHashHex !== "string" ||
     !/^[0-9a-f]{64}$/u.test(key.scopeHashHex) ||
     typeof key.bucketStart !== "string" ||
-    key.bucketStart.length < 20
+    key.bucketStart.length < 20 ||
+    !Number.isSafeInteger(key.requestCount) ||
+    key.requestCount < 1
   ) {
     throw new Error("Preview browser abuse cleanup key is invalid");
   }
@@ -134,13 +136,15 @@ export async function cleanupPreviewBrowserResidue(sql, { abuseKeys, target }) {
         `delete from gioia_private.public_abuse_buckets
          where action = $1::text and scope_kind = $2::text
            and hmac_key_id = $3::text and scope_hash = decode($4::text, 'hex')
-           and bucket_start = $5::timestamptz returning 1`,
+           and bucket_start = $5::timestamptz
+           and request_count = $6::integer returning 1`,
         [
           key.action,
           key.scopeKind,
           key.hmacKeyId,
           key.scopeHashHex,
           key.bucketStart,
+          key.requestCount,
         ],
       );
       if (removed.length !== 1) {

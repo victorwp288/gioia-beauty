@@ -28,12 +28,33 @@ type AbuseSnapshot = ReadonlyMap<string, AbuseKey & { requestCount: number }>;
 
 type MaintenanceState = Readonly<{ freezeId: string; version: number }>;
 
+type CanaryRun = Readonly<{ runId: string }>;
+type CanaryGrant = Readonly<{ grantId: string; token: string }>;
+type PrivacyProbe = Readonly<{
+  id: string;
+  email: string;
+  legacyId: string;
+  name: string;
+}>;
+
 interface PreviewHarness {
   readonly database: Database;
+  readonly maintenanceTarget: BookingTarget;
   readonly owner: Readonly<{ email: string; password: string }>;
+  readonly privacyProbe: PrivacyProbe;
   readonly target: BookingTarget;
   beginMaintenance(): Promise<MaintenanceState>;
-  completeMaintenance(state: MaintenanceState): Promise<void>;
+  beginCanaryRun(state: MaintenanceState): Promise<CanaryRun>;
+  issueCanaryGrant(input: {
+    runId: string;
+    operation: string;
+    idempotencyKey: string;
+    requestFingerprint: Buffer;
+  }): Promise<CanaryGrant>;
+  reconcileCanaryRun(state: MaintenanceState, runId: string): Promise<void>;
+  enterOwnerReconcile(state: MaintenanceState): Promise<number>;
+  unfreeze(state: MaintenanceState, expectedVersion: number): Promise<number>;
+  verifyMaintenanceEvidence(state: MaintenanceState): Promise<void>;
   captureAbuseDelta(
     before: AbuseSnapshot,
     expected: readonly string[],
@@ -141,6 +162,19 @@ export const test = base.extend<{}, WorkerFixtures>({
       const [
         { getBookingConcurrencyTargets },
         { cleanupPreviewBrowserResidue, cleanupPreviewMaintenanceResidue },
+        { cleanupPreviewMaintenanceScenario, verifyPreviewMaintenanceEvidence },
+        {
+          abortPreviewCanaryRun,
+          adoptPreviewCanaryGrant,
+          adoptPreviewCanaryRun,
+          adoptPreviewFreeze,
+          recoverPreviewMaintenanceResources,
+        },
+        {
+          adoptPreviewPrivacyProbe,
+          cleanupPreviewPrivacyProbe,
+          plantPreviewPrivacyProbe,
+        },
         { parseTestTargetConfig },
         {
           assertCleanGreenfield,
@@ -156,6 +190,9 @@ export const test = base.extend<{}, WorkerFixtures>({
       ] = await Promise.all([
         import("../../scripts/booking-concurrency-suite.mjs"),
         import("../../scripts/preview-e2e-fixtures.mjs"),
+        import("../../scripts/preview-e2e-maintenance-fixture.mjs"),
+        import("../../scripts/preview-e2e-maintenance-recovery.mjs"),
+        import("../../scripts/preview-e2e-privacy-fixture.mjs"),
         import("../../scripts/test-target-config.mjs"),
         import("../../scripts/test-target-fixtures.mjs"),
         import("../../scripts/test-target-harness.mjs"),
@@ -178,42 +215,126 @@ export const test = base.extend<{}, WorkerFixtures>({
             throw new Error("Preview booking targets are unavailable");
           }
           const target = exactTarget(targets[0]);
+          const maintenanceTarget = exactTarget(targets[1]);
           const password = createGreenfieldOwnerPassword();
-          await provisionGreenfieldOwner(worker, password);
-          const operator = createRemoteTestMaintenanceOperator({
-            database: worker,
-            config,
-            tokenBytes: randomBytes,
-          });
-          await operator.assertOpen();
-          const capturedPublicAbuse = new Map<string, AbuseKey>();
+          let operator: ReturnType<
+            typeof createRemoteTestMaintenanceOperator
+          > | null = null;
+          let privacyProbe: PrivacyProbe | null = null;
+          try {
+            await provisionGreenfieldOwner(worker, password);
+            operator = createRemoteTestMaintenanceOperator({
+              database: worker,
+              config,
+              tokenBytes: randomBytes,
+            });
+            await operator.assertOpen();
+            privacyProbe = await plantPreviewPrivacyProbe(
+              worker,
+              maintenanceTarget,
+            );
+          } catch (error) {
+            const setupCleanupErrors: Error[] = [];
+            if (!privacyProbe) {
+              await cleanupAttempt(
+                setupCleanupErrors,
+                "Preview setup privacy probe could not be adopted",
+                async () => {
+                  privacyProbe = await adoptPreviewPrivacyProbe(worker);
+                },
+              );
+            }
+            if (privacyProbe) {
+              await cleanupAttempt(
+                setupCleanupErrors,
+                "Preview setup privacy probe did not clean up",
+                () =>
+                  cleanupPreviewPrivacyProbe(
+                    worker,
+                    privacyProbe!,
+                    maintenanceTarget,
+                  ),
+              );
+            }
+            await cleanupAttempt(
+              setupCleanupErrors,
+              "Preview setup owner/Auth residue did not clean up",
+              () =>
+                cleanupKnownGreenfieldResidue(
+                  worker,
+                  targets,
+                  GREENFIELD_TARGET_VERSIONS,
+                  fingerprint,
+                ),
+            );
+            await cleanupAttempt(
+              setupCleanupErrors,
+              "Preview setup runtime sessions did not drain",
+              () => drainGreenfieldRuntimeSessions(worker),
+            );
+            if (setupCleanupErrors.length > 0) {
+              throw new AggregateError(
+                [error, ...setupCleanupErrors],
+                "Preview setup and cleanup failed",
+              );
+            }
+            throw error;
+          }
+          if (!operator || !privacyProbe) {
+            throw new Error("Preview harness setup did not complete");
+          }
+          const capturedPublicAbuse = new Map<
+            string,
+            AbuseKey & { requestCount: number }
+          >();
           const maintenance = new Map<string, MaintenanceState>();
+          const scenarios = new Map<
+            string,
+            {
+              freezeId: string;
+              evidenceVerified: boolean;
+              grantIds: string[];
+              ownerId: string;
+              reconcileVersion?: number;
+              runId?: string;
+              target: BookingTarget;
+            }
+          >();
           const harness: PreviewHarness = {
             database,
+            maintenanceTarget,
             owner: Object.freeze({
               email: GREENFIELD_TEST_OWNER.email,
               password,
             }),
+            privacyProbe,
             target,
             snapshotAbuse: () => snapshotAbuse(database),
             async captureAbuseDelta(before, expected) {
               const after = await snapshotAbuse(database);
               const delta = [...after.entries()].filter(
-                ([identity]) => !before.has(identity),
+                ([identity, key]) =>
+                  key.requestCount !== before.get(identity)?.requestCount,
               );
               const actual = delta
                 .map(([, key]) => `${key.action}:${key.scopeKind}`)
                 .sort();
               if (
                 actual.join("|") !== [...expected].sort().join("|") ||
-                delta.some(([, key]) => key.requestCount !== 1)
+                delta.some(
+                  ([identity, key]) =>
+                    key.requestCount !==
+                    (before.get(identity)?.requestCount ?? 0) + 1,
+                )
               ) {
                 throw new Error("Preview abuse delta is not exact");
               }
               for (const [identity, key] of delta) {
                 if (
                   new Set(["availability", "booking"]).has(key.action) &&
-                  capturedPublicAbuse.has(identity)
+                  capturedPublicAbuse.has(identity) &&
+                  capturedPublicAbuse.get(identity)?.requestCount ===
+                    key.requestCount
                 ) {
                   throw new Error("Preview abuse cleanup key was reused");
                 }
@@ -223,25 +344,123 @@ export const test = base.extend<{}, WorkerFixtures>({
               }
             },
             async beginMaintenance() {
-              const state = await operator.freeze("PHASE4_PREVIEW_BROWSER");
+              let state: MaintenanceState;
+              try {
+                state = await operator.freeze("PHASE4_PREVIEW_BROWSER");
+              } catch (error) {
+                state = await adoptPreviewFreeze(database);
+                maintenance.set(state.freezeId, state);
+                scenarios.set(state.freezeId, {
+                  freezeId: state.freezeId,
+                  evidenceVerified: false,
+                  grantIds: [],
+                  ownerId: GREENFIELD_TEST_OWNER.id,
+                  target: maintenanceTarget,
+                });
+                throw error;
+              }
               maintenance.set(state.freezeId, state);
+              scenarios.set(state.freezeId, {
+                freezeId: state.freezeId,
+                evidenceVerified: false,
+                grantIds: [],
+                ownerId: GREENFIELD_TEST_OWNER.id,
+                target: maintenanceTarget,
+              });
               return state;
             },
-            async completeMaintenance(state) {
+            async beginCanaryRun(state) {
               const expected = maintenance.get(state.freezeId);
               if (!expected || expected.version !== state.version) {
                 throw new Error("Preview maintenance state is not owned");
               }
-              const reconcileVersion = await operator.enterOwnerReconcile({
+              const scenario = scenarios.get(state.freezeId);
+              if (!scenario || scenario.runId) {
+                throw new Error("Preview canary scenario is not available");
+              }
+              let run: CanaryRun;
+              try {
+                run = await operator.beginCanaryRun({
+                  freezeId: state.freezeId,
+                  labelCode: "PHASE4_PREVIEW_CANARY",
+                  lifetimeSeconds: 600,
+                });
+              } catch (error) {
+                run = await adoptPreviewCanaryRun(database, state.freezeId);
+                scenario.runId = run.runId;
+                throw error;
+              }
+              scenario.runId = run.runId;
+              return { runId: run.runId };
+            },
+            async issueCanaryGrant(input) {
+              const scenario = [...scenarios.values()].find(
+                (candidate) => candidate.runId === input.runId,
+              );
+              if (!scenario || scenario.grantIds.length >= 2) {
+                throw new Error("Preview canary run is not owned");
+              }
+              let grant: CanaryGrant;
+              try {
+                grant = await operator.issueCanaryGrant(input);
+              } catch (error) {
+                const adopted = await adoptPreviewCanaryGrant(database, input);
+                scenario.grantIds.push(adopted.grantId);
+                throw error;
+              }
+              scenario.grantIds.push(grant.grantId);
+              return { grantId: grant.grantId, token: grant.token };
+            },
+            async reconcileCanaryRun(state, runId) {
+              const scenario = scenarios.get(state.freezeId);
+              if (
+                !scenario ||
+                scenario.runId !== runId ||
+                scenario.grantIds.length !== 2
+              ) {
+                throw new Error("Preview canary cleanup is not owned");
+              }
+              await operator.cleanupCanaryRun({
+                freezeId: state.freezeId,
+                runId,
+                grantIds: scenario.grantIds,
+              });
+            },
+            async enterOwnerReconcile(state) {
+              const scenario = scenarios.get(state.freezeId);
+              if (!scenario) {
+                throw new Error("Preview maintenance state is not owned");
+              }
+              const version = await operator.enterOwnerReconcile({
                 freezeId: state.freezeId,
                 expectedVersion: state.version,
                 reasonCode: "PHASE4_PREVIEW_RECONCILE",
               });
-              await operator.unfreeze({
+              scenario.reconcileVersion = version;
+              scenario.evidenceVerified = false;
+              return version;
+            },
+            async unfreeze(state, expectedVersion) {
+              const scenario = scenarios.get(state.freezeId);
+              if (
+                !scenario?.evidenceVerified ||
+                scenario.reconcileVersion !== expectedVersion
+              ) {
+                throw new Error("Preview maintenance evidence is not verified");
+              }
+              return operator.unfreeze({
                 freezeId: state.freezeId,
-                expectedVersion: reconcileVersion,
+                expectedVersion,
                 reasonCode: "PHASE4_PREVIEW_ACCEPTED",
               });
+            },
+            async verifyMaintenanceEvidence(state) {
+              const scenario = scenarios.get(state.freezeId);
+              if (!scenario?.runId || scenario.grantIds.length !== 2) {
+                throw new Error("Preview maintenance evidence is not owned");
+              }
+              await verifyPreviewMaintenanceEvidence(worker, scenario);
+              scenario.evidenceVerified = true;
             },
           };
 
@@ -254,30 +473,62 @@ export const test = base.extend<{}, WorkerFixtures>({
 
           const cleanupErrors: Error[] = [];
           for (const state of maintenance.values()) {
-            await cleanupAttempt(
-              cleanupErrors,
-              "Preview maintenance did not recover to open",
-              async () => {
-                const current = await operator.readState();
-                if (current.mode === "open") return;
-                if (current.freezeId !== state.freezeId) {
-                  throw new Error("Unexpected Preview maintenance owner");
+            const scenario = scenarios.get(state.freezeId);
+            let recoverySafe = true;
+            if (scenario?.runId) {
+              try {
+                await recoverPreviewMaintenanceResources(worker, scenario);
+                try {
+                  await operator.cleanupCanaryRun({
+                    freezeId: state.freezeId,
+                    runId: scenario.runId,
+                    grantIds: scenario.grantIds,
+                  });
+                } catch {
+                  await abortPreviewCanaryRun(worker, scenario);
+                  scenario.runId = undefined;
+                  scenario.grantIds = [];
                 }
-                let version = current.version;
-                if (current.mode === "frozen") {
-                  version = await operator.enterOwnerReconcile({
+              } catch {
+                recoverySafe = false;
+                cleanupErrors.push(
+                  new Error("Preview maintenance resources did not recover"),
+                );
+              }
+            }
+            if (recoverySafe) {
+              await cleanupAttempt(
+                cleanupErrors,
+                "Preview maintenance did not recover to open",
+                async () => {
+                  const current = await operator.readState();
+                  if (current.mode === "open") return;
+                  if (current.freezeId !== state.freezeId) {
+                    throw new Error("Unexpected Preview maintenance owner");
+                  }
+                  let version = current.version;
+                  if (current.mode === "frozen") {
+                    version = await operator.enterOwnerReconcile({
+                      freezeId: state.freezeId,
+                      expectedVersion: version,
+                      reasonCode: "PHASE4_PREVIEW_TEST_CLEANUP_RECONCILE",
+                    });
+                  }
+                  await operator.unfreeze({
                     freezeId: state.freezeId,
                     expectedVersion: version,
-                    reasonCode: "PHASE4_PREVIEW_TEST_CLEANUP_RECONCILE",
+                    reasonCode: "PHASE4_PREVIEW_TEST_CLEANUP_OPEN",
                   });
-                }
-                await operator.unfreeze({
-                  freezeId: state.freezeId,
-                  expectedVersion: version,
-                  reasonCode: "PHASE4_PREVIEW_TEST_CLEANUP_OPEN",
-                });
-              },
-            );
+                },
+              );
+              if (scenario) {
+                await cleanupAttempt(
+                  cleanupErrors,
+                  "Preview maintenance scenario did not clean up",
+                  () => cleanupPreviewMaintenanceScenario(worker, scenario),
+                );
+              }
+            }
           }
           await cleanupAttempt(
             cleanupErrors,
@@ -293,6 +544,16 @@ export const test = base.extend<{}, WorkerFixtures>({
                 abuseKeys: [...capturedPublicAbuse.values()],
                 target,
               }),
+          );
+          await cleanupAttempt(
+            cleanupErrors,
+            "Preview privacy probe did not clean up",
+            () =>
+              cleanupPreviewPrivacyProbe(
+                worker,
+                privacyProbe,
+                maintenanceTarget,
+              ),
           );
           await cleanupAttempt(
             cleanupErrors,
