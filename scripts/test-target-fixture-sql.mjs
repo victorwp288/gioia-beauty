@@ -110,6 +110,13 @@ export const GREENFIELD_OPERATIONAL_TABLE_NAMES = Object.freeze([
   "newsletter_subscribers",
   "owner_accounts",
   "owner_sessions",
+  "privacy_holds",
+  "privacy_operation_evidence",
+  "privacy_policy_decisions",
+  "privacy_policy_versions",
+  "privacy_request_inventory",
+  "privacy_scrub_plan_items",
+  "privacy_subject_requests",
   "public_abuse_buckets",
   "schedule_day_locks",
   "schedule_entries",
@@ -128,6 +135,7 @@ export const GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES = Object.freeze(
   assert_enabled_owner_account assert_interval_open assert_owner_slot_policy
   assert_public_slot_policy assert_schedule_date_open assert_vacation_span_clear
   authenticated_owner_session_id authorize_cutover_write
+  assert_privacy_policy_approved
   authorize_owner_session begin_command begin_cutover_canary_run
   begin_cutover_write_freeze begin_email_outbox_provider_attempt
   begin_legacy_migration_import canonicalize_newsletter_action_token_times
@@ -135,15 +143,19 @@ export const GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES = Object.freeze(
   complete_cutover_unfreeze complete_email_outbox_failure
   complete_email_outbox_pre_provider_failure complete_email_outbox_success
   complete_legacy_migration_import confirm_public_newsletter
-  consume_public_abuse_bucket count_schedule_as_owner create_public_booking
-  enforce_command_request_transition enforce_email_outbox_transition
+  consume_public_abuse_bucket count_privacy_owner_auth_dry_run
+  count_schedule_as_owner create_public_booking
+  enforce_approved_privacy_decision_immutability
+  enforce_approved_privacy_policy_immutability enforce_command_request_transition
+  enforce_email_outbox_transition
   enforce_email_webhook_event_transition enforce_migration_quarantine_transition
   enforce_migration_run_transition enforce_newsletter_action_token_transition
   enforce_newsletter_consent_cycle_binding
   enforce_newsletter_subscriber_transition enforce_schedule_entry_transition
   enforce_vacation_transition enqueue_schedule_emails
   enter_cutover_owner_reconcile export_schedule_as_owner fail_command
-  get_cutover_write_state get_public_availability issue_cutover_canary_grant
+  get_cutover_write_state get_public_availability
+  inventory_privacy_subject_dry_run issue_cutover_canary_grant
   list_email_outbox_as_owner list_newsletter_subscribers_as_owner
   list_schedule_as_owner list_vacations_as_owner lock_schedule_dates
   maintain_email_webhook_replay_lifecycle owner_cancel_schedule_entry
@@ -151,7 +163,8 @@ export const GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES = Object.freeze(
   owner_create_vacation owner_reschedule_appointment owner_reschedule_block
   owner_scope_hash owner_set_appointment_status owner_unsubscribe_subscriber
   owner_update_appointment_details owner_update_block_details
-  owner_update_vacation prepare_legacy_migration_import_record
+  owner_update_vacation plan_privacy_scrub_dry_run
+  prepare_legacy_migration_import_record
   process_verified_email_webhook purge_expired_public_abuse_buckets
   reconcile_cutover_canary_run record_domain_change
   record_email_dead_letter_event replay_pending_verified_email_webhooks

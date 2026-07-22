@@ -33,9 +33,9 @@ export function assertCleanGreenfieldRow(row, expectedVersions) {
     }
   }
   const expected = {
-    tables: 32,
-    forced_rls: 32,
-    functions: 86,
+    tables: 39,
+    forced_rls: 39,
+    functions: 92,
     roles: 3,
     unsafe_role_credentials: 0,
     unsafe_roles: 0,

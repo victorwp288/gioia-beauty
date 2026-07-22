@@ -341,7 +341,14 @@ export const GREENFIELD_RESIDUE_SQL = `
       + (select count(*) from gioia_private.email_webhook_events)
       + (select count(*) from gioia_private.migration_runs)
       + (select count(*) from gioia_private.migration_records)
-      + (select count(*) from gioia_private.migration_quarantine))::integer
+      + (select count(*) from gioia_private.migration_quarantine)
+      + (select count(*) from gioia_private.privacy_holds)
+      + (select count(*) from gioia_private.privacy_operation_evidence)
+      + (select count(*) from gioia_private.privacy_policy_decisions)
+      + (select count(*) from gioia_private.privacy_policy_versions)
+      + (select count(*) from gioia_private.privacy_request_inventory)
+      + (select count(*) from gioia_private.privacy_scrub_plan_items)
+      + (select count(*) from gioia_private.privacy_subject_requests))::integer
       as unrelated_rows
 `;
 

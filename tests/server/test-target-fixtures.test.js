@@ -44,9 +44,9 @@ function cleanRow(overrides = {}) {
     migration_versions: versions,
     role_names: GREENFIELD_EXPECTED_ROLE_NAMES,
     schema_names: GREENFIELD_EXPECTED_SCHEMA_NAMES,
-    tables: 32,
-    forced_rls: 32,
-    functions: 86,
+    tables: 39,
+    forced_rls: 39,
+    functions: 92,
     roles: 3,
     unsafe_role_credentials: 0,
     unsafe_roles: 0,
@@ -137,14 +137,23 @@ function fingerprintRow(overrides = {}) {
 }
 
 describe("greenfield TEST fixture reconciliation", () => {
-  it("pins the complete 61-migration private catalog", () => {
-    expect(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES).toHaveLength(32);
-    expect(GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES).toHaveLength(86);
+  it("pins the complete 67-migration private catalog", () => {
+    expect(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES).toHaveLength(39);
+    expect(GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES).toHaveLength(92);
     expect(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES).toContain(
       "email_dead_letter_monitor_state",
     );
     expect(GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES).toContain(
       "authorize_cutover_write",
+    );
+    expect(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES).toContain(
+      "privacy_policy_versions",
+    );
+    expect(GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES).toContain(
+      "plan_privacy_scrub_dry_run",
+    );
+    expect(GREENFIELD_RESIDUE_SQL).toContain(
+      "gioia_private.privacy_operation_evidence",
     );
   });
 
