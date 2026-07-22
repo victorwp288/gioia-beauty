@@ -3,16 +3,13 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { LOCAL_SYNTHETIC_OWNER } from "./local-phase3-e2e-contract.mjs";
 import { localSupabasePorts } from "./local-supabase-ports.mjs";
+
+export { LOCAL_SYNTHETIC_OWNER };
 
 const execFileAsync = promisify(execFile);
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
-// Public local-only fixture credential. Never reuse it outside disposable Local/CI.
-export const LOCAL_SYNTHETIC_OWNER = Object.freeze({
-  id: "51000000-0000-4000-8000-000000000001",
-  email: "owner.local@gioia.test",
-  password: "GioiaLocal1!NotSecret", // gitleaks:allow
-});
 export const LOCAL_DISABLED_SIGNUP_PROBE = Object.freeze({
   email: "signup-disabled.local@gioia.test",
   password: "GioiaSignup1!NotSecret", // gitleaks:allow

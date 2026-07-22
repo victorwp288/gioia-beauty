@@ -17,6 +17,7 @@ import { SERVICE_CATALOG } from "@/lib/domain/catalog/index.ts";
 const REQUEST_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const IDEMPOTENCY_KEY = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const RESOURCE_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const HUMAN_CHALLENGE_TOKEN = "turnstile-test-token";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -113,7 +114,7 @@ describe("public API client HTTP contracts", () => {
     };
 
     await expect(
-      createPublicBooking(command, IDEMPOTENCY_KEY),
+      createPublicBooking(command, IDEMPOTENCY_KEY, HUMAN_CHALLENGE_TOKEN),
     ).resolves.toMatchObject({ code: "BOOKING_CREATED", replayed: false });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/bookings",
@@ -123,6 +124,7 @@ describe("public API client HTTP contracts", () => {
         headers: expect.objectContaining({
           "Content-Type": "application/json",
           "Idempotency-Key": IDEMPOTENCY_KEY,
+          "x-gioia-human-challenge": HUMAN_CHALLENGE_TOKEN,
         }),
         method: "POST",
       }),
@@ -135,7 +137,11 @@ describe("public API client HTTP contracts", () => {
       .mockResolvedValue(jsonResponse({ code: "REQUEST_ACCEPTED" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await subscribeToNewsletter("cliente@example.test", IDEMPOTENCY_KEY);
+    await subscribeToNewsletter(
+      "cliente@example.test",
+      IDEMPOTENCY_KEY,
+      HUMAN_CHALLENGE_TOKEN,
+    );
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/newsletter/subscribe",
@@ -146,11 +152,25 @@ describe("public API client HTTP contracts", () => {
         }),
         headers: expect.objectContaining({
           "Idempotency-Key": IDEMPOTENCY_KEY,
+          "x-gioia-human-challenge": HUMAN_CHALLENGE_TOKEN,
         }),
         method: "POST",
       }),
     );
   });
+
+  it.each(["", "contains space", "line\nbreak", "a".repeat(2_049)])(
+    "rejects malformed challenge token %# before network work",
+    async (token) => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        subscribeToNewsletter("cliente@example.test", IDEMPOTENCY_KEY, token),
+      ).rejects.toThrow(TypeError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("preserves validated error metadata including bounded Retry-After", async () => {
     vi.stubGlobal(

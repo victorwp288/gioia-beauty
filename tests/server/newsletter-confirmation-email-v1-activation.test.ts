@@ -272,7 +272,7 @@ describe("inert newsletter confirmation renderer v1", () => {
     );
   });
 
-  it("activates only through the fail-closed Local/Test runtime", () => {
+  it("activates only through the fail-closed non-production TEST runtime", () => {
     const root = process.cwd();
     const modulePath = resolve(
       root,
@@ -296,10 +296,13 @@ describe("inert newsletter confirmation renderer v1", () => {
     expect(importers).toEqual([localTestRuntimePath]);
 
     const localTestRuntime = readFileSync(localTestRuntimePath, "utf8");
+    expect(localTestRuntime).toContain('validation.appEnv === "preview"');
     expect(localTestRuntime).toContain(
-      '!["local", "test"].includes(validation.appEnv ?? "")',
+      "env.SUPABASE_PROJECT_REF === GREENFIELD_SUPABASE_REF",
     );
+    expect(localTestRuntime).toContain('env.VERCEL_ENV === "preview"');
     expect(localTestRuntime).toContain('env.EMAIL_TRANSPORT !== "fake"');
+    expect(localTestRuntime).toContain("readiness.productionReady");
     expect(localTestRuntime).toContain("createFakeEmailProvider()");
     expect(localTestRuntime).not.toContain("createEmailProvider(");
 

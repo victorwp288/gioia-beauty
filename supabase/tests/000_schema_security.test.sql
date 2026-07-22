@@ -216,11 +216,14 @@ select ok(
 
 with expected(table_name, privilege_type) as (
   values
+    ('command_requests', 'SELECT'),
     ('domain_change_log', 'INSERT'), ('domain_change_log', 'SELECT'),
+    ('email_outbox', 'SELECT'), ('email_webhook_events', 'SELECT'),
     ('migration_quarantine', 'INSERT'), ('migration_quarantine', 'SELECT'),
     ('migration_quarantine', 'UPDATE'),
     ('migration_records', 'INSERT'), ('migration_records', 'SELECT'),
-    ('migration_runs', 'INSERT'), ('migration_runs', 'SELECT'), ('migration_runs', 'UPDATE')
+    ('migration_runs', 'INSERT'), ('migration_runs', 'SELECT'), ('migration_runs', 'UPDATE'),
+    ('newsletter_subscribers', 'SELECT'), ('schedule_entries', 'SELECT')
 ), actual as (
   select relation.relname::text as table_name, access.privilege_type
   from pg_catalog.pg_class as relation

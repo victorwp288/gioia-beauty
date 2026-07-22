@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 
 import { assertEnvironment } from "../config/environment.mjs";
+import { LOCAL_PHASE3_E2E_BOOKING_HMAC_SECRET } from "./local-phase3-e2e-contract.mjs";
 import { getLocalRouteStatus } from "./local-owner-auth-harness.mjs";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -17,8 +18,6 @@ const FORBIDDEN_INHERITED_KEYS = [
   "SUPABASE_PROJECT_REF",
   "VERCEL_TOKEN",
 ];
-const LOCAL_BOOKING_SECRET =
-  "phase3-local-e2e-booking-hmac-secret-000000000000";
 const LOCAL_OWNER_SESSION_SECRET =
   "phase3-local-e2e-owner-session-secret-00000000000";
 const LOCAL_HUMAN_CHALLENGE_TOKEN = "A".repeat(43);
@@ -61,7 +60,7 @@ function childEnvironment(status) {
   const environment = {
     ...process.env,
     APP_ENV: "test",
-    BOOKING_HMAC_SECRET: LOCAL_BOOKING_SECRET,
+    BOOKING_HMAC_SECRET: LOCAL_PHASE3_E2E_BOOKING_HMAC_SECRET,
     EMAIL_TRANSPORT: "fake",
     EMAIL_WEBHOOK_ENABLED: "false",
     NEXT_PUBLIC_APP_ENV: "test",

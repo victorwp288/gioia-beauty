@@ -3,7 +3,10 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
-import { validateEnvironment } from "@/config/environment.mjs";
+import {
+  parseTurnstileEnvironment,
+  validateEnvironment,
+} from "@/config/environment.mjs";
 import {
   NormalizedEmailSchema,
   UuidSchema,
@@ -19,6 +22,7 @@ import {
   type PublicAbuseRepository,
 } from "./database/publicAbuseRepository.ts";
 import { apiErrorResponse } from "./publicApiResponse.ts";
+import { createTurnstileHumanChallengeVerifier } from "./turnstileHumanChallengeVerifier.ts";
 
 export type PublicAbuseAction =
   | "public_availability"
@@ -150,12 +154,13 @@ function isPublicAbuseAction(action: unknown): action is PublicAbuseAction {
 function actionEnabledInEnvironment(
   appEnv: string,
   action: PublicAbuseAction,
+  env: ServerEnvironment,
 ): boolean {
   if (appEnv === "local" || appEnv === "test") return true;
-  return (
-    action === "owner_login" &&
-    (appEnv === "preview" || appEnv === "production")
-  );
+  if (appEnv === "preview") {
+    return action === "owner_login" || parseTurnstileEnvironment(env) !== null;
+  }
+  return action === "owner_login" && appEnv === "production";
 }
 
 function validScopeForAction(
@@ -264,7 +269,7 @@ export function createPublicAbuseGuard(
         if (
           !validation.ok ||
           !isPublicAbuseAction(action) ||
-          !actionEnabledInEnvironment(validation.appEnv, action) ||
+          !actionEnabledInEnvironment(validation.appEnv, action, env) ||
           !validScopeForAction(action, scope)
         ) {
           return unavailableDecision();
@@ -317,10 +322,18 @@ export function createLocalTestHumanChallengeVerifier(
   };
 }
 
+export function createEnvironmentHumanChallengeVerifier(
+  env: ServerEnvironment = process.env,
+): PublicHumanChallengeVerifier {
+  return parseTurnstileEnvironment(env)
+    ? createTurnstileHumanChallengeVerifier(env)
+    : createLocalTestHumanChallengeVerifier(env);
+}
+
 export function createDatabasePublicAbuseGuard(
   repository: Pick<PublicAbuseRepository, "consume"> = publicAbuseRepository,
   env: ServerEnvironment = process.env,
-  humanChallengeVerifier: PublicHumanChallengeVerifier = createLocalTestHumanChallengeVerifier(
+  humanChallengeVerifier: PublicHumanChallengeVerifier = createEnvironmentHumanChallengeVerifier(
     env,
   ),
 ): PublicAbuseGuard {
@@ -330,7 +343,7 @@ export function createDatabasePublicAbuseGuard(
       if (
         !validation.ok ||
         !isPublicAbuseAction(action) ||
-        !actionEnabledInEnvironment(validation.appEnv, action) ||
+        !actionEnabledInEnvironment(validation.appEnv, action, env) ||
         !validScopeForAction(action, scope)
       ) {
         return unavailableDecision();

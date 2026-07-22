@@ -140,6 +140,26 @@ decommission procedure.
   defaults/integrations audit, source-map policy, synthetic test-fire, owner
   escalation, and separate Production configuration approval.
 
+### Cloudflare Turnstile
+
+- **Status:** `planned`; the replacement app contains a fail-closed adapter,
+  but no repository action has activated Turnstile in Production. Official
+  dummy keys may be authorized only for the synthetic `refactor` Preview.
+- **Purpose:** challenge public booking and newsletter submission after the
+  durable database abuse policy requests additional human verification.
+- **Data in scope:** ordinary browser/network metadata visible to Cloudflare,
+  challenge telemetry/token, configured action, and serving hostname. The Gioia
+  server deliberately omits the optional visitor IP from Siteverify and sends
+  no booking/contact fields.
+- **Repository evidence:**
+  [`lib/server/turnstileHumanChallengeVerifier.ts`](../lib/server/turnstileHumanChallengeVerifier.ts),
+  [`components/common/TurnstileChallenge.jsx`](../components/common/TurnstileChallenge.jsx),
+  and [`docs/API-INVENTORY.md`](API-INVENTORY.md).
+- **Pending:** owner/recovery, DPA/subprocessors, challenge processing
+  regions/transfers, telemetry and token retention/deletion, data-subject
+  request path, public notice/cookie classification, support/incident contact,
+  and a separate decision before real Production keys are created.
+
 ## Browser third parties and external destinations
 
 These entries are not automatically classified as processors. Their role and

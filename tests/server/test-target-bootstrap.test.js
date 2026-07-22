@@ -190,7 +190,7 @@ describe("greenfield TEST pristine hosted bootstrap", () => {
     }
   });
 
-  it("atomically applies all 63 reviewed migrations before accepting clean state", async () => {
+  it("atomically applies all 67 reviewed migrations before accepting clean state", async () => {
     const plan = planGreenfieldAtomicRebuild();
     const target = database(plan, 0);
     const assertClean = vi.fn(async (_sql, versions) => {
@@ -202,7 +202,7 @@ describe("greenfield TEST pristine hosted bootstrap", () => {
       bootstrapGreenfieldTestProject(target.sql, plan, { assertClean }),
     ).resolves.toEqual({
       bootstrapped: true,
-      migrationCount: 63,
+      migrationCount: 67,
       referenceRows: 205,
       ...fingerprint,
     });
@@ -223,7 +223,7 @@ describe("greenfield TEST pristine hosted bootstrap", () => {
       target.transaction.unsafe.mock.calls.filter(
         ([query]) => query === GREENFIELD_BOOTSTRAP_HISTORY_INSERT_SQL,
       ),
-    ).toHaveLength(63);
+    ).toHaveLength(67);
     expect(target.transaction.unsafe).toHaveBeenCalledWith(
       GREENFIELD_HISTORY_VERIFY_SQL,
     );
@@ -238,7 +238,7 @@ describe("greenfield TEST pristine hosted bootstrap", () => {
       bootstrapGreenfieldTestProject(target.sql, plan, { assertClean }),
     ).resolves.toEqual({
       bootstrapped: false,
-      migrationCount: 63,
+      migrationCount: 67,
       referenceRows: 205,
       ...fingerprint,
     });
@@ -249,7 +249,7 @@ describe("greenfield TEST pristine hosted bootstrap", () => {
     expect(assertClean).toHaveBeenCalledOnce();
   });
 
-  it.each([1, 35, 62, 64])(
+  it.each([1, 35, 66, 68])(
     "rejects partial or foreign migration history count %i",
     async (migrationCount) => {
       const plan = planGreenfieldAtomicRebuild();
@@ -264,8 +264,8 @@ describe("greenfield TEST pristine hosted bootstrap", () => {
   it("rejects altered managed history before the two-cycle flow", async () => {
     const plan = planGreenfieldAtomicRebuild();
     const history = exactHistory(plan);
-    history[62] = { ...history[62], statement: "select 'foreign';" };
-    const target = database(plan, 63, { history });
+    history[66] = { ...history[66], statement: "select 'foreign';" };
+    const target = database(plan, 67, { history });
     await expect(
       bootstrapGreenfieldTestProject(target.sql, plan),
     ).rejects.toThrow("migration history is invalid");
@@ -276,9 +276,9 @@ describe("greenfield TEST pristine hosted bootstrap", () => {
     ["after-pristine-guard", -1],
     ["after-history-schema", -1],
     ["after-migration", 0],
-    ["after-history", 62],
-    ["before-bootstrap-check", 63],
-    ["after-bootstrap-check", 63],
+    ["after-history", 66],
+    ["before-bootstrap-check", 67],
+    ["after-bootstrap-check", 67],
   ])("rolls back a bootstrap fault at %s/%i", async (stage, index) => {
     const plan = planGreenfieldAtomicRebuild();
     const target = database(plan, 0);

@@ -41,6 +41,15 @@ function previewEnvironment(overrides = {}) {
   };
 }
 
+const TURNSTILE_PREVIEW_ENVIRONMENT = Object.freeze({
+  PUBLIC_HUMAN_CHALLENGE_PROVIDER: "turnstile",
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+  TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
+  TURNSTILE_ALLOWED_HOSTNAMES_JSON: JSON.stringify([
+    "gioia-beauty-git-refactor.example.vercel.app",
+  ]),
+});
+
 describe("environment isolation", () => {
   it("accepts a minimal local environment", () => {
     expect(validate()).toEqual({ ok: true, appEnv: "local", errors: [] });
@@ -257,6 +266,50 @@ describe("environment isolation", () => {
       validate(previewEnvironment({ PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN: token }))
         .errors,
     ).toContain("PUBLIC_HUMAN_CHALLENGE_TEST_TOKEN is forbidden in preview");
+  });
+
+  it("accepts only a complete exact-host Turnstile bundle in Preview", () => {
+    expect(validate(previewEnvironment(TURNSTILE_PREVIEW_ENVIRONMENT))).toEqual(
+      { ok: true, appEnv: "preview", errors: [] },
+    );
+
+    for (const key of Object.keys(TURNSTILE_PREVIEW_ENVIRONMENT)) {
+      const incomplete = { ...TURNSTILE_PREVIEW_ENVIRONMENT, [key]: undefined };
+      expect(validate(previewEnvironment(incomplete)).errors, key).toContain(
+        "Preview Turnstile configuration is incomplete or invalid",
+      );
+    }
+  });
+
+  it.each([
+    ["uppercase", ["Preview.Example.vercel.app"]],
+    ["URL", ["https://preview.example.vercel.app"]],
+    ["wildcard", ["*.example.vercel.app"]],
+    ["duplicate", ["preview.example.test", "preview.example.test"]],
+    ["empty", []],
+  ])("rejects %s Turnstile hostname configuration", (_label, hostnames) => {
+    const result = validate(
+      previewEnvironment({
+        ...TURNSTILE_PREVIEW_ENVIRONMENT,
+        TURNSTILE_ALLOWED_HOSTNAMES_JSON: JSON.stringify(hostnames),
+      }),
+    );
+    expect(result.errors).toContain(
+      "Preview Turnstile configuration is incomplete or invalid",
+    );
+  });
+
+  it("forbids the remote Turnstile credential bundle outside Preview", () => {
+    for (const appEnv of ["local", "test", "operator"]) {
+      const result = validate({
+        APP_ENV: appEnv,
+        NEXT_PUBLIC_APP_ENV: appEnv,
+        ...TURNSTILE_PREVIEW_ENVIRONMENT,
+      });
+      expect(result.errors).toContain(
+        `Turnstile configuration is forbidden in ${appEnv}`,
+      );
+    }
   });
 
   it("allows Preview only with the registered greenfield Supabase ref", () => {

@@ -13,6 +13,7 @@ import {
   ownerCommandFingerprint,
   startBrowserTrafficAudit,
   test,
+  withSyntheticOwnerLoginNetwork,
 } from "./phase4-owner-fixture.ts";
 
 test.describe.serial("Phase 4 Local owner and maintenance acceptance", () => {
@@ -54,14 +55,16 @@ test.describe.serial("Phase 4 Local owner and maintenance acceptance", () => {
 
     const noJavaScript = await browser.newContext({ javaScriptEnabled: false });
     const preHydrationLogin = await noJavaScript.newPage();
-    await preHydrationLogin.goto("/login");
-    await preHydrationLogin
-      .getByLabel("Indirizzo email")
-      .fill(LOCAL_SYNTHETIC_OWNER.email);
-    await preHydrationLogin
-      .getByLabel("Password")
-      .fill(LOCAL_SYNTHETIC_OWNER.password);
-    await preHydrationLogin.getByRole("button", { name: /^Accedi/u }).click();
+    await withSyntheticOwnerLoginNetwork(preHydrationLogin, async () => {
+      await preHydrationLogin.goto("/login");
+      await preHydrationLogin
+        .getByLabel("Indirizzo email")
+        .fill(LOCAL_SYNTHETIC_OWNER.email);
+      await preHydrationLogin
+        .getByLabel("Password")
+        .fill(LOCAL_SYNTHETIC_OWNER.password);
+      await preHydrationLogin.getByRole("button", { name: /^Accedi/u }).click();
+    });
     const preHydrationUrl = new URL(preHydrationLogin.url());
     expect(preHydrationUrl.pathname).toBe("/api/auth/login");
     expect(preHydrationUrl.search).toBe("");

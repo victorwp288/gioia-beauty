@@ -33,7 +33,9 @@ function isolatedEnvironment(
   };
 }
 
-function previewEnvironment() {
+function previewEnvironment(
+  overrides: Record<string, string | undefined> = {},
+) {
   return {
     APP_ENV: "preview",
     NEXT_PUBLIC_APP_ENV: "preview",
@@ -58,8 +60,18 @@ function previewEnvironment() {
       `postgresql://app_runtime.${PROJECT_REF}:synthetic@` +
       "aws-1-eu-central-2.pooler.supabase.com:6543/postgres" +
       "?sslmode=verify-full",
+    ...overrides,
   };
 }
+
+const TURNSTILE_PREVIEW_ENVIRONMENT = Object.freeze({
+  PUBLIC_HUMAN_CHALLENGE_PROVIDER: "turnstile",
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+  TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
+  TURNSTILE_ALLOWED_HOSTNAMES_JSON: JSON.stringify([
+    "gioia-beauty-git-refactor.example.vercel.app",
+  ]),
+});
 
 function request() {
   return new Request("https://www.gioiabeauty.net/api/bookings", {
@@ -218,6 +230,80 @@ describe("public abuse boundary", () => {
       humanVerified: false,
     });
     expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("activates Preview public actions only with complete Turnstile configuration", async () => {
+    const consume = vi.fn(async (_input: unknown) => ({
+      decision: "allowed" as const,
+      allowed: true,
+      remaining: 1,
+      retryAfterSeconds: 0,
+      humanVerificationRequired: false,
+    }));
+    const verify = vi.fn(async () => ({ verified: true }));
+    const env = previewEnvironment(TURNSTILE_PREVIEW_ENVIRONMENT);
+    const guard = createDatabasePublicAbuseGuard({ consume }, env, { verify });
+
+    for (const action of [
+      "public_availability",
+      "public_booking",
+      "public_newsletter_subscribe",
+      "public_newsletter_confirm",
+      "public_newsletter_unsubscribe",
+    ] as const) {
+      await expect(
+        guard.check(
+          {
+            headers: new Headers({
+              "x-vercel-forwarded-for": "192.0.2.30",
+            }),
+          },
+          action,
+        ),
+      ).resolves.toMatchObject({ ok: true });
+    }
+
+    expect(consume).toHaveBeenCalledTimes(5);
+    expect(verify).toHaveBeenCalledTimes(2);
+  });
+
+  it("injects the Turnstile verifier for the Preview runtime guard", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        success: true,
+        hostname: "gioia-beauty-git-refactor.example.vercel.app",
+        action: "public_booking",
+        "error-codes": [],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const consume = vi.fn(async (_input: unknown) => ({
+      decision: "allowed" as const,
+      allowed: true,
+      remaining: 1,
+      retryAfterSeconds: 0,
+      humanVerificationRequired: false,
+    }));
+    const guard = createDatabasePublicAbuseGuard(
+      { consume },
+      previewEnvironment(TURNSTILE_PREVIEW_ENVIRONMENT),
+    );
+
+    await expect(
+      guard.check(
+        {
+          headers: new Headers({
+            "x-vercel-forwarded-for": "192.0.2.31",
+            "x-gioia-human-challenge": "XXXX.DUMMY.TOKEN.XXXX",
+          }),
+        },
+        "public_booking",
+      ),
+    ).resolves.toMatchObject({ ok: true, humanVerified: true });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(consume).toHaveBeenCalledWith(
+      expect.objectContaining({ humanVerified: true }),
+    );
   });
 
   it("maps the durable owner-login post-threshold signal to an ordinary 429 with its exact retry delay", async () => {

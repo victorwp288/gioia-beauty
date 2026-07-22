@@ -3,8 +3,7 @@ grant gioia_mutator to postgres;
 set local search_path = extensions, public, pg_catalog;
 select plan(23);
 select is(
-  (
-    select count(*)
+  (select count(*)
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'gioia_private'
@@ -17,8 +16,7 @@ select is(
   'all four internal authorization and schedule helpers exist'
 );
 select is(
-  (
-    select count(*)
+  (select count(*)
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     join pg_catalog.pg_roles as owner on owner.oid = procedure.proowner
@@ -32,15 +30,16 @@ select is(
   4::bigint,
   'internal command helpers are owned by the no-login mutator role'
 );
-with operator_only(signature) as (
+with operator_only(signature, expected_owner) as (
   values
-    ('gioia_private.begin_cutover_canary_run(uuid,text,timestamp with time zone)'::text),
-    ('gioia_private.begin_cutover_write_freeze(text)'::text),
-    ('gioia_private.complete_cutover_unfreeze(uuid,integer,text)'::text),
-    ('gioia_private.enter_cutover_owner_reconcile(uuid,integer,text)'::text),
-    ('gioia_private.issue_cutover_canary_grant(uuid,bytea,text,text,bytea,timestamp with time zone)'::text),
-    ('gioia_private.reconcile_cutover_canary_run(uuid)'::text),
-    ('gioia_private.revoke_cutover_canary_grant(uuid)'::text)
+    ('gioia_private.begin_cutover_canary_run(uuid,text,timestamp with time zone)'::text, 'gioia_mutator'::text), ('gioia_private.begin_cutover_write_freeze(text)'::text, 'gioia_mutator'::text),
+    ('gioia_private.complete_cutover_unfreeze(uuid,integer,text)'::text, 'gioia_mutator'::text), ('gioia_private.enter_cutover_owner_reconcile(uuid,integer,text)'::text, 'gioia_mutator'::text),
+    ('gioia_private.issue_cutover_canary_grant(uuid,bytea,text,text,bytea,timestamp with time zone)'::text, 'gioia_mutator'::text),
+    ('gioia_private.reconcile_cutover_canary_run(uuid)'::text, 'gioia_mutator'::text), ('gioia_private.revoke_cutover_canary_grant(uuid)'::text, 'gioia_mutator'::text),
+    ('gioia_private.assert_privacy_policy_approved(text,text,text)'::text, 'gioia_migrator'::text),
+    ('gioia_private.count_privacy_owner_auth_dry_run(text,smallint)'::text, 'postgres'::text),
+    ('gioia_private.inventory_privacy_subject_dry_run(uuid,text,text,text,text,text,text,uuid,bytea,bytea,timestamp with time zone,smallint)'::text, 'gioia_migrator'::text),
+    ('gioia_private.plan_privacy_scrub_dry_run(uuid,integer)'::text, 'gioia_migrator'::text)
 )
 select ok(
   not exists (
@@ -51,17 +50,18 @@ select ok(
     where namespace.nspname = 'gioia_private'
       and procedure.prosecdef
       and (
-        owner.rolname <> case
+        owner.rolname <> coalesce((select operator_only.expected_owner
+          from operator_only where operator_only.signature =
+            procedure.oid::regprocedure::text), case
           when procedure.proname in (
             'begin_legacy_migration_import', 'prepare_legacy_migration_import_record',
             'apply_legacy_quarantine_import', 'complete_legacy_migration_import'
-          ) then 'gioia_migrator' else 'gioia_mutator' end
-        or has_function_privilege('app_runtime', procedure.oid, 'EXECUTE')
-          <> (
+          ) then 'gioia_migrator' else 'gioia_mutator' end)
+        or has_function_privilege('app_runtime', procedure.oid, 'EXECUTE') <> (
             procedure.proname not like '%legacy_migration_import%'
             and procedure.proname not like 'apply_legacy_%_import'
-            and not exists (select 1 from operator_only where
-              operator_only.signature = procedure.oid::regprocedure::text)
+            and not exists (select 1 from operator_only where operator_only.signature =
+              procedure.oid::regprocedure::text)
           )
       )
   ),

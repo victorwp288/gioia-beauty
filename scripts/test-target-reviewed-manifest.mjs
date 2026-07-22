@@ -125,13 +125,21 @@ export const REVIEWED_MIGRATION_DIGESTS = Object.freeze({
     "4b4af60bef4e8b0d49c038e141fd3a93eb847fcad49a96052245237b684fcd6f",
   "20260721150000_phase4_minimum_canary_operations.sql":
     "f474750d47e764a7c208e2557f47002f10bf1333642e1b03d20e6d749aa9cda5",
+  "20260722090636_bound_abuse_bucket_cleanup.sql":
+    "b1f26bbeda9db0e00470d14dcd2846d1c24c26528fca512c0303888e72356928",
+  "20260722113000_privacy_policy_foundation.sql":
+    "c2bdba0778e1627bae65a7f96986bee1f799d42f225d205840a8ab954633b55f",
+  "20260722113001_privacy_dry_run_functions.sql":
+    "33bdf9192bfdfb5d1572cbf932bc8180ca6a184bc7315cd33d7c759c13a2bad8",
+  "20260722113002_privacy_scrub_plan_dry_run.sql":
+    "f40618c9343ea5988ffef5cdfa35f4f8c07e196c28643a1297cd06bc4f8ea802",
 });
 
 export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "000_0_pgtap_setup.test.sql":
     "0ae2198cbf1d3207f4f52aa19c64c685efdfad417600ea3f6f25c5f624618ed0",
   "000_schema_security.test.sql":
-    "6af4bf7de99dea0750f5f333d265d339aeb75cc33dc01dcf78cd05351b00b672",
+    "a5f8b357a04e12071713155e56f063f86b60bb47b0a90dc2f28330b55a1e9559",
   "002_direct_runtime_role.test.sql":
     "675fdb44290762744da287ca5de6a23b2842f555386d6642b2081ca8a2d20c1d",
   "005_foreign_key_indexes.test.sql":
@@ -147,7 +155,7 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
   "050_migration_ledger.test.sql":
     "dc20191b58f2297ba7b3db6606e326ec13530a828af108e29ac1a9d5fb5f2168",
   "060_internal_helpers.test.sql":
-    "d0bc5f16e006c14c9fc4e66b1ad486e8758625f6fbb74df8a44404d7b41238b1",
+    "c7279a2b5617e135e18aa7ac7c254a004a0b689f62d926655b7c038c23a3996e",
   "062_owner_login_abuse.test.sql":
     "f4a8467039a7a0d3aa2060db1956542cef9b3600d694b0f19093bdf6efdedbd8",
   "065_command_staleness.test.sql":
@@ -184,4 +192,8 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
     "7e8cf02d6c917ceff4ff9ca21e16342c12f0395c13eef6ae65997b5e35b35e08",
   "150_legacy_migration_import_boundary.test.sql":
     "b29612276c3953d3d5a80e0709dd4d7b3d24cfccfc0e4d740fab5f51661e03ff",
+  "152_bound_abuse_bucket_cleanup.test.sql":
+    "764c32761cd39fef5d8994340b6502a3370caed9b31bdf28efa035960177d16a",
+  "155_privacy_dry_run_foundation.test.sql":
+    "0308c6871179f115c1b4272819b80fc31cc763a3c692cf614b201de89f3a1bd4",
 });

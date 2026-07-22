@@ -36,6 +36,13 @@ and final zero operational/Auth/Storage residue. Phase 2 is complete. The later
 `refactor` head `2a5bdc8` preserved that accepted state and is the source of the
 current Preview deployment described below.
 
+The outbox route may be invoked manually in a future Preview only when the
+complete environment validates as `APP_ENV=preview`, `VERCEL_ENV=preview`, this
+exact registered TEST ref/pooler/runtime role, fake email transport, disabled
+email webhook, canonical Cron secret, and valid newsletter token keyring. This
+does not authorize a Vercel schedule, Resend, a real alert receiver, provider
+webhook registration, customer data, or any Production action.
+
 The first hosted checkpoint may initialize this replacement only through the
 guarded empty-project path. Under the same exact target, pushed-SHA/green-CI
 preflight, pinned migration-byte manifest, and serialized advisory lock used by

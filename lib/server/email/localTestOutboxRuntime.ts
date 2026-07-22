@@ -1,6 +1,9 @@
 import "server-only";
 
-import { validateEnvironment } from "@/config/environment.mjs";
+import {
+  GREENFIELD_SUPABASE_REF,
+  validateEnvironment,
+} from "@/config/environment.mjs";
 import { emailOutboxRepository } from "@/lib/server/database/emailOutboxRepository.ts";
 import { emailDeadLetterAlertRepository } from "@/lib/server/database/emailDeadLetterAlertRepository.ts";
 import { publicAbuseRepository } from "@/lib/server/database/publicAbuseRepository.ts";
@@ -12,13 +15,14 @@ import { createFakeEmailProvider } from "./emailProvider.ts";
 import { createFakeDeadLetterAlertReceiver } from "./fakeDeadLetterAlertReceiver.ts";
 import { scheduleEmailRenderersV1 } from "./emailTemplatesV1.ts";
 import { createNewsletterConfirmationEmailRendererV1 } from "./newsletterConfirmationEmailV1.ts";
+import { getOutboxActivationReadiness } from "./outboxActivationReadiness.ts";
 import { createOutboxWorker } from "./outboxWorker.ts";
 
 const CRON_SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 export class LocalTestOutboxRuntimeConfigurationError extends Error {
   constructor() {
-    super("Local/Test outbox runtime is not configured");
+    super("Non-production TEST outbox runtime is not configured");
     this.name = "LocalTestOutboxRuntimeConfigurationError";
   }
 }
@@ -33,59 +37,73 @@ export function createLocalTestOutboxRuntime(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ) {
   const validation = validateEnvironment(env);
+  const readiness = getOutboxActivationReadiness();
+  const environmentIsAllowed =
+    validation.appEnv === "local" ||
+    validation.appEnv === "test" ||
+    (validation.appEnv === "preview" &&
+      env.VERCEL_ENV === "preview" &&
+      env.SUPABASE_PROJECT_REF === GREENFIELD_SUPABASE_REF);
   if (
     !validation.ok ||
-    !["local", "test"].includes(validation.appEnv ?? "") ||
+    !environmentIsAllowed ||
+    !readiness.ready ||
+    readiness.productionReady ||
     env.EMAIL_TRANSPORT !== "fake" ||
+    env.EMAIL_WEBHOOK_ENABLED !== "false" ||
     !validCronSecret(env.CRON_SECRET)
   ) {
     throw new LocalTestOutboxRuntimeConfigurationError();
   }
 
-  const tokenCodec = createNewsletterActionTokenCodec(
-    parseNewsletterActionTokenEnvironment(env),
-  );
-  const outboxWorker = createOutboxWorker({
-    repository: emailOutboxRepository,
-    provider: createFakeEmailProvider(),
-    renderers: {
-      ...scheduleEmailRenderersV1,
-      newsletter_confirmation: createNewsletterConfirmationEmailRendererV1({
-        tokenCodec,
-        now: () => new Date(),
-      }),
-    },
-  });
-  const alertReceiver = createFakeDeadLetterAlertReceiver();
-  const worker = Object.freeze({
-    async run(
-      input: { readonly workerId: string },
-      options: { readonly signal: AbortSignal },
-    ) {
-      const summary = await outboxWorker.run(input, options);
-      if (options.signal.aborted) return summary;
-      await verifiedEmailWebhookReplayRepository.replay(25);
-      const alertBatch = await emailDeadLetterAlertRepository.claim({
-        workerId: input.workerId,
-        batchSize: 25,
-        leaseSeconds: 120,
-      });
-      if (
-        alertBatch.eventCount > 0 &&
-        alertBatch.batchId &&
-        alertBatch.throughSequenceId
+  try {
+    const tokenCodec = createNewsletterActionTokenCodec(
+      parseNewsletterActionTokenEnvironment(env),
+    );
+    const outboxWorker = createOutboxWorker({
+      repository: emailOutboxRepository,
+      provider: createFakeEmailProvider(),
+      renderers: {
+        ...scheduleEmailRenderersV1,
+        newsletter_confirmation: createNewsletterConfirmationEmailRendererV1({
+          tokenCodec,
+          now: () => new Date(),
+        }),
+      },
+    });
+    const alertReceiver = createFakeDeadLetterAlertReceiver();
+    const worker = Object.freeze({
+      async run(
+        input: { readonly workerId: string },
+        options: { readonly signal: AbortSignal },
       ) {
-        await alertReceiver.accept(alertBatch.events);
-        await emailDeadLetterAlertRepository.ack({
+        const summary = await outboxWorker.run(input, options);
+        if (options.signal.aborted) return summary;
+        await verifiedEmailWebhookReplayRepository.replay(25);
+        const alertBatch = await emailDeadLetterAlertRepository.claim({
           workerId: input.workerId,
-          batchId: alertBatch.batchId,
-          throughSequenceId: alertBatch.throughSequenceId,
+          batchSize: 25,
+          leaseSeconds: 120,
         });
-      }
-      await publicAbuseRepository.purgeExpired(1_000);
-      return summary;
-    },
-  });
+        if (
+          alertBatch.eventCount > 0 &&
+          alertBatch.batchId &&
+          alertBatch.throughSequenceId
+        ) {
+          await alertReceiver.accept(alertBatch.events);
+          await emailDeadLetterAlertRepository.ack({
+            workerId: input.workerId,
+            batchId: alertBatch.batchId,
+            throughSequenceId: alertBatch.throughSequenceId,
+          });
+        }
+        await publicAbuseRepository.purgeExpired(1_000);
+        return summary;
+      },
+    });
 
-  return Object.freeze({ worker, cronSecret: env.CRON_SECRET });
+    return Object.freeze({ worker, cronSecret: env.CRON_SECRET });
+  } catch {
+    throw new LocalTestOutboxRuntimeConfigurationError();
+  }
 }

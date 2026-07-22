@@ -1,5 +1,11 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import { Controller } from "react-hook-form";
 import { Clock } from "lucide-react";
 import PhoneInput from "react-phone-input-2";
@@ -17,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import TurnstileChallenge from "@/components/common/TurnstileChallenge";
 
 import { useNotification } from "@/context/NotificationContext";
 import { useBookingForm } from "@/hooks/useBookingForm";
@@ -30,6 +37,7 @@ import { formatDate } from "@/lib/utils/dateUtils";
 import {
   catalogSelection,
   bookingErrorInvalidatesSelection,
+  ClientApiError,
   createPublicBooking,
   newIdempotencyKey,
   publicErrorMessage,
@@ -55,7 +63,22 @@ const BookAppointment = () => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [humanChallengeRequired, setHumanChallengeRequired] = useState(false);
+  const [humanChallengeToken, setHumanChallengeToken] = useState(null);
+  const [humanChallengeReset, setHumanChallengeReset] = useState(0);
+  const [humanChallengeUnavailable, setHumanChallengeUnavailable] =
+    useState(false);
   const bookingAttemptRef = useRef(null);
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+  const handleHumanChallengeToken = useCallback((token) => {
+    setHumanChallengeToken(token);
+    if (token) setHumanChallengeUnavailable(false);
+  }, []);
+  const handleHumanChallengeUnavailable = useCallback(() => {
+    setHumanChallengeToken(null);
+    setHumanChallengeUnavailable(true);
+  }, []);
 
   // Local state (must be declared before hooks that use them)
   const [appointmentType, setAppointmentType] = useState(() => {
@@ -208,6 +231,10 @@ const BookAppointment = () => {
       );
       return;
     }
+    if (humanChallengeRequired && !humanChallengeToken) {
+      showError("Completa la verifica di sicurezza e riprova.");
+      return;
+    }
     setBookingLoading(true);
     try {
       const selection = catalogSelection(
@@ -263,6 +290,7 @@ const BookAppointment = () => {
           createPublicBooking(
             command,
             bookingAttemptRef.current.idempotencyKey,
+            humanChallengeToken || undefined,
           ),
         {
           loading: "Prenotazione in corso...",
@@ -271,6 +299,9 @@ const BookAppointment = () => {
         },
       );
       bookingAttemptRef.current = null;
+      setHumanChallengeRequired(false);
+      setHumanChallengeToken(null);
+      setHumanChallengeUnavailable(false);
 
       // Store booking data for confirmation modal
       setBookingData({
@@ -285,6 +316,16 @@ const BookAppointment = () => {
       setSelectedTimeSlot(null);
       setModalIsOpen(true);
     } catch (error) {
+      if (
+        error instanceof ClientApiError &&
+        error.code === "HUMAN_VERIFICATION_REQUIRED"
+      ) {
+        setHumanChallengeRequired(true);
+      }
+      if (humanChallengeToken) {
+        setHumanChallengeToken(null);
+        setHumanChallengeReset((value) => value + 1);
+      }
       if (
         error instanceof Error &&
         error.message === "INVALID_CATALOG_SELECTION"
@@ -720,16 +761,49 @@ const BookAppointment = () => {
             />
           </div>
 
+          {humanChallengeRequired ? (
+            <div className="mt-6 space-y-2">
+              <p
+                id="booking-security-verification"
+                className="text-center text-sm text-muted-foreground"
+                role="status"
+              >
+                Completa la verifica di sicurezza per continuare.
+              </p>
+              {humanChallengeUnavailable ? (
+                <p
+                  className="text-center text-sm text-destructive"
+                  role="alert"
+                >
+                  La verifica non è disponibile. Ricarica la pagina e riprova.
+                </p>
+              ) : null}
+              <TurnstileChallenge
+                action="public_booking"
+                onToken={handleHumanChallengeToken}
+                onUnavailable={handleHumanChallengeUnavailable}
+                resetSignal={humanChallengeReset}
+                siteKey={turnstileSiteKey}
+              />
+            </div>
+          ) : null}
+
           {/* Submit Button */}
           <div className="mt-8 flex justify-center">
             <Button
               type="submit"
               className="w-full md:w-auto px-8 py-3"
+              aria-describedby={
+                humanChallengeRequired
+                  ? "booking-security-verification"
+                  : undefined
+              }
               disabled={
                 bookingLoading ||
                 !selectedDate ||
                 !selectedTimeSlot ||
-                !publicBookingEnabled
+                !publicBookingEnabled ||
+                (humanChallengeRequired && !humanChallengeToken)
               }
             >
               {bookingLoading

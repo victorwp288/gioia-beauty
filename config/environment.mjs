@@ -309,6 +309,101 @@ function validateLocalHumanChallenge(appEnv, env, errors) {
   }
 }
 
+const TURNSTILE_CONFIGURATION_KEYS = [
+  "PUBLIC_HUMAN_CHALLENGE_PROVIDER",
+  "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+  "TURNSTILE_SECRET_KEY",
+  "TURNSTILE_ALLOWED_HOSTNAMES_JSON",
+];
+
+function validTurnstileHostname(value) {
+  if (
+    typeof value !== "string" ||
+    value.length < 4 ||
+    value.length > 253 ||
+    value !== value.toLowerCase() ||
+    value.trim() !== value ||
+    value.includes("..")
+  ) {
+    return false;
+  }
+  const labels = value.split(".");
+  return (
+    labels.length >= 2 &&
+    labels.every(
+      (label) =>
+        label.length >= 1 &&
+        label.length <= 63 &&
+        /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label),
+    )
+  );
+}
+
+function parseTurnstileHostnames(value) {
+  if (
+    typeof value !== "string" ||
+    value.trim() !== value ||
+    value.includes("\0") ||
+    Buffer.byteLength(value, "utf8") > 4 * 1024
+  ) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > 10) {
+      return null;
+    }
+    const hostnames = [];
+    const unique = new Set();
+    for (const hostname of parsed) {
+      if (!validTurnstileHostname(hostname) || unique.has(hostname))
+        return null;
+      unique.add(hostname);
+      hostnames.push(hostname);
+    }
+    return Object.freeze(hostnames);
+  } catch {
+    return null;
+  }
+}
+
+export function parseTurnstileEnvironment(env) {
+  if (
+    env.PUBLIC_HUMAN_CHALLENGE_PROVIDER !== "turnstile" ||
+    !/^[A-Za-z0-9_-]{20,32}$/.test(env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "") ||
+    !/^[A-Za-z0-9_-]{32,64}$/.test(env.TURNSTILE_SECRET_KEY ?? "")
+  ) {
+    return null;
+  }
+  const allowedHostnames = parseTurnstileHostnames(
+    env.TURNSTILE_ALLOWED_HOSTNAMES_JSON,
+  );
+  if (!allowedHostnames) return null;
+  return Object.freeze({
+    provider: "turnstile",
+    siteKey: env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    secretKey: env.TURNSTILE_SECRET_KEY,
+    allowedHostnames,
+  });
+}
+
+function validateRemoteHumanChallenge(appEnv, env, errors) {
+  const configuredKeys = TURNSTILE_CONFIGURATION_KEYS.filter((key) =>
+    Object.hasOwn(env, key),
+  );
+  if (configuredKeys.length === 0) return;
+  if (appEnv !== "preview") {
+    errors.push(`Turnstile configuration is forbidden in ${appEnv}`);
+    return;
+  }
+  if (
+    configuredKeys.length !== TURNSTILE_CONFIGURATION_KEYS.length ||
+    !parseTurnstileEnvironment(env)
+  ) {
+    errors.push("Preview Turnstile configuration is incomplete or invalid");
+  }
+}
+
 function validateProductionEmail(env, errors) {
   if (env.EMAIL_TRANSPORT !== "resend") {
     errors.push("Production requires EMAIL_TRANSPORT=resend");
@@ -488,6 +583,7 @@ export function validateEnvironment(env, { command = "application" } = {}) {
   validateOwnerSessionSecurity(appEnv, env, errors);
   validatePaginationCursorSecurity(appEnv, env, errors);
   validateLocalHumanChallenge(appEnv, env, errors);
+  validateRemoteHumanChallenge(appEnv, env, errors);
   validateVercelScope(appEnv, env, errors);
 
   if (command === "test" && appEnv !== "test") {

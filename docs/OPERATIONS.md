@@ -90,8 +90,10 @@ fail-safe, leaving one second for fixed response serialization. The database's
 that composition, and the 120-second lease remains longer than every execution
 budget. Each external await is raced against its applicable signal so a late
 claim or provider result cannot start another effect; a late fenced completion
-may still finish, but is reported as uncertain. These local proofs do not
-activate Cron or establish the missing persisted 24-hour retry cutoff.
+may still finish, but is reported as uncertain. These proofs do not activate a
+Vercel schedule or a real provider. The database now persists the first
+provider-attempt instant and inclusive 24-hour retry deadline before the side
+effect; automatic and manual retry stop at or beyond that deadline.
 
 - A provider-accepted send whose database completion cannot be proven is an
   alertable recovery state, not an ordinary blind retry.
@@ -108,17 +110,10 @@ activate Cron or establish the missing persisted 24-hour retry cutoff.
   higher precedence than a renderer-operational retry alert because it is
   terminal. No response includes an outbox ID, recipient, provider detail, or
   renderer exception.
-- The current claim function can itself move stale aggregate rows and exhausted
-  leases to `dead_letter` with `AGGREGATE_STATE_STALE` or `LEASE_EXPIRED`, then
-  filters those rows out of its returned `sending` set. Consequently,
-  `claimed`, `deliveryDeadLettered`, and `budgetReached` describe only returned
-  `sending` rows and can undercount the transaction's selected candidates and
-  effects. An HTTP 200, zero counter, or `budgetReached: false` therefore does
-  not prove that the claim created no dead letters or exhausted no full SQL
-  candidate batch, and this invocation does not query or re-alert historical
-  dead letters. Cron activation remains blocked until a reviewed migration
-  returns bounded claim-time disposition counts and a bounded durable monitor
-  covers existing terminal rows without exposing row data.
+- The claim function conserves every bounded selected candidate across returned
+  sends and exact terminal dispositions. Candidate saturation derives from all
+  selected candidates. The bounded durable dead-letter monitor uses a leased
+  high-water cursor and advances only after PII-free receiver acceptance.
 - Provider timeout, network failure, invalid success response, 5xx, and
   concurrent-idempotency outcomes are also acceptance-uncertain; the worker
   must not persist them as proven delivery failures.
@@ -126,53 +121,29 @@ activate Cron or establish the missing persisted 24-hour retry cutoff.
 - At or beyond that window, stop automatic and manual retry until the operator
   reconciles provider evidence and chooses a documented forward-recovery path;
   another send can duplicate customer mail.
-- Cron activation remains a launch gate until the claim contract exposes enough
-  immutable timing/disposition evidence to enforce this stop policy without
-  reading private tables directly.
+- Production provider and scheduler activation remain separate launch gates.
 
 ## Outbox activation readiness
 
-The code-owned `outbox-activation-readiness-v1` contract is deliberately
-non-passable. It accepts no caller evidence and always reports these five fixed
-blockers; booleans, hashes, environment values, run IDs, and prose cannot
-self-attest readiness. A hash can bind an artifact but does not prove that its
-contents or claimed execution are authentic. The module performs no evidence
-lookup and is not imported by any production source.
+The code-owned `outbox-activation-readiness-v2` contract records the reviewed
+`claim-dispositions-v2`, `dead-letter-monitor-v1`,
+`provider-retry-window-v1`, and `newsletter-confirmation-snapshot-v1` proofs.
+Its TEST checkpoint is bound to the exact registered TEST ref and the current
+reviewed migration/pgTAP manifest; caller booleans, environment claims, run IDs,
+and prose cannot widen it. The contract is explicitly `productionReady: false`.
 
-- `claim-dispositions-v2` must return one bounded atomic result that conserves
-  every selected candidate across returned sends and exact claim-time terminal
-  reasons. Candidate-limit saturation derives from selected candidates, not
-  only returned `sending` rows.
-- `dead-letter-monitor-v1` must durably and monotonically cover claim-time,
-  completion-time, and historical dead letters with a bounded cursor/lease/ack
-  scan. Progress advances only after PII-free alert acceptance and exposes
-  continuation/backlog. Remote alert-receiver configuration remains a separate
-  approved activation preflight; a local `configured: true` claim is not proof.
-- `provider-retry-window-v1` must persist an immutable first-provider-attempt
-  instant and inclusive 24-hour deadline after successful render but before the
-  provider side effect. Automatic claim/recovery and manual owner retry must
-  reuse the key, never reset the deadline, and stop at or after it.
-- `newsletter-confirmation-snapshot-v1` must atomically bind template and policy
-  versions, purpose, token ID, issue/expiry instants, signing-key ID, subscriber
-  consent cycle/version, and the approved versioned Italian artifact. Claim,
-  consumption, minimum remaining lifetime, reissue, and key-retention rules
-  must use that exact snapshot.
-- `greenfield-test-37-v1` requires protected evidence bound to the exact TEST
-  ref, commit, green push CI, reviewed 37-migration manifest/count, two clean
-  cycles, and matching schema/reference fingerprints. That checkpoint is only
-  a prerequisite: every later outbox migration still requires candidate-head
-  TEST proof before a future readiness-contract version may pass.
-
-Future remote success requires a reviewed contract-version change and
-verifier-backed proof producers. The Local/Test-only Cron composition uses fake
-email and alert receivers and claims at most 25 eligible stored
+The non-production composition uses fake email and alert receivers and claims
+at most 25 eligible stored
 `PROVIDER_MESSAGE_NOT_FOUND` events. Recovery attempts persist an exact
 1-minute, 5-minute, 15-minute, then 1-hour backoff; the fifth failed replay is
 terminally disposed as `WEBHOOK_REPLAY_EXHAUSTED`, so poison oldest rows cannot
 starve later eligible work. Each invocation also durably acknowledges at most
 25 dead-letter events after fake acceptance and purges at most 1,000 expired
-abuse buckets. It fails closed outside Local/Test and is not remote activation
-evidence; no Vercel schedule or remote alert/provider configuration exists.
+abuse buckets. It can be manually exercised in Local/Test or in an exact
+`APP_ENV=preview`, `VERCEL_ENV=preview` deployment bound to the registered TEST
+project, fake transport, disabled webhook, valid Cron secret, and token keyring.
+Every other remote target fails closed. There is no Vercel schedule, Resend
+transport, real alert receiver, webhook activation, or Production authority.
 
 ## Migration stop conditions
 

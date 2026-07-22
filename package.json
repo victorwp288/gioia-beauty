@@ -17,8 +17,8 @@
     "catalog:sql": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/render-catalog-sql.mjs",
     "migration:preflight": "node scripts/migration-preflight.mjs",
     "lint": "EMAIL_TRANSPORT=${EMAIL_TRANSPORT:-fake} NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-${APP_ENV:-local}} APP_ENV=${APP_ENV:-local} eslint . --max-warnings=0",
-    "format": "prettier --write .github app/api config lib/client lib/domain lib/server scripts tests eslint.config.mjs middleware.ts next.config.mjs playwright.config.ts vitest.config.mjs tsconfig.json package.json README.md",
-    "format:check": "prettier --check .github app/api config lib/client lib/domain lib/server scripts tests eslint.config.mjs middleware.ts next.config.mjs playwright.config.ts vitest.config.mjs tsconfig.json package.json README.md",
+    "format": "prettier --write .github app/api config lib/client lib/domain lib/server scripts tests eslint.config.mjs middleware.ts next.config.mjs playwright.config.ts playwright.preview.config.ts vitest.config.mjs tsconfig.json package.json README.md",
+    "format:check": "prettier --check .github app/api config lib/client lib/domain lib/server scripts tests eslint.config.mjs middleware.ts next.config.mjs playwright.config.ts playwright.preview.config.ts vitest.config.mjs tsconfig.json package.json README.md",
     "hooks:install": "git config core.hooksPath .githooks",
     "db:migration:new": "SUPABASE_TELEMETRY_DISABLED=1 supabase migration new",
     "db:static": "node scripts/check-supabase-sql.mjs",
@@ -46,6 +46,7 @@
     "test:e2e": "npm run test:e2e:phase3 && npm run test:e2e:phase4",
     "test:e2e:phase3": "playwright test --project=phase3-api",
     "test:e2e:phase4": "playwright test --project=phase4-public --project=phase4-owner",
+    "test:e2e:preview": "node scripts/test-preview-phase4.mjs",
     "test:e2e:install": "playwright install --with-deps chromium",
     "security:secrets": "./scripts/check-secrets.sh",
     "security:dependencies": "npm audit --omit=dev --audit-level=high"

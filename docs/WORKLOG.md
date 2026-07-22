@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-22 — Completed the Phase 3/4 Local release-candidate foundation
+**Phase:** Phase 3/4 Local readiness; hosted TEST completion remains approval-gated
+**Labels/environment:** `[LOCAL]` implementation and disposable verification only; proposed `[REMOTE-CONFIG]`/`[TEST]` actions not executed
+**Data impact:** repeated disposable Local schema/fixture writes with exact teardown; zero remote/customer/Production rows
+**Target:** local `refactor`; future replacement TEST `hzibzwhrwmljgjjdzspi` and Vercel `refactor` Preview remain unchanged
+**Expected reads/writes/rows:** Local rebuilds replayed 67 migrations, 205 reference rows, 31 pgTAP files/481 assertions, bounded synthetic E2E fixtures, and exact zero teardown; remote impact none
+**Done:** Added the interaction-only Turnstile boundary, eight-row abuse cleanup, TEST-only manual fake-email worker readiness, privacy policy/inventory/scrub-plan dry runs, failure-safe remote maintenance operator, immutable-deployment Preview harness, and deterministic Local browser isolation. Simplified Phase 3 observability to a provider-neutral foundation; Sentry is optional and separately gated. No retention/legal decision or real provider behavior was invented.
+**Verified/reconciled:** fresh 67-migration replay, warning-fatal DB lint/advisors, schema `32fe2c303f4cde175c46c35c51e896625cb89c53ec907bea2fd8deb1cdd74af8`, reviewed manifest `24fb7a931352fa3c24cf0eef76ef56709da7183c40cc22583e1770da9e993c44`, 2,209 tests, TS7/TS6, lint, format, DB static, timezone tests, dependency audit at the configured high threshold, production build, and final Playwright 11/11 all pass. Independent review found no P0/P1 and its immutable-URL P2 was fixed.
+**Production actions performed:** none; no Vercel/Firebase/Supabase remote change, email, customer read, deployment, or `main` action
+**Backup/restore evidence:** n/a; synthetic disposable Local data only, with all task containers/volumes/ports/temp workdirs removed
+**Rollback/forward recovery:** revert this Local-readiness batch commit. Forward recovery requires the exact TEST Preview config/migration approval, apply migrations 64–67 only to replacement TEST, push the reviewed commit, require exact-head CI/READY Preview, run hosted browser/worker/maintenance proof, and reconcile TEST to zero.
+**Next:** Obtain `approve TEST Preview config and migrations`; then add only the four Turnstile TEST bindings plus fresh Preview-only `CRON_SECRET`, apply the four reviewed TEST migrations, and run the immutable-deployment hosted harness. Keep real-source snapshot `[PROD-READ]`, privacy/legal policy, Resend/webhook, and Production freeze separately approved.
+**Gotchas:** Phase 3/4 combined items remain conservatively unchecked until hosted proof. The privacy foundation is intentionally inert until all 18 decisions are approved, and the current TEST project still has the previously accepted 63-migration state until the reviewed TEST apply occurs.
+
 ## 2026-07-22 — Bound refactor Preview to replacement TEST and proved the hosted server/Auth boundary
 **Phase:** Phase 3 server adapter hosted proof; Phase 4 hosted boundary partial; Phase 2 remains complete
 **Labels/environment:** owner-approved `[REMOTE-CONFIG]` Vercel Preview/refactor only; `[TEST]` synthetic Auth/reconciliation; `[LOCAL]` cleanup-contract and documentation

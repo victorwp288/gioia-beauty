@@ -10,33 +10,47 @@ import {
   OutboxActivationReadinessSchema,
   getOutboxActivationReadiness,
 } from "@/lib/server/email/outboxActivationReadiness.ts";
+import { GREENFIELD_SUPABASE_REF } from "@/config/environment.mjs";
+import {
+  GREENFIELD_REMOTE_PGTAP_FILES,
+  GREENFIELD_REVIEWED_MANIFEST_SHA256,
+  GREENFIELD_TARGET_VERSIONS,
+  remotePgTapFiles,
+} from "../../scripts/test-target-migrations.mjs";
 
 const EXPECTED = {
-  contractVersion: 1,
+  contractVersion: 2,
   gate: "outbox_worker_scheduler",
-  ready: false,
-  blockers: [
+  scope: "non_production_test",
+  ready: true,
+  productionReady: false,
+  proofs: [
     {
-      code: "CLAIM_DISPOSITIONS_UNPROVEN",
-      requiredProof: "claim-dispositions-v2",
+      code: "CLAIM_DISPOSITIONS_PROVEN",
+      artifact: "claim-dispositions-v2",
     },
     {
-      code: "DEAD_LETTER_MONITOR_UNPROVEN",
-      requiredProof: "dead-letter-monitor-v1",
+      code: "DEAD_LETTER_MONITOR_PROVEN",
+      artifact: "dead-letter-monitor-v1",
     },
     {
-      code: "RETRY_CUTOFF_UNPERSISTED",
-      requiredProof: "provider-retry-window-v1",
+      code: "RETRY_CUTOFF_PROVEN",
+      artifact: "provider-retry-window-v1",
     },
     {
-      code: "NEWSLETTER_SNAPSHOT_UNVERSIONED",
-      requiredProof: "newsletter-confirmation-snapshot-v1",
-    },
-    {
-      code: "TEST_CHECKPOINT_UNPROVEN",
-      requiredProof: "greenfield-test-37-v1",
+      code: "NEWSLETTER_SNAPSHOT_PROVEN",
+      artifact: "newsletter-confirmation-snapshot-v1",
     },
   ],
+  testManifest: {
+    artifact: "greenfield-test-reviewed-manifest-v2",
+    projectRef: "hzibzwhrwmljgjjdzspi",
+    reviewedManifestSha256:
+      "24fb7a931352fa3c24cf0eef76ef56709da7183c40cc22583e1770da9e993c44",
+    migrationCount: 67,
+    pgtapFiles: 30,
+    pgtapAssertions: 473,
+  },
 } as const;
 
 const SOURCE_EXTENSIONS = new Set([
@@ -80,28 +94,30 @@ function rootSourceFiles(root: string): string[] {
     .map((entry) => join(root, entry.name));
 }
 
-describe("inert outbox activation readiness v1", () => {
-  it("returns the exact deterministic non-passable contract", () => {
+describe("non-production outbox activation readiness v2", () => {
+  it("returns the exact deterministic TEST acceptance contract", () => {
     const first = getOutboxActivationReadiness();
     const second = getOutboxActivationReadiness();
 
-    expect(OUTBOX_ACTIVATION_READINESS_CONTRACT_VERSION).toBe(1);
+    expect(OUTBOX_ACTIVATION_READINESS_CONTRACT_VERSION).toBe(2);
     expect(getOutboxActivationReadiness.length).toBe(0);
     expect(first).toBe(second);
     expect(first).toEqual(EXPECTED);
     expect(OutboxActivationReadinessSchema.safeParse(first).success).toBe(true);
-    expect(new Set(first.blockers.map(({ code }) => code)).size).toBe(5);
+    expect(new Set(first.proofs.map(({ code }) => code)).size).toBe(4);
+    expect(first.productionReady).toBe(false);
   });
 
   it("deep-freezes every code-owned readiness value", () => {
     const readiness = getOutboxActivationReadiness();
 
     expect(Object.isFrozen(readiness)).toBe(true);
-    expect(Object.isFrozen(readiness.blockers)).toBe(true);
-    expect(readiness.blockers.every(Object.isFrozen)).toBe(true);
-    expect(Reflect.set(readiness, "ready", true)).toBe(false);
-    expect(Reflect.deleteProperty(readiness.blockers, "0")).toBe(false);
-    expect(Reflect.set(readiness.blockers[0], "code", "FORGED")).toBe(false);
+    expect(Object.isFrozen(readiness.proofs)).toBe(true);
+    expect(readiness.proofs.every(Object.isFrozen)).toBe(true);
+    expect(Object.isFrozen(readiness.testManifest)).toBe(true);
+    expect(Reflect.set(readiness, "productionReady", true)).toBe(false);
+    expect(Reflect.deleteProperty(readiness.proofs, "0")).toBe(false);
+    expect(Reflect.set(readiness.proofs[0], "code", "FORGED")).toBe(false);
     expect(getOutboxActivationReadiness()).toEqual(EXPECTED);
   });
 
@@ -112,7 +128,7 @@ describe("inert outbox activation readiness v1", () => {
     ) => unknown;
     const result = forgedCall(
       {
-        ready: true,
+        productionReady: true,
         evidence: "a".repeat(64),
         privateValue,
       },
@@ -125,29 +141,33 @@ describe("inert outbox activation readiness v1", () => {
   });
 
   it.each([
-    { ...EXPECTED, ready: true },
-    { ...EXPECTED, blockers: EXPECTED.blockers.slice(1) },
+    { ...EXPECTED, productionReady: true },
+    { ...EXPECTED, proofs: EXPECTED.proofs.slice(1) },
     {
       ...EXPECTED,
-      blockers: [
-        EXPECTED.blockers[1],
-        EXPECTED.blockers[0],
-        ...EXPECTED.blockers.slice(2),
+      proofs: [
+        EXPECTED.proofs[1],
+        EXPECTED.proofs[0],
+        ...EXPECTED.proofs.slice(2),
       ],
     },
     {
       ...EXPECTED,
-      blockers: [
-        { ...EXPECTED.blockers[0], requiredProof: "claim-dispositions-v1" },
-        ...EXPECTED.blockers.slice(1),
+      proofs: [
+        { ...EXPECTED.proofs[0], artifact: "claim-dispositions-v1" },
+        ...EXPECTED.proofs.slice(1),
       ],
+    },
+    {
+      ...EXPECTED,
+      testManifest: { ...EXPECTED.testManifest, migrationCount: 63 },
     },
     { ...EXPECTED, privateValue: "private-sentinel" },
     {
       ...EXPECTED,
-      blockers: [
-        { ...EXPECTED.blockers[0], extra: true },
-        ...EXPECTED.blockers.slice(1),
+      proofs: [
+        { ...EXPECTED.proofs[0], extra: true },
+        ...EXPECTED.proofs.slice(1),
       ],
     },
   ])("rejects malformed or widened readiness shape %#", (candidate) => {
@@ -156,7 +176,20 @@ describe("inert outbox activation readiness v1", () => {
     );
   });
 
-  it("stays inert while allowing only fail-closed Local/Test activation", () => {
+  it("binds accepted evidence to the current reviewed TEST manifest", () => {
+    const manifest = getOutboxActivationReadiness().testManifest;
+    const suite = remotePgTapFiles();
+
+    expect(manifest.projectRef).toBe(GREENFIELD_SUPABASE_REF);
+    expect(manifest.reviewedManifestSha256).toBe(
+      GREENFIELD_REVIEWED_MANIFEST_SHA256,
+    );
+    expect(manifest.migrationCount).toBe(GREENFIELD_TARGET_VERSIONS.length);
+    expect(manifest.pgtapFiles).toBe(GREENFIELD_REMOTE_PGTAP_FILES.length);
+    expect(manifest.pgtapAssertions).toBe(suite.assertions);
+  });
+
+  it("stays provider-free while gating one safe non-production composition", () => {
     const root = process.cwd();
     const modulePath = resolve(
       root,
@@ -193,7 +226,11 @@ describe("inert outbox activation readiness v1", () => {
       .filter((path) =>
         readFileSync(path, "utf8").includes("outboxActivationReadiness"),
       );
-    expect(importers).toEqual([]);
+    const localTestRuntimePath = resolve(
+      root,
+      "lib/server/email/localTestOutboxRuntime.ts",
+    );
+    expect(importers).toEqual([localTestRuntimePath]);
     const compositionDefinitions = new Set(
       [
         "lib/server/database/emailOutboxRepository.ts",
@@ -213,10 +250,6 @@ describe("inert outbox activation readiness v1", () => {
           "createOutboxWorker",
         ].some((identifier) => text.includes(identifier));
       });
-    const localTestRuntimePath = resolve(
-      root,
-      "lib/server/email/localTestOutboxRuntime.ts",
-    );
     const cronRoutePath = resolve(root, "app/api/cron/outbox/route.ts");
     expect(activationSources.sort()).toEqual(
       [cronRoutePath, localTestRuntimePath].sort(),
@@ -226,10 +259,13 @@ describe("inert outbox activation readiness v1", () => {
     ]);
 
     const localTestRuntime = readFileSync(localTestRuntimePath, "utf8");
+    expect(localTestRuntime).toContain('validation.appEnv === "preview"');
     expect(localTestRuntime).toContain(
-      '!["local", "test"].includes(validation.appEnv ?? "")',
+      "env.SUPABASE_PROJECT_REF === GREENFIELD_SUPABASE_REF",
     );
+    expect(localTestRuntime).toContain('env.VERCEL_ENV === "preview"');
     expect(localTestRuntime).toContain('env.EMAIL_TRANSPORT !== "fake"');
+    expect(localTestRuntime).toContain("readiness.productionReady");
     expect(localTestRuntime).toContain("createFakeEmailProvider()");
     expect(localTestRuntime).not.toContain("createEmailProvider(");
 

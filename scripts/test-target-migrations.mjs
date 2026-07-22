@@ -19,6 +19,15 @@ export const GREENFIELD_BASELINE_VERSIONS = Object.freeze(
 export const GREENFIELD_REMOTE_PGTAP_FILES = Object.freeze(
   Object.keys(REVIEWED_REMOTE_PGTAP_DIGESTS),
 );
+export const GREENFIELD_REVIEWED_MANIFEST_SHA256 = createHash("sha256")
+  .update(
+    JSON.stringify({
+      contractVersion: 1,
+      migrations: Object.entries(REVIEWED_MIGRATION_DIGESTS),
+      remotePgTap: Object.entries(REVIEWED_REMOTE_PGTAP_DIGESTS),
+    }),
+  )
+  .digest("hex");
 
 function exactList(actual, expected, message) {
   if (
@@ -91,7 +100,7 @@ export function remotePgTapFiles(rootDirectory = process.cwd()) {
     if (!match) throw new Error("Greenfield TEST pgTAP plan is missing");
     return total + Number(match[1]);
   }, 0);
-  if (files.length !== 28 || assertions !== 443) {
+  if (files.length !== 30 || assertions !== 473) {
     throw new Error("Greenfield TEST pgTAP suite is not the reviewed set");
   }
   return { assertions, files };

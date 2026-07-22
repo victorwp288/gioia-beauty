@@ -1,17 +1,19 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { expect, test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Page, type Route } from "@playwright/test";
 import postgres from "postgres";
 
 import { SERVICE_CATALOG } from "../../lib/domain/catalog/index.ts";
 import { getBookingConcurrencyTargets } from "../../scripts/booking-concurrency-suite.mjs";
+import {
+  LOCAL_PHASE4_OWNER_LOGIN_NETWORK,
+  LOCAL_SYNTHETIC_OWNER,
+} from "../../scripts/local-phase3-e2e-contract.mjs";
+import { clearLocalPhase4OwnerLoginAbuse } from "../../scripts/local-phase4-owner-abuse-isolation.mjs";
 import { createLocalCutoverOperator } from "../../scripts/local-cutover-maintenance-operator.mjs";
 import { getLocalRouteStatus } from "../../scripts/local-owner-auth-harness.mjs";
 
-export const LOCAL_SYNTHETIC_OWNER = Object.freeze({
-  email: "owner.local@gioia.test",
-  password: "GioiaLocal1!NotSecret", // gitleaks:allow
-});
+export { LOCAL_SYNTHETIC_OWNER };
 
 export type LocalDatabase = ReturnType<typeof postgres>;
 export type LocalCutoverOperator = ReturnType<
@@ -86,9 +88,14 @@ export const test = base.extend<Phase4OwnerFixtures>({
       onnotice: () => {},
     });
     try {
+      await clearLocalPhase4OwnerLoginAbuse(database);
       await provide(database);
     } finally {
-      await database.end({ timeout: 2 });
+      try {
+        await clearLocalPhase4OwnerLoginAbuse(database);
+      } finally {
+        await database.end({ timeout: 2 });
+      }
     }
   },
   cutoverOperator: async ({ localDatabase }, provide) => {
@@ -142,18 +149,41 @@ export const test = base.extend<Phase4OwnerFixtures>({
   },
 });
 
+export async function withSyntheticOwnerLoginNetwork<T>(
+  page: Page,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const pattern = "**/api/auth/login";
+  const handler = async (route: Route) => {
+    await route.continue({
+      headers: {
+        ...route.request().headers(),
+        "x-forwarded-for": LOCAL_PHASE4_OWNER_LOGIN_NETWORK,
+      },
+    });
+  };
+  await page.route(pattern, handler);
+  try {
+    return await operation();
+  } finally {
+    await page.unroute(pattern, handler);
+  }
+}
+
 export async function loginOwnerThroughUi(page: Page): Promise<void> {
-  await page.goto("/login");
-  await expect(page.locator('form[data-hydrated="true"]')).toBeVisible({
-    timeout: 20_000,
+  await withSyntheticOwnerLoginNetwork(page, async () => {
+    await page.goto("/login");
+    await expect(page.locator('form[data-hydrated="true"]')).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.getByLabel("Indirizzo email").fill(LOCAL_SYNTHETIC_OWNER.email);
+    await page.getByLabel("Password").fill(LOCAL_SYNTHETIC_OWNER.password);
+    await page.getByRole("button", { name: /^Accedi/u }).click();
+    await expect(page).toHaveURL(/\/dashboard$/u);
+    await expect(
+      page.getByRole("heading", { name: "Dashboard", exact: true }),
+    ).toBeVisible();
   });
-  await page.getByLabel("Indirizzo email").fill(LOCAL_SYNTHETIC_OWNER.email);
-  await page.getByLabel("Password").fill(LOCAL_SYNTHETIC_OWNER.password);
-  await page.getByRole("button", { name: /^Accedi/u }).click();
-  await expect(page).toHaveURL(/\/dashboard$/u);
-  await expect(
-    page.getByRole("heading", { name: "Dashboard", exact: true }),
-  ).toBeVisible();
 }
 
 export async function availableStartMinutes(

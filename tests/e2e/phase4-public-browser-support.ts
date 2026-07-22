@@ -275,6 +275,26 @@ export async function openStablePublicHome(page: Page) {
 }
 
 export async function selectFirstAvailableDateWithKeyboard(page: Page) {
+  // SSR can render the initial month against the host clock before Playwright's
+  // fixed browser clock hydrates. A keyboard round trip forces DayPicker to
+  // recompute the July modifiers client-side without weakening the snapshot.
+  const nextMonth = page.getByRole("button", {
+    name: "Go to next month",
+    exact: true,
+  });
+  await nextMonth.focus();
+  await expect(nextMonth).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("August 2026", { exact: true })).toBeVisible();
+  const previousMonth = page.getByRole("button", {
+    name: "Go to previous month",
+    exact: true,
+  });
+  await previousMonth.focus();
+  await expect(previousMonth).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("July 2026", { exact: true })).toBeVisible();
+
   // The fixed clock makes 2026-07-22 a deterministic open Wednesday. Target
   // its grid cell so outside/past DayPicker buttons can never be selected.
   const day = page.getByRole("gridcell", { name: "22", exact: true });
@@ -298,9 +318,26 @@ export async function fillSyntheticBooking(page: Page) {
   await page
     .getByPlaceholder("Note aggiuntive (opzionale)")
     .fill(PHASE4_PUBLIC_PERSON.note);
-  await page
-    .locator(".react-tel-input input")
-    .fill(PHASE4_PUBLIC_PERSON.phoneNational);
+  const phoneInput = page.locator(".react-tel-input input");
+  await expect
+    .poll(async () => compact(await phoneInput.inputValue()))
+    .toBe("39");
+  let expectedPhoneDigits = "39";
+  for (const digit of PHASE4_PUBLIC_PERSON.phoneNational) {
+    await phoneInput.focus();
+    await phoneInput.evaluate((element) => {
+      const input = element as HTMLInputElement;
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+    await phoneInput.press(digit);
+    expectedPhoneDigits += digit;
+    await expect
+      .poll(async () => compact(await phoneInput.inputValue()))
+      .toBe(expectedPhoneDigits);
+  }
+  await expect
+    .poll(async () => compact(await phoneInput.inputValue()))
+    .toBe(PHASE4_PUBLIC_PERSON.phoneDigits);
 }
 
 export async function removeLocalFrameworkDevOverlay(page: Page) {

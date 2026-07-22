@@ -85,7 +85,7 @@ These describe the current Production deployment. Refactor-branch containment do
 | Data fetching | **TanStack Query for the interactive client shell after server APIs exist.** | Deletes the hand-rolled cache infrastructure without putting business rules in components. |
 | Language | **Strict TypeScript for new code; delete before converting legacy code.** | TypeScript 7 is current but has tooling/API transition caveats. Verify Next/ESLint/Vitest compatibility; use the supported fallback if necessary. |
 | Testing | **Vitest + Testing Library + Playwright + local Supabase.** | Tests precede the risky migration and security work rather than arriving afterwards. |
-| Observability | **Sentry + structured server logs + uptime checks + runbooks.** | Start minimal error capture before the first risky release, expand after cutover. |
+| Observability | **PII-safe structured server logs + route metrics + uptime checks + runbooks; add an external error provider only when its operational value and privacy controls are approved.** | Keep the release foundation provider-neutral and avoid making Sentry account/configuration a staging blocker. |
 | UI | **Public routes remain pixel-frozen; dashboard redesign is last.** | Internal architecture should become replaceable before visual work begins. |
 
 ### Why Supabase now
@@ -228,11 +228,21 @@ Everything remains `[LOCAL]` or `[TEST]`.
 - [ ] **`[LOCAL]` / `[TEST]`** Add public abuse defenses: IP/account limits plus CAPTCHA/App Check-equivalent verification where useful. Public GET cost must also be bounded.
 - [ ] **`[LOCAL]` / `[TEST]`** Commit domain changes and immutable recipient/template snapshots atomically with the outbox. Drain it with a Vercel Cron worker authenticated by the exact `CRON_SECRET` bearer (not a request signature or replay fence), using a database claim lease/`SKIP LOCKED`, stale-lease recovery, provider idempotency within its proven retention window, dead-letter alerting, and signed/replay-deduplicated delivery webhooks; tolerate duplicate and missed Cron delivery, and support customer, admin, and newsletter confirmation mail.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement newsletter normalized uniqueness, consent timestamp/source/policy version, non-enumerating responses, signed one-click unsubscribe, and preferably double opt-in.
-- [ ] **`[LOCAL]` / `[TEST]`** Add minimal Sentry/error capture now, PII-safe structured logs, route metrics, and a shallow read-free `/api/health`.
+- [ ] **`[LOCAL]` / `[TEST]`** Add provider-neutral handled-error capture, PII-safe structured logs, route metrics, and a shallow read-free `/api/health`. An external error provider is optional and remains a separately approved Production integration.
 - [ ] **`[LOCAL]` / `[TEST]`** Complete the pre-cutover privacy package: retention/anonymization by field/table/log/backup, executable deletion/access workflow, sensitive-note policy, consent evidence, privacy-policy update, processor/DPA inventory, and restore-retention interaction.
 - [ ] **`[LOCAL]` / `[TEST]`** Run API contract, auth, rate-limit, email, idempotency, concurrency, and E2E tests against local/staging adapters.
 
 **Done when:** staging proves the complete booking/admin/cancellation/email flow without Firebase writes or customer PII.
+
+**Local readiness checkpoint (2026-07-22):** the distributed abuse boundary,
+interaction-only Turnstile client/server adapter, bounded abuse-bucket cleanup,
+manual fake-email Preview worker readiness, remote-safe maintenance operator,
+and inert privacy inventory/scrub-plan foundation are implemented and verified
+locally. The privacy workflow cannot mutate subject data and remains blocked
+until all 18 retention/legal decisions are approved. The combined checklist
+items stay open until the exact TEST Preview configuration, hosted flows,
+manual worker invocation, provider-safe log evidence, and zero-residue
+reconciliation pass.
 
 ### Phase 4 — Staging application cutover and production release candidate
 
@@ -301,7 +311,7 @@ Failure recovery has two explicit branches, both preferring customer-data safety
 
 ### Phase 7 — Operations, supported framework, security headers, SEO, and performance
 
-- [ ] **`[PROD-CONFIG]` / `[PROD-APP]`** Complete Sentry EU/PII-safe setup, source maps, release tags, handled Resend-error capture, uptime alerts, owner escalation, and `docs/OPERATIONS.md`.
+- [ ] **`[PROD-CONFIG]` / `[PROD-APP]`** If an external error provider is approved, complete its EU/PII-safe setup, source maps, release tags, handled Resend-error capture, uptime alerts, owner escalation, and `docs/OPERATIONS.md`; otherwise prove the equivalent provider-neutral alert path.
 - [ ] **`[LOCAL]`** Add one dependency-update system (Dependabot or Renovate), recurring audit gates, and an explicit patch cadence.
 - [ ] **`[LOCAL]` / `[TEST]` / `[PROD-APP]`** Upgrade to the current supported Next 16.x/React line using official codemods and compatibility tests; replace `next lint` with ESLint CLI/flat config.
 - [ ] **`[LOCAL]` / `[PROD-APP]`** Roll out CSP in Report-Only first; handle inline scripts and Vercel/Sentry/Supabase/map origins; then enforce with `frame-ancestors`, `nosniff`, Referrer-Policy, and Permissions-Policy. HSTS already exists.

@@ -106,6 +106,18 @@ function retryAfter(response: Response): number | null {
   return Number.isSafeInteger(seconds) && seconds <= 86_400 ? seconds : null;
 }
 
+function humanChallengeHeaders(token: string | undefined): HeadersInit {
+  if (token === undefined) return {};
+  if (
+    token.length < 1 ||
+    new TextEncoder().encode(token).byteLength > 2_048 ||
+    /[^\x21-\x7e]/u.test(token)
+  ) {
+    throw new TypeError("Invalid human challenge token");
+  }
+  return { "x-gioia-human-challenge": token };
+}
+
 async function expectedJson<T>(
   response: Response,
   schema: { safeParse(value: unknown): { success: boolean; data?: T } },
@@ -172,6 +184,7 @@ export async function createPublicBooking(
     clientNote: string | null;
   },
   idempotencyKey: string,
+  humanChallengeToken?: string,
 ): Promise<CommandResultResponse> {
   return requestJson(
     "/api/bookings",
@@ -182,6 +195,7 @@ export async function createPublicBooking(
         Accept: "application/json",
         "Content-Type": "application/json",
         "Idempotency-Key": idempotencyKey,
+        ...humanChallengeHeaders(humanChallengeToken),
       },
       method: "POST",
     },
@@ -192,6 +206,7 @@ export async function createPublicBooking(
 export async function subscribeToNewsletter(
   email: string,
   idempotencyKey: string,
+  humanChallengeToken?: string,
 ): Promise<{ code: "REQUEST_ACCEPTED" }> {
   return requestJson(
     "/api/newsletter/subscribe",
@@ -202,6 +217,7 @@ export async function subscribeToNewsletter(
         Accept: "application/json",
         "Content-Type": "application/json",
         "Idempotency-Key": idempotencyKey,
+        ...humanChallengeHeaders(humanChallengeToken),
       },
       method: "POST",
     },

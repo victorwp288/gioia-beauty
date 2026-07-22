@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   GREENFIELD_BASELINE_VERSIONS,
+  GREENFIELD_REVIEWED_MANIFEST_SHA256,
   GREENFIELD_TARGET_VERSIONS,
   migrationChecksumManifest,
   remotePgTapFiles,
@@ -40,11 +41,14 @@ describe("greenfield TEST migration manifest", () => {
     const manifest = migrationChecksumManifest();
 
     expect(GREENFIELD_BASELINE_VERSIONS).toHaveLength(35);
-    expect(GREENFIELD_TARGET_VERSIONS).toHaveLength(63);
-    expect(files).toHaveLength(63);
+    expect(GREENFIELD_TARGET_VERSIONS).toHaveLength(67);
+    expect(files).toHaveLength(67);
     expect(manifest.map(({ file }) => file)).toEqual(files);
     expect(manifest.every(({ sha256 }) => /^[0-9a-f]{64}$/u.test(sha256))).toBe(
       true,
+    );
+    expect(GREENFIELD_REVIEWED_MANIFEST_SHA256).toBe(
+      "24fb7a931352fa3c24cf0eef76ef56709da7183c40cc22583e1770da9e993c44",
     );
   });
 
@@ -89,8 +93,8 @@ describe("greenfield TEST remote pgTAP manifest", () => {
   it("excludes the local synthetic seed and pins the reviewed plan total", () => {
     const suite = remotePgTapFiles();
 
-    expect(suite).toMatchObject({ assertions: 443 });
-    expect(suite.files).toHaveLength(28);
+    expect(suite).toMatchObject({ assertions: 473 });
+    expect(suite.files).toHaveLength(30);
     expect(suite.files).not.toContain(
       "supabase/tests/005_synthetic_seed.test.sql",
     );
