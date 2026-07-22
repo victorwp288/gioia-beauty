@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-22 — Closed the approved Phase 3/4 hosted TEST gates
+**Phase:** Phase 3 technical closeout; Phase 4 application-cutover items 1–4
+**Labels/environment:** owner-approved label-only Keychain metadata read; owner-approved `[TEST]` Preview browser/Auth/database/maintenance/fake-worker actions; `[LOCAL]` fixes, verification, and documentation
+**Data impact:** one additive TEST ACL migration; one bounded synthetic booking/owner/Auth/maintenance fixture lifecycle; all operational/Auth/Storage fixture rows deleted; no customer or Production data
+**Target:** TEST Supabase `hzibzwhrwmljgjjdzspi`; exact Vercel Preview `dpl_GgdBzBdALn17LDH5NA5PHmxwWWvQ` at `147a17db346c6fc5c747194828cbf4f7080ea975`; Production/Firebase/Resend/main untouched
+**Expected reads/writes/rows:** Keychain labels only and no values; migration 68 grants seven lifecycle functions only to hosted `postgres`; hosted harness creates at most one public booking, one synthetic owner/Auth lifecycle, bounded abuse/maintenance evidence, then exact cleanup; fake worker runs one claim cycle and claims/sends 0
+**Done:** Located the exact TEST Keychain labels without exposing values; repaired Preview redirect/build/privacy contracts and hosted owner timing in `52f6423`..`ee39930`; `147a17d` adds the least-privilege hosted-operator ACL migration plus pgTAP/manifest/fingerprint coverage. Ticked eight Phase 3 technical items and Phase 4 items 1–4; privacy and Phase 4 items 5–8 remain honestly open.
+**Verified/reconciled:** local format, SQL static, lint, TS7/TS6, 187 files/2,212 tests, and production build pass. CI `29925323443` passed all six jobs, including two clean 68-migration/31-file/475-assertion database cycles. Hosted Preview passed 8/8 in 7.8m; exact Cron returned `OUTBOX_BATCH_PROCESSED` with 0 claimed/sent and a PII-safe 200 log. Final TEST: 68 migrations, 39 tables/39 forced RLS/92 functions, zero operational/Auth/Storage rows, maintenance open/null freeze, zero harness locks, and one idle/zero active runtime session.
+**Production actions performed:** none; no Production env/database/deployment/domain, Firebase, Resend, customer-data, or `main` action
+**Backup/restore evidence:** n/a; additive ACL plus disposable synthetic TEST data, recoverable by exact 68-migration rebuild
+**Rollback/forward recovery:** revert `147a17d` for code and rebuild disposable TEST from the reviewed 68-file manifest; remove only refactor Preview overrides to deactivate. No retained TEST fixture needs cleanup.
+**Next:** Obtain owner/legal decisions for the 18 privacy gates. Separately, add a planted hosted other-customer privacy probe and full hosted canary/manual-booking rehearsal; then obtain exact `[PROD-READ]` approval for a representative source snapshot/import before the formal production source/lockfile freeze.
+**Gotchas:** the hosted `postgres` role is not a local superuser equivalent and required explicit EXECUTE on seven owner-only lifecycle functions. A local E2E retry was skipped because an unrelated Demokrati Supabase stack owns port 54322; it was not stopped or touched, and the prior isolated Local 11/11 plus exact-head CI database replays remain valid.
+
 ## 2026-07-22 — Applied the Phase 3/4 TEST candidate and repaired Preview attestation
 **Phase:** Phase 3/4 hosted TEST activation; final hosted browser/worker acceptance remains open
 **Labels/environment:** owner-approved `[REMOTE-CONFIG]` Vercel Preview/refactor only; owner-approved `[TEST]` migrations and bounded verification; `[LOCAL]` attestation compatibility fix

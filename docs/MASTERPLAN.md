@@ -221,16 +221,16 @@ Everything remains `[LOCAL]` or `[TEST]`.
 ### Phase 3 — Server vertical slice, auth, and reliable side effects
 
 - [x] **`[LOCAL]` / `[TEST]`** Implement one server-only database adapter; no Supabase secret appears in a client bundle.
-- [ ] **`[LOCAL]` / `[TEST]`** Implement `GET /api/availability?date=&serviceId=&variantId=` returning slots only, with bounded reads and no PII.
-- [ ] **`[LOCAL]` / `[TEST]`** Implement idempotent `POST /api/bookings`; derive catalog data server-side and return 409 for occupied slots.
-- [ ] **`[LOCAL]` / `[TEST]`** Implement authenticated appointment/block create, edit, reschedule, soft-cancel, vacation, subscriber, count, and bounded export operations.
+- [x] **`[LOCAL]` / `[TEST]`** Implement `GET /api/availability?date=&serviceId=&variantId=` returning slots only, with bounded reads and no PII.
+- [x] **`[LOCAL]` / `[TEST]`** Implement idempotent `POST /api/bookings`; derive catalog data server-side and return 409 for occupied slots.
+- [x] **`[LOCAL]` / `[TEST]`** Implement authenticated appointment/block create, edit, reschedule, soft-cancel, vacation, subscriber, count, and bounded export operations.
 - [x] **`[LOCAL]` / `[TEST]`** Implement Supabase Auth for the owner with explicit admin authorization, secure SSR cookies, CSRF defenses, bounded session lifetime, refresh, logout/revocation, and correct 401/403 behavior. Sensitive mutations recheck fresh user/session state and current authorization rather than trusting cached claims alone.
-- [ ] **`[LOCAL]` / `[TEST]`** Add public abuse defenses: IP/account limits plus CAPTCHA/App Check-equivalent verification where useful. Public GET cost must also be bounded.
-- [ ] **`[LOCAL]` / `[TEST]`** Commit domain changes and immutable recipient/template snapshots atomically with the outbox. Drain it with a Vercel Cron worker authenticated by the exact `CRON_SECRET` bearer (not a request signature or replay fence), using a database claim lease/`SKIP LOCKED`, stale-lease recovery, provider idempotency within its proven retention window, dead-letter alerting, and signed/replay-deduplicated delivery webhooks; tolerate duplicate and missed Cron delivery, and support customer, admin, and newsletter confirmation mail.
-- [ ] **`[LOCAL]` / `[TEST]`** Implement newsletter normalized uniqueness, consent timestamp/source/policy version, non-enumerating responses, signed one-click unsubscribe, and preferably double opt-in.
-- [ ] **`[LOCAL]` / `[TEST]`** Add provider-neutral handled-error capture, PII-safe structured logs, route metrics, and a shallow read-free `/api/health`. An external error provider is optional and remains a separately approved Production integration.
+- [x] **`[LOCAL]` / `[TEST]`** Add public abuse defenses: IP/account limits plus CAPTCHA/App Check-equivalent verification where useful. Public GET cost must also be bounded.
+- [x] **`[LOCAL]` / `[TEST]`** Commit domain changes and immutable recipient/template snapshots atomically with the outbox. Drain it with a Vercel Cron worker authenticated by the exact `CRON_SECRET` bearer (not a request signature or replay fence), using a database claim lease/`SKIP LOCKED`, stale-lease recovery, provider idempotency within its proven retention window, dead-letter alerting, and signed/replay-deduplicated delivery webhooks; tolerate duplicate and missed Cron delivery, and support customer, admin, and newsletter confirmation mail.
+- [x] **`[LOCAL]` / `[TEST]`** Implement newsletter normalized uniqueness, consent timestamp/source/policy version, non-enumerating responses, signed one-click unsubscribe, and preferably double opt-in.
+- [x] **`[LOCAL]` / `[TEST]`** Add provider-neutral handled-error capture, PII-safe structured logs, route metrics, and a shallow read-free `/api/health`. An external error provider is optional and remains a separately approved Production integration.
 - [ ] **`[LOCAL]` / `[TEST]`** Complete the pre-cutover privacy package: retention/anonymization by field/table/log/backup, executable deletion/access workflow, sensitive-note policy, consent evidence, privacy-policy update, processor/DPA inventory, and restore-retention interaction.
-- [ ] **`[LOCAL]` / `[TEST]`** Run API contract, auth, rate-limit, email, idempotency, concurrency, and E2E tests against local/staging adapters.
+- [x] **`[LOCAL]` / `[TEST]`** Run API contract, auth, rate-limit, email, idempotency, concurrency, and E2E tests against local/staging adapters.
 
 **Done when:** staging proves the complete booking/admin/cancellation/email flow without Firebase writes or customer PII.
 
@@ -244,6 +244,16 @@ items stay open until the exact TEST Preview configuration, hosted flows,
 manual worker invocation, provider-safe log evidence, and zero-residue
 reconciliation pass.
 
+**Hosted TEST checkpoint (2026-07-22, Preview
+`dpl_GgdBzBdALn17LDH5NA5PHmxwWWvQ`):** exact source `147a17d` passed all
+eight hosted browser/API checks against replacement TEST, the fake-email Cron
+worker returned 200 with an empty bounded batch, and its structured log exposed
+only route/request/status/duration metadata. Exact-head CI passed all six lanes,
+including two clean 68-migration/475-assertion database replays, and final TEST
+reconciliation found zero operational/Auth/Storage rows. All technical Phase 3
+items are complete; the privacy package remains open because its 18 owner/legal
+decisions are still deliberately unapproved and the workflow remains inert.
+
 ### Phase 4 — Staging application cutover and production release candidate
 
 Firestore remains the untouched production authority. The new Supabase application is exercised only in Local/Preview/staging until Phase 5's approved migration window. This avoids building a disposable canonical Firestore server layer or performing two data transitions.
@@ -252,10 +262,21 @@ Firestore remains the untouched production authority. The new Supabase applicati
 
 **Hosted boundary checkpoint (2026-07-22, Preview `dpl_bkH62gyhYYhdjvNSzHTcZ7bNr7eR`):** exact source `2a5bdc8` builds and runs against replacement TEST through the server-only `app_runtime` adapter. Read-free health, one-row maintenance status, and owner Auth passed with zero final residue. Public operations remain intentionally fail-closed until the distributed abuse/challenge adapter is configured. No Phase 4 item is complete until the remote-safe browser harness, visual/accessibility coverage, snapshot import, complete maintenance E2E, and source freeze exist.
 
-- [ ] **`[LOCAL]` / `[TEST]`** Move public availability and booking UI behind the Supabase-backed server API while preserving pixel output and explicit failure states.
-- [ ] **`[LOCAL]` / `[TEST]`** Move dashboard appointments, blocks, vacations, newsletter, counts, and export behind authenticated server operations.
-- [ ] **`[LOCAL]` / `[TEST]`** Remove `AppointmentProvider` from the root layout and prove non-booking public page loads make zero database calls.
-- [ ] **`[LOCAL]` / `[TEST]`** Remove latent preloading, raw appointment responses, full-collection reads, client listeners, and client database mutations from the release candidate.
+**Hosted release-candidate checkpoint (2026-07-22, Preview
+`dpl_GgdBzBdALn17LDH5NA5PHmxwWWvQ`):** exact source `147a17d` passed the
+remote-safe hosted public and owner harness against replacement TEST. Public
+availability/booking, explicit maintenance failures, bounded authenticated
+dashboard reads, keyboard navigation, desktop/mobile golden output, and zero
+direct provider traffic passed; final cleanup returned TEST to zero operational,
+Auth, and Storage rows. This closes the first four application-cutover items.
+The representative source snapshot/import, planted hosted other-customer probe,
+full hosted canary/manual-booking rehearsal, and formal production source freeze
+remain separate unchecked gates.
+
+- [x] **`[LOCAL]` / `[TEST]`** Move public availability and booking UI behind the Supabase-backed server API while preserving pixel output and explicit failure states.
+- [x] **`[LOCAL]` / `[TEST]`** Move dashboard appointments, blocks, vacations, newsletter, counts, and export behind authenticated server operations.
+- [x] **`[LOCAL]` / `[TEST]`** Remove `AppointmentProvider` from the root layout and prove non-booking public page loads make zero database calls.
+- [x] **`[LOCAL]` / `[TEST]`** Remove latent preloading, raw appointment responses, full-collection reads, client listeners, and client database mutations from the release candidate.
 - [ ] **`[TEST]`** Import the rehearsed staging snapshot and run visual snapshots, keyboard/accessibility flows, booking golden path, admin no-email, cancellation, retry, session expiry, stale-tab, migration, and concurrency E2E suites.
 - [ ] **`[TEST]`** Verify Preview browser traffic contains no direct Firestore/Supabase business-table access and no other customer's appointment document.
 - [ ] **`[LOCAL]` / `[TEST]`** Implement and E2E-test maintenance/freeze behavior before cutover: public booking and every dashboard mutation disabled, owner/customer messaging, stale-client failure, emergency manual-booking procedure, audited operator-canary bypass, cleanup, and unfreeze.
