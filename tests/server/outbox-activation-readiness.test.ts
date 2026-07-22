@@ -46,10 +46,10 @@ const EXPECTED = {
     artifact: "greenfield-test-reviewed-manifest-v2",
     projectRef: "hzibzwhrwmljgjjdzspi",
     reviewedManifestSha256:
-      "24fb7a931352fa3c24cf0eef76ef56709da7183c40cc22583e1770da9e993c44",
-    migrationCount: 67,
-    pgtapFiles: 30,
-    pgtapAssertions: 473,
+      "17b9428bd0ee692b7e15223d9b909ae4982a953e898058d175239ebd2b021d2c",
+    migrationCount: 68,
+    pgtapFiles: 31,
+    pgtapAssertions: 475,
   },
 } as const;
 

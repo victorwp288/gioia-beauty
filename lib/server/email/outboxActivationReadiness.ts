@@ -36,11 +36,11 @@ const TestManifestSchema = z
     artifact: z.literal("greenfield-test-reviewed-manifest-v2"),
     projectRef: z.literal("hzibzwhrwmljgjjdzspi"),
     reviewedManifestSha256: z.literal(
-      "24fb7a931352fa3c24cf0eef76ef56709da7183c40cc22583e1770da9e993c44",
+      "17b9428bd0ee692b7e15223d9b909ae4982a953e898058d175239ebd2b021d2c",
     ),
-    migrationCount: z.literal(67),
-    pgtapFiles: z.literal(30),
-    pgtapAssertions: z.literal(473),
+    migrationCount: z.literal(68),
+    pgtapFiles: z.literal(31),
+    pgtapAssertions: z.literal(475),
   })
   .strict();
 
@@ -98,10 +98,10 @@ const CURRENT_READINESS = freezeReadiness(
       artifact: "greenfield-test-reviewed-manifest-v2",
       projectRef: "hzibzwhrwmljgjjdzspi",
       reviewedManifestSha256:
-        "24fb7a931352fa3c24cf0eef76ef56709da7183c40cc22583e1770da9e993c44",
-      migrationCount: 67,
-      pgtapFiles: 30,
-      pgtapAssertions: 473,
+        "17b9428bd0ee692b7e15223d9b909ae4982a953e898058d175239ebd2b021d2c",
+      migrationCount: 68,
+      pgtapFiles: 31,
+      pgtapAssertions: 475,
     },
   }),
 );

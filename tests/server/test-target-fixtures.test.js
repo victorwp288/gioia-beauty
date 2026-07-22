@@ -137,7 +137,7 @@ function fingerprintRow(overrides = {}) {
 }
 
 describe("greenfield TEST fixture reconciliation", () => {
-  it("pins the complete 67-migration private catalog", () => {
+  it("pins the complete 68-migration private catalog", () => {
     expect(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES).toHaveLength(39);
     expect(GREENFIELD_EXPECTED_PRIVATE_FUNCTION_NAMES).toHaveLength(92);
     expect(GREENFIELD_EXPECTED_PRIVATE_TABLE_NAMES).toContain(

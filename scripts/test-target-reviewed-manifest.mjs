@@ -133,6 +133,8 @@ export const REVIEWED_MIGRATION_DIGESTS = Object.freeze({
     "33bdf9192bfdfb5d1572cbf932bc8180ca6a184bc7315cd33d7c759c13a2bad8",
   "20260722113002_privacy_scrub_plan_dry_run.sql":
     "f40618c9343ea5988ffef5cdfa35f4f8c07e196c28643a1297cd06bc4f8ea802",
+  "20260722133808_phase4_operator_function_grants.sql":
+    "246bcf4697c22af0d0f51ead25fde34d777b4ec738cbb570cf857ab81788a6d1",
 });
 
 export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
@@ -188,6 +190,8 @@ export const REVIEWED_REMOTE_PGTAP_DIGESTS = Object.freeze({
     "19e6fcba0237484d6c7ceafcf0643ded0ba86d614f8c8cd498deb455c5437d03",
   "145_cutover_write_control.test.sql":
     "2f539722302f6c13fede5de6a37470a2dfe892d0808d45ec8834f34c5e0006ef",
+  "146_cutover_operator_acl.test.sql":
+    "fb26cbb44b8bd145fa37062a75e211c10303736f2b84e918349cf5cba2b07609",
   "147_phase4_minimum_canary_operations.test.sql":
     "7e8cf02d6c917ceff4ff9ca21e16342c12f0395c13eef6ae65997b5e35b35e08",
   "150_legacy_migration_import_boundary.test.sql":

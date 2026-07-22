@@ -1,7 +1,7 @@
 export const GREENFIELD_REFERENCE_CHECKSUM =
   "d54690cdf5617fdcc00ce36e5fa326a84179474f64c230abc23f8caa6b90473e";
 export const GREENFIELD_SCHEMA_FINGERPRINT =
-  "32fe2c303f4cde175c46c35c51e896625cb89c53ec907bea2fd8deb1cdd74af8";
+  "955c07eb6a3cc9bf523f2e2fb3f36b78b47a30eef7f0918ad7d2f31dc5fb6e22";
 
 export const GREENFIELD_FINGERPRINT_SQL = `
   with private_objects as (
