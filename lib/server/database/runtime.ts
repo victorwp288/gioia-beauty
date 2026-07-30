@@ -146,16 +146,19 @@ function remoteDatabaseTls(
       throw new Error();
     }
     const certificate = new X509Certificate(source);
+    const canonicalSource = certificate.toString();
     if (
       !certificate.ca ||
-      source !== certificate.toString() ||
+      (source !== canonicalSource &&
+        (!canonicalSource.endsWith("\n") ||
+          source !== canonicalSource.slice(0, -1))) ||
       certificate.fingerprint256 !== SUPABASE_CA_FINGERPRINT ||
       Date.parse(certificate.validFrom) > Date.now() ||
       Date.parse(certificate.validTo) <= Date.now()
     ) {
       throw new Error();
     }
-    return { ca: source, rejectUnauthorized: true };
+    return { ca: canonicalSource, rejectUnauthorized: true };
   } catch {
     throw new DatabaseConfigurationError();
   }

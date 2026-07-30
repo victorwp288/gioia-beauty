@@ -143,6 +143,33 @@ describe("runtime Postgres adapter", () => {
     ]);
   });
 
+  it("restores the pinned CA's single terminal newline when an environment strips it", async () => {
+    const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => []);
+    const client: RuntimeSqlClient = {
+      begin: vi.fn(async (work) => work({ unsafe } as RuntimeTransaction)),
+    };
+    const clientFactory = vi.fn<
+      NonNullable<RuntimeDatabaseOptions["clientFactory"]>
+    >(() => client);
+    const database = createRuntimeDatabase({
+      env: {
+        SUPABASE_DATABASE_CA_CERTIFICATE: SUPABASE_CA_CERTIFICATE.slice(0, -1),
+        SUPABASE_PROJECT_REF: "hzibzwhrwmljgjjdzspi",
+        SUPABASE_DATABASE_URL:
+          "postgresql://app_runtime.hzibzwhrwmljgjjdzspi:synthetic@" +
+          "aws-1-eu-central-2.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+      },
+      clientFactory,
+    });
+
+    await database.transaction((tx) => tx.unsafe("select bounded_call()"));
+
+    expect(clientFactory.mock.calls[0]?.[1].ssl).toEqual({
+      ca: SUPABASE_CA_CERTIFICATE,
+      rejectUnauthorized: true,
+    });
+  });
+
   it("keeps IPv6 loopback local without requiring a remote CA", async () => {
     const unsafe = vi.fn<RuntimeTransaction["unsafe"]>(async () => []);
     const client: RuntimeSqlClient = {
