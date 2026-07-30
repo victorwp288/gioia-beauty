@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-30 — Diagnosed Preview maintenance auth and completed provider verification
+**Phase:** Phase 3 hosted runtime/observability follow-up; no masterplan item newly ticked
+**Labels/environment:** `[LOCAL]` code/tests; read-only `[TEST]` Supabase/Vercel diagnosis; owner-approved `[REMOTE-CONFIG]` PostHog TEST dashboard
+**Data impact:** zero Firebase/customer/Auth/business rows; three failed one-row maintenance attempts before SQL; one private PostHog dashboard and three insights
+**Target:** Supabase TEST `hzibzwhrwmljgjjdzspi`; Vercel Preview/refactor only; PostHog EU `86721`; existing Sentry EU project
+**Expected reads/writes/rows:** Vercel deployment/log reads; three bounded maintenance requests; 0 database rows reached; one Sentry alert/email metadata read; 1 dashboard + 3 insight writes
+**Done:** `d157635` safely canonicalizes one PEM terminal LF; `b8023f8`/`956c5cd` add PII-free configuration/connection/query failure classification. PostHog dashboard `862470` is pinned/private with failures, status distribution, and p95 route latency.
+**Verified/reconciled:** 189 files/2,260 tests, TS7/TS6, lint, format, and build pass; focused 33 tests pass. Deployments `dpl_DLPXEd93XGGJSzBoN2JHrtww1eHs`, `dpl_7TLXnqULDVTiuvD9vQYg27KnkqY5`, and `dpl_9bxKsWr32pA83ocE7N5jbJetqTpv` are READY. Exact runtime evidence is `database_connection_authentication`; Sentry rule triggered and Gmail received the matching alert at 14:38:01Z.
+**Production actions performed:** none; Firebase/Firestore, live site/domain, Vercel Production, Production Supabase, `main`, and customer data untouched
+**Backup/restore evidence:** n/a; no database/Auth/customer mutation
+**Rollback/forward recovery:** revert `d157635`..`956c5cd` for code; delete dashboard `862470` for provider rollback. Forward repair is one verified TEST runtime DSN replacement on Preview/refactor only.
+**Next:** Obtain exact approval to read Keychain service `gioia-preview-supabase-database-url` in memory, run one `app_runtime` TEST `:6543` maintenance-row probe, and, only if it passes, replace Vercel Preview/refactor `SUPABASE_DATABASE_URL`, redeploy, and require health/maintenance 200. If the stored DSN also fails, stop and separately approve one TEST-only runtime credential rotation.
+**Gotchas:** Sensitive Vercel values pull as `[encrypted]` and cannot diagnose content. Current Preview error is exact Postgres `28P01` authentication, not CA/config/query/provider ambiguity. PostHog Free retention remains one year.
+
 ## 2026-07-30 — Activated PII-minimized EU observability on refactor Preview
 **Phase:** Phase 3 observability foundation and Phase 7 external-provider checkpoint; broad Phase 7 item remains open
 **Labels/environment:** `[LOCAL]` implementation/tests; owner-approved `[REMOTE-CONFIG]` fresh Sentry/PostHog EU projects and Vercel Preview/refactor variables
