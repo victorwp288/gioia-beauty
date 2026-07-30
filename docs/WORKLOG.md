@@ -36,8 +36,8 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Production actions performed:** none; no Firebase, live domain/site, Production Vercel variable/deployment/firewall, Supabase data/Auth, customer data, `main`, or email action
 **Backup/restore evidence:** n/a; no database/Auth/customer mutation
 **Rollback/forward recovery:** remove the three `refactor` Preview variables and redeploy or revert the adapter; future Production uses the same names only after separate retention/alert/source-map/uptime approval
-**Next:** Keep Production unconfigured. Before cutover, resolve PostHog retention/deletion, provider DPA/recovery, alert delivery, Sentry source-map policy, uptime/owner escalation, and whether BotID should replace—not layer on—the existing Turnstile boundary.
-**Gotchas:** PostHog Free retains analytics for one year, not proposed `RET-12` 30 days. Production retention/deletion, DPA/recovery, alerts, source maps, uptime, owner escalation, and any BotID replacement decision remain open.
+**Next:** Diagnose the exact Preview `/api/maintenance` 503 read-only before treating Preview as ready; health is 200 and observability is proven. Keep Production unconfigured, then resolve retention/DPA/recovery, alerts, source maps, uptime/owner escalation, and whether BotID should replace—not layer on—Turnstile.
+**Gotchas:** The fixed error contract intentionally does not expose the maintenance failure's original exception; diagnosis must use the existing bounded Supabase/Vercel path. PostHog Free retains analytics for one year, not proposed `RET-12` 30 days. Production provider and BotID gates remain open.
 
 ## 2026-07-22 — Proved hosted privacy isolation and maintenance recovery
 **Phase:** Phase 4 application-cutover items 6–7
