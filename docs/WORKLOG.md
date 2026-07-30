@@ -25,6 +25,19 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-30 — Rejected stale Keychain Preview DSN before network use
+**Phase:** Phase 3 hosted runtime follow-up; no masterplan item newly ticked
+**Labels/environment:** owner-approved Keychain service read in memory; `[LOCAL]` exact target validation only
+**Data impact:** none; no database connection/row, provider mutation, Auth action, or customer data
+**Target:** intended Supabase TEST `hzibzwhrwmljgjjdzspi`; Vercel Preview/refactor remained unchanged
+**Expected reads/writes/rows:** one exact Keychain service read; 0 remote reads/writes/rows
+**Done:** Read only `gioia-preview-supabase-database-url` and validated it without printing or persisting the value. Protocol, password presence, pooler host, port `6543`, database path, `verify-full`, and fragment checks pass; the stored login name is stale, so the probe stopped before network use. Temporary probe code was removed.
+**Verified/reconciled:** repository remains clean at pushed `4d2ed05`; current Supabase changelog and connection guidance were rechecked. No Preview variable or deployment was changed.
+**Production actions performed:** none; Firebase/Firestore, live site/domain, Vercel Production, Production Supabase, `main`, and customer data untouched
+**Backup/restore evidence:** n/a; no mutation
+**Rollback/forward recovery:** n/a; external state is unchanged
+**Next:** Obtain exact approval to pair the password contained in the stale Keychain DSN with required login `app_runtime.hzibzwhrwmljgjjdzspi` for one TEST `:6543` maintenance-row probe. Only if it passes, replace Vercel Preview/refactor `SUPABASE_DATABASE_URL`, redeploy, and require health/maintenance 200. If authentication fails, stop and separately approve one TEST-only credential rotation.
+
 ## 2026-07-30 — Diagnosed Preview maintenance auth and completed provider verification
 **Phase:** Phase 3 hosted runtime/observability follow-up; no masterplan item newly ticked
 **Labels/environment:** `[LOCAL]` code/tests; read-only `[TEST]` Supabase/Vercel diagnosis; owner-approved `[REMOTE-CONFIG]` PostHog TEST dashboard
