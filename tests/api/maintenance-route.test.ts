@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createMaintenanceStatusGetHandler } from "@/lib/server/maintenanceStatusHandler.ts";
+import { DatabaseConfigurationError } from "@/lib/server/database/runtime.ts";
 import type {
   RuntimeDatabase,
   RuntimeTransaction,
@@ -49,4 +50,30 @@ describe("GET /api/maintenance", () => {
     expect(response.status).toBe(400);
     expect(transaction).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [new DatabaseConfigurationError(), "configuration"],
+    [new Error("secret database detail"), "database"],
+  ] as const)(
+    "logs only the fixed dependency stage for a failed maintenance read",
+    async (failure, expectedStage) => {
+      const failureSink = vi.fn();
+      const response = await createMaintenanceStatusGetHandler(
+        {
+          transaction: vi.fn(async () => {
+            throw failure;
+          }),
+        },
+        failureSink,
+      )(new Request("https://www.gioiabeauty.net/api/maintenance"));
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        code: "SERVICE_UNAVAILABLE",
+      });
+      expect(failureSink).toHaveBeenCalledOnce();
+      expect(failureSink).toHaveBeenCalledWith(expectedStage);
+      expect(JSON.stringify(failureSink.mock.calls)).not.toContain("secret");
+    },
+  );
 });

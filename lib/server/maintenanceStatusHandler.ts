@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import {
+  DatabaseConfigurationError,
   createRuntimeDatabase,
   type RuntimeDatabase,
 } from "./database/runtime.ts";
@@ -25,8 +26,19 @@ const MaintenanceStatusResponseSchema = z
   })
   .strict();
 
+type MaintenanceFailureStage = "configuration" | "database";
+
+function writeMaintenanceFailureStage(stage: MaintenanceFailureStage): void {
+  console.warn(
+    JSON.stringify({ v: 1, event: "maintenance_dependency_failure", stage }),
+  );
+}
+
 export function createMaintenanceStatusGetHandler(
   database: Pick<RuntimeDatabase, "transaction"> = createRuntimeDatabase(),
+  failureSink: (
+    stage: MaintenanceFailureStage,
+  ) => void = writeMaintenanceFailureStage,
 ) {
   return async function GET(request: Request): Promise<Response> {
     if (new URL(request.url).search !== "") {
@@ -45,7 +57,16 @@ export function createMaintenanceStatusGetHandler(
               ? "MAINTENANCE_ACTIVE"
               : "OWNER_RECONCILIATION_ACTIVE",
       });
-    } catch {
+    } catch (error) {
+      try {
+        failureSink(
+          error instanceof DatabaseConfigurationError
+            ? "configuration"
+            : "database",
+        );
+      } catch {
+        // Diagnostics must never change the fixed public failure contract.
+      }
       return apiErrorResponse(503, "SERVICE_UNAVAILABLE");
     }
   };
