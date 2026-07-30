@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-30 — Activated PII-minimized EU observability on refactor Preview
+**Phase:** Phase 3 observability foundation and Phase 7 external-provider checkpoint; broad Phase 7 item remains open
+**Labels/environment:** `[LOCAL]` implementation/tests; owner-approved `[REMOTE-CONFIG]` fresh Sentry/PostHog EU projects and Vercel Preview/refactor variables
+**Data impact:** zero database/Auth/Firebase/customer rows; three sensitive Preview variables; future synthetic route events only
+**Target:** Vercel `gioia-beauty` Preview branch `refactor`; Sentry EU `my-org-gw/gioia-beauty-observability`; PostHog EU project `86721`
+**Expected reads/writes/rows:** provider/account metadata reads; two fresh project/config writes; three Preview/refactor variable writes; 0 business rows
+**Done:** Added strict server-only adapters, fixed surrogate errors, personless route metrics, EU/exact-bundle startup gates, 750 ms fail-open deadline, real SDK-envelope privacy proof, client-boundary guards, runbooks, and a Production-ready variable contract. Deferred project-wide Vercel bot controls because they would also change live Production; retained existing Turnstile/rate limits and automatic DDoS protection.
+**Verified/reconciled:** 189 test files/2,249 tests; focused 75 tests; typecheck, lint, format, build, DB static, 56 timezone tests in both zones, real Sentry/PostHog envelope tests, built-client provider scan, and independent review pass. Dependency audit confirmed only pre-existing Resend/brace-expansion highs plus Firebase-admin/uuid moderates; local gitleaks 8.30.1 is unavailable.
+**Production actions performed:** none; no Firebase, live domain/site, Production Vercel variable/deployment/firewall, Supabase data/Auth, customer data, `main`, or email action
+**Backup/restore evidence:** n/a; no database/Auth/customer mutation
+**Rollback/forward recovery:** remove the three `refactor` Preview variables and redeploy or revert the adapter; future Production uses the same names only after separate retention/alert/source-map/uptime approval
+**Next:** Commit and push `refactor`, wait for its immutable Preview, then send one synthetic success and one synthetic 5xx and verify only the registered PostHog/Sentry fields; keep Production unconfigured.
+**Gotchas:** PostHog Free retains analytics for one year, not proposed `RET-12` 30 days. Production retention/deletion, DPA/recovery, alerts, source maps, uptime, owner escalation, and any BotID replacement decision remain open.
+
 ## 2026-07-22 — Proved hosted privacy isolation and maintenance recovery
 **Phase:** Phase 4 application-cutover items 6–7
 **Labels/environment:** owner-approved label-only Keychain metadata read and in-memory secret use; owner-approved `[TEST]` Preview browser/Auth/database maintenance rehearsal; `[LOCAL]` harness fixes and verification

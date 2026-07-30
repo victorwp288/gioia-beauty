@@ -127,18 +127,64 @@ decommission procedure.
 
 ### Sentry
 
-- **Status:** `inactive`; no SDK or target is installed, provider capture is
-  `null`, and non-empty Sentry environment variables are rejected.
-- **Planned purpose:** minimal error capture and later alerting using only fixed
-  surrogate errors and PII-safe context.
-- **Current data in scope:** none sent to Sentry. Structured console events remain
-  provider-free.
+- **Status:** `authorized-test`; fresh EU project
+  `gioia-beauty-observability` exists in EU organization `my-org-gw`. Only
+  `refactor` Preview has its server-side DSN; Production is unconfigured.
+- **Purpose:** fixed surrogate 5xx/error grouping and later alerting.
+- **Data in scope:** static route/method, event-scoped request UUID,
+  `preview`/future `production`, immutable commit release, and the constant
+  `UNEXPECTED_SERVER_ERROR`, plus the SDK/package name and version and
+  event/send identifiers and timestamps added by its envelope. The SDK receives
+  no original error, stack, request/user data, URL, header, body, cookie,
+  breadcrumb, trace, log, replay, profile, or attachment.
+- **Provider controls:** EU storage; server/default scrubbers and prevent-IP are
+  on; additional direct/contact/auth field names are scrubbed; high-priority
+  email alert exists. Automatic integrations and OpenTelemetry setup are
+  disabled in code.
 - **Repository evidence:** [`config/environment.mjs`](../config/environment.mjs)
   and [`lib/server/observability/`](../lib/server/observability/).
-- **Activation gates:** reviewed EU/PII-safe target, account owner/recovery,
-  DPA/subprocessors, regions/transfers, retention/deletion/request path, SDK
-  defaults/integrations audit, source-map policy, synthetic test-fire, owner
-  escalation, and separate Production configuration approval.
+- **Pending:** synthetic immutable-Preview test-fire and alert delivery;
+  account recovery, DPA/subprocessors, verified retention/deletion/request
+  path, source-map policy, uptime/owner escalation, and separate Production
+  configuration approval.
+
+### PostHog
+
+- **Status:** `authorized-test`; separate EU organization `Gioia Beauty` and
+  project `Gioia Beauty Observability` (`86721`) exist on the Free plan. Only
+  `refactor` Preview has the server-side project token and EU ingestion host;
+  Production is unconfigured.
+- **Purpose:** personless route completion, outcome, and bounded-duration
+  metrics. It is not browser analytics or session tracking.
+- **Data in scope:** schema version, static route/method, event-scoped request
+  UUID, status/outcome, bounded duration, environment, and immutable release.
+  Every event sets `$process_person_profile=false` and disables GeoIP. The SDK
+  transport also adds library/version, event UUID/timestamps, capture type, and
+  a GeoIP-disable marker; it adds no request or customer field.
+- **Provider controls:** EU Cloud; project IP discard and the organization
+  default are on. Web autocapture, heatmaps, web vitals, dead-click capture,
+  session replay, third-party AI, internal AI training, remote config, surveys,
+  feature preload, and exception autocapture are off.
+- **Repository evidence:** [`config/environment.mjs`](../config/environment.mjs)
+  and [`lib/server/observability/providerRuntime.ts`](../lib/server/observability/providerRuntime.ts).
+- **Pending:** the Free plan advertises one-year analytics retention, which does
+  not yet prove proposed `RET-12` 30-day expiry. Keep the Preview synthetic-only
+  until retention/deletion/request handling, account recovery,
+  DPA/subprocessors, alert/dashboard ownership, and separate Production
+  approval are resolved.
+
+### Vercel bot controls
+
+- **Status:** automatic DDoS protection, the normal firewall, and protected
+  Preview access are active. Managed Bot Protection remains off because
+  publishing it is project-wide and would change Production. BotID is not
+  installed.
+- **Decision:** the current durable database abuse limits plus threshold-based
+  Turnstile already protect Preview public writes. Adding BotID now would
+  duplicate that collection and enforcement boundary. Reconsider it only as a
+  reviewed replacement for Turnstile, not an extra tracking layer.
+- **Data impact of this batch:** none; no BotID checks, deep analysis, custom
+  firewall rule, or Production setting was created.
 
 ### Cloudflare Turnstile
 

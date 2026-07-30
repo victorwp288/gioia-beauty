@@ -73,20 +73,20 @@ These describe the current Production deployment. Refactor-branch containment do
 
 ## 2. Architecture decisions
 
-| Area | Decision | Reason |
-|---|---|---|
-| Framework | **Keep Next.js; patch immediately, then upgrade to the current supported release after safety tests.** | Replatforming the frontend adds no value. Next 15 is no longer the final target; current official guidance is Next 16.x. |
-| Hosting | **Keep Vercel.** | Fits the traffic and integrates previews, but Preview and Production environment variables must be isolated. |
-| Database | **Migrate once: Firestore → Supabase Postgres. Do not canonicalize Firestore first.** | The project already needs a canonical ETL, server data layer, auth rewrite, tests, and conflict redesign. Postgres can enforce schedule overlap at the database layer and is better for reporting/export. |
-| Auth | **Move the single owner account to Supabase Auth during the controlled cutover.** | One account is cheap to recreate/invite. Avoid maintaining Firebase session-cookie infrastructure that would immediately become legacy. |
-| Data access | **All public/admin CRUD goes through validated Next.js server boundaries and a least-privilege pooled Postgres application role.** | The business schema is not exposed through the Data API. RLS/grants still deny browser roles, but a privileged service key would bypass RLS and is not the business-data adapter. |
-| Email | **Keep Resend, but use an outbox/delivery-state model with idempotency and webhooks.** | Booking commit is authoritative; email is a retryable post-commit side effect with independent customer/admin outcomes. |
-| Booking concurrency | **Postgres is the final authority.** | Keep `computeFreeSlots` as pure presentation logic, but enforce active interval overlap with a database constraint or one transactional database function. |
-| Data fetching | **TanStack Query for the interactive client shell after server APIs exist.** | Deletes the hand-rolled cache infrastructure without putting business rules in components. |
-| Language | **Strict TypeScript for new code; delete before converting legacy code.** | TypeScript 7 is current but has tooling/API transition caveats. Verify Next/ESLint/Vitest compatibility; use the supported fallback if necessary. |
-| Testing | **Vitest + Testing Library + Playwright + local Supabase.** | Tests precede the risky migration and security work rather than arriving afterwards. |
-| Observability | **PII-safe structured server logs + route metrics + uptime checks + runbooks; add an external error provider only when its operational value and privacy controls are approved.** | Keep the release foundation provider-neutral and avoid making Sentry account/configuration a staging blocker. |
-| UI | **Public routes remain pixel-frozen; dashboard redesign is last.** | Internal architecture should become replaceable before visual work begins. |
+| Area                | Decision                                                                                                                                                                          | Reason                                                                                                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework           | **Keep Next.js; patch immediately, then upgrade to the current supported release after safety tests.**                                                                            | Replatforming the frontend adds no value. Next 15 is no longer the final target; current official guidance is Next 16.x.                                                                                  |
+| Hosting             | **Keep Vercel.**                                                                                                                                                                  | Fits the traffic and integrates previews, but Preview and Production environment variables must be isolated.                                                                                              |
+| Database            | **Migrate once: Firestore → Supabase Postgres. Do not canonicalize Firestore first.**                                                                                             | The project already needs a canonical ETL, server data layer, auth rewrite, tests, and conflict redesign. Postgres can enforce schedule overlap at the database layer and is better for reporting/export. |
+| Auth                | **Move the single owner account to Supabase Auth during the controlled cutover.**                                                                                                 | One account is cheap to recreate/invite. Avoid maintaining Firebase session-cookie infrastructure that would immediately become legacy.                                                                   |
+| Data access         | **All public/admin CRUD goes through validated Next.js server boundaries and a least-privilege pooled Postgres application role.**                                                | The business schema is not exposed through the Data API. RLS/grants still deny browser roles, but a privileged service key would bypass RLS and is not the business-data adapter.                         |
+| Email               | **Keep Resend, but use an outbox/delivery-state model with idempotency and webhooks.**                                                                                            | Booking commit is authoritative; email is a retryable post-commit side effect with independent customer/admin outcomes.                                                                                   |
+| Booking concurrency | **Postgres is the final authority.**                                                                                                                                              | Keep `computeFreeSlots` as pure presentation logic, but enforce active interval overlap with a database constraint or one transactional database function.                                                |
+| Data fetching       | **TanStack Query for the interactive client shell after server APIs exist.**                                                                                                      | Deletes the hand-rolled cache infrastructure without putting business rules in components.                                                                                                                |
+| Language            | **Strict TypeScript for new code; delete before converting legacy code.**                                                                                                         | TypeScript 7 is current but has tooling/API transition caveats. Verify Next/ESLint/Vitest compatibility; use the supported fallback if necessary.                                                         |
+| Testing             | **Vitest + Testing Library + Playwright + local Supabase.**                                                                                                                       | Tests precede the risky migration and security work rather than arriving afterwards.                                                                                                                      |
+| Observability       | **PII-safe structured server logs + route metrics + uptime checks + runbooks; add an external error provider only when its operational value and privacy controls are approved.** | Keep the release foundation provider-neutral and avoid making Sentry account/configuration a staging blocker.                                                                                             |
+| UI                  | **Public routes remain pixel-frozen; dashboard redesign is last.**                                                                                                                | Internal architecture should become replaceable before visual work begins.                                                                                                                                |
 
 ### Why Supabase now
 
@@ -342,6 +342,17 @@ Failure recovery has two explicit branches, both preferring customer-data safety
 ### Phase 7 — Operations, supported framework, security headers, SEO, and performance
 
 - [ ] **`[PROD-CONFIG]` / `[PROD-APP]`** If an external error provider is approved, complete its EU/PII-safe setup, source maps, release tags, handled Resend-error capture, uptime alerts, owner escalation, and `docs/OPERATIONS.md`; otherwise prove the equivalent provider-neutral alert path.
+
+**Preview-only checkpoint (2026-07-30):** fresh EU Sentry and PostHog projects,
+a strict server-only/personless adapter, and three `refactor`-only Preview
+variables are implemented. Browser capture, tracing, replay, profiles, logs,
+GeoIP, and Production variables remain off. This does not complete the item:
+immutable Preview test-fire, retention/deletion proof, source-map decision,
+uptime/owner escalation, handled Resend capture, and separate Production
+approval remain open. Vercel managed Bot Protection was not enabled because it
+would immediately change Production; BotID was also deferred because the
+existing bounded abuse guard plus Turnstile already owns that Preview boundary.
+
 - [ ] **`[LOCAL]`** Add one dependency-update system (Dependabot or Renovate), recurring audit gates, and an explicit patch cadence.
 - [ ] **`[LOCAL]` / `[TEST]` / `[PROD-APP]`** Upgrade to the current supported Next 16.x/React line using official codemods and compatibility tests; replace `next lint` with ESLint CLI/flat config.
 - [ ] **`[LOCAL]` / `[PROD-APP]`** Roll out CSP in Report-Only first; handle inline scripts and Vercel/Sentry/Supabase/map origins; then enforce with `frame-ancestors`, `nosniff`, Referrer-Policy, and Permissions-Policy. HSTS already exists.

@@ -44,6 +44,7 @@ export const EXCLUDED_SOURCE_ROOTS = new Set([
 ]);
 
 export const FORBIDDEN_PACKAGES = [
+  "@sentry/node",
   "@supabase/ssr",
   "@supabase/supabase-js",
   "firebase",
@@ -52,6 +53,7 @@ export const FORBIDDEN_PACKAGES = [
   "next/headers",
   "next/server",
   "postgres",
+  "posthog-node",
   "resend",
   "server-only",
   "sharp",

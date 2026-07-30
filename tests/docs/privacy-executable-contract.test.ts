@@ -24,12 +24,17 @@ describe("local privacy and observability contract documentation", () => {
     expect(privacy).toContain("Pending decisions carry no invented");
   });
 
-  it("records handled 5xx capture without claiming an active provider", () => {
+  it("records the authorized Preview sinks without claiming Production readiness", () => {
     expect(operations).toContain("handled 5xx responses");
-    expect(operations).toContain("the provider capture sink is `null`");
-    expect(operations).toContain("no Sentry SDK or target is installed");
     expect(operations).toContain(
-      "privacy operational evidence remains in its protected artifact lifecycle",
+      "Local, Test, and operator environments reject",
+    );
+    expect(operations).toContain("Production has no");
+    expect(operations).toContain(
+      "PII-minimized/personless operational telemetry",
+    );
+    expect(operations).toContain(
+      "retention/deletion evidence,\nsynthetic test-fire",
     );
   });
 });

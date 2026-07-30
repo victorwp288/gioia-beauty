@@ -18,7 +18,7 @@ cutover.
 
 Contact details belong in the protected operator environment and provider accounts, never in git. One person may fill multiple roles, but the release checklist names the active people and confirms account recovery before cutover.
 
-## Current local observability boundary
+## Current observability boundary
 
 Every current API method is wrapped by one static, server-only route label. With
 the exact `OBSERVABILITY_TRANSPORT=console` local transport, the runtime emits
@@ -30,19 +30,43 @@ headers, cookies, bodies, URLs, customer fields, database rows, and provider
 payloads are never accepted by that boundary. Sink failure cannot change route
 behavior.
 
-This is application instrumentation, not an activated monitoring service:
+Local, Test, and operator environments reject remote provider credentials. A
+complete Preview or future Production bundle may activate two EU server-only
+sinks without a code or branch-specific toggle:
 
-- the provider capture sink is `null`;
-- no Sentry SDK or target is installed;
-- non-empty Sentry environment variables remain rejected;
-- no remote retention, alert delivery, aggregation, or escalation has been
-  proven; and
-- privacy operational evidence remains in its protected artifact lifecycle and
-  is not a structured-log event source.
+- PostHog receives exactly one `server_route_completed` event for every valid
+  observed response. Its event-scoped request UUID is the `distinctId`,
+  `$process_person_profile` is false, GeoIP is disabled, and app-supplied
+  properties are limited to version, static route/method, request UUID,
+  status/outcome, bounded duration, environment, and immutable release. The
+  SDK adds its library/version, event UUID/timestamps, capture type, and
+  GeoIP-disable marker to the transport envelope.
+- Sentry receives one fixed `UnexpectedServerError("UNEXPECTED_SERVER_ERROR")`
+  for a returned 5xx or thrown error. It receives no original exception or
+  stack, request, URL, headers, body, cookies, user, breadcrumbs, database
+  statement, tracing, profiling, replay, logs, or automatic integrations. Its
+  envelope adds only the SDK/package name and version plus event/send
+  identifiers and timestamps.
+- Both sends run through `after()` with no retry, a 500 ms SDK request/flush
+  bound, and an independent 750 ms deferred-lifecycle deadline. Scheduler,
+  capture, flush, or hung-provider failure cannot delay or change the route
+  response.
 
-Sentry activation, provider retention/deletion evidence, alert receiver
-configuration, synthetic test-fire, and owner escalation remain separate TEST
-and provider-configuration gates in [PROCESSORS.md](./PROCESSORS.md).
+The `refactor` Preview has a fresh EU Sentry project and separate PostHog EU
+project bound by three branch-only server variables. Production has no
+observability variables and is unchanged. The same variable names can be added
+to Production after the cutover gates; no code rewrite is needed.
+
+This is PII-minimized/personless operational telemetry, not distributed tracing
+or browser analytics. PostHog autocapture, replay, web vitals, heatmaps, AI
+features, and browser SDKs remain off. Sentry server scrubbing, default
+scrubbers, and IP prevention are on. Provider retention/deletion evidence,
+synthetic test-fire, alert delivery, source maps, uptime monitoring, and owner
+escalation remain open Production gates in [PROCESSORS.md](./PROCESSORS.md).
+
+Rollback is either removing the three `refactor` Preview variables and
+redeploying, or reverting the adapter commit. Neither path changes Supabase,
+Firebase, customer data, or business behavior.
 
 ## Recovery objectives
 

@@ -68,6 +68,15 @@ Local/TEST with representative data before assigning a cost budget.
 | `POST /api/newsletter/unsubscribe` | Same strict request, CSRF, idempotency, body, signed-token, and abuse boundary as confirm                                                                                                   | Fixed non-enumerating `202 REQUEST_ACCEPTED`; clears action CSRF cookie                                   | Durable network+token buckets; Preview requires the Turnstile bundle    | Invalid token: 1 network-abuse transaction, ≤1 bucket upsert, ≤8 expiry deletes, and 0 subscriber commands. Valid token: 2 such abuse transactions + 1 action transaction/function; token-scope rejection stays fixed 202; 0 synchronous provider sends                                              |
 | `POST /api/webhooks/resend`        | Resend only; no query; raw fatal-UTF-8 JSON ≤32 KiB; identity encoding; bounded Svix headers; HMAC verification and ±300 s freshness                                                        | Request UUID, code, replay flag; no payload, signature, recipient, subject, or provider ID                | Provider retry plus database event-ID/digest fence; no-store            | Current runtime is disabled: 0 effects. If separately approved/enabled: 1 DB transaction/function, SQL ≤2 rows and app accepts exactly 1; fresh bounce/complaint ≤4 distinct rows/5 mutations; processed replay writes 0; 0 Auth/provider outbound calls                                             |
 
+Business-effect/provider counts in this inventory exclude the optional
+server-only observability sink. When the complete Preview/future Production
+bundle is absent, observability makes zero network calls. When present, every
+valid observed route result schedules exactly one deferred PostHog call; a
+returned 5xx or thrown error additionally schedules one Sentry flush. These
+calls contain only the fixed fields registered in
+[PRIVACY-OPERATIONS.md](PRIVACY-OPERATIONS.md), perform no database/Auth writes,
+use no retry, and cannot delay or change the response.
+
 `GET /api/health` proves only that the Next.js process answers; it is not
 database, Auth, provider, migration, queue, restore, or cutover readiness
 evidence.

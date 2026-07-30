@@ -212,7 +212,8 @@ describe("server observability runtime source boundary", () => {
     expect(source.indexOf("process.env")).toBeLessThan(sinkEnd);
     expect(source.indexOf("process.stdout.write")).toBeGreaterThan(sinkStart);
     expect(source.indexOf("process.stdout.write")).toBeLessThan(sinkEnd);
-    expect(source).toContain("sink: null");
+    expect(source).toContain("sink: captureProviderUnexpected");
+    expect(source).toContain("writeProviderStructuredLine(line)");
   });
 
   it("contains no provider, client, inspection, or side-effect machinery", () => {

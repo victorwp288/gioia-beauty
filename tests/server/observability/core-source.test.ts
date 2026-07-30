@@ -35,9 +35,13 @@ describe("observability core source boundary", () => {
     },
   );
 
-  it("does not install an unregistered provider dependency", () => {
+  it("installs only the approved server-side provider dependencies", () => {
     const packageJson = readFileSync(resolve("package.json"), "utf8");
 
-    expect(packageJson).not.toMatch(/"@sentry\//);
+    expect(packageJson).toContain('"@sentry/node": "10.69.0"');
+    expect(packageJson).toContain('"posthog-node": "5.21.2"');
+    expect(packageJson).not.toMatch(
+      /"@sentry\/(?:nextjs|browser)|"posthog-js"|"posthog-js-lite"/,
+    );
   });
 });

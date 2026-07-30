@@ -50,6 +50,13 @@ const TURNSTILE_PREVIEW_ENVIRONMENT = Object.freeze({
   ]),
 });
 
+const REMOTE_OBSERVABILITY_ENVIRONMENT = Object.freeze({
+  SENTRY_DSN: "https://0123456789abcdef@o123456.ingest.de.sentry.io/1234567",
+  POSTHOG_PROJECT_TOKEN: "phc_0123456789abcdefghijklmnop",
+  POSTHOG_HOST: "https://eu.i.posthog.com",
+  VERCEL_GIT_COMMIT_SHA: "a".repeat(40),
+});
+
 describe("environment isolation", () => {
   it("accepts a minimal local environment", () => {
     expect(validate()).toEqual({ ok: true, appEnv: "local", errors: [] });
@@ -64,30 +71,106 @@ describe("environment isolation", () => {
     }
   });
 
+  it("accepts the complete server-only EU bundle in Preview", () => {
+    const result = validate(
+      previewEnvironment(REMOTE_OBSERVABILITY_ENVIRONMENT),
+    );
+    expect(
+      result.errors.filter((error) =>
+        /observability|SENTRY|POSTHOG/.test(error),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the same observability contract available after a future cutover", () => {
+    const result = validate({
+      APP_ENV: "production",
+      VERCEL_ENV: "production",
+      GIOIA_PRODUCTION_APPROVAL_ID: "synthetic-approval",
+      ...REMOTE_OBSERVABILITY_ENVIRONMENT,
+    });
+    expect(
+      result.errors.filter((error) =>
+        /observability|SENTRY|POSTHOG/.test(error),
+      ),
+    ).toEqual([]);
+    expect(result.errors.join(" ")).toContain(
+      "No Supabase Production target is registered",
+    );
+  });
+
+  it("rejects partial, wrong-region, and unversioned provider bundles", () => {
+    expect(
+      validate(
+        previewEnvironment({
+          SENTRY_DSN: REMOTE_OBSERVABILITY_ENVIRONMENT.SENTRY_DSN,
+        }),
+      ).errors,
+    ).toContain("Remote observability requires POSTHOG_PROJECT_TOKEN");
+    expect(
+      validate(
+        previewEnvironment({
+          ...REMOTE_OBSERVABILITY_ENVIRONMENT,
+          POSTHOG_HOST: "https://us.i.posthog.com",
+        }),
+      ).errors,
+    ).toContain("POSTHOG_HOST must use the EU ingestion endpoint");
+    expect(
+      validate(
+        previewEnvironment({
+          ...REMOTE_OBSERVABILITY_ENVIRONMENT,
+          VERCEL_GIT_COMMIT_SHA: "preview",
+        }),
+      ).errors,
+    ).toContain(
+      "Remote observability requires the exact VERCEL_GIT_COMMIT_SHA release",
+    );
+  });
+
+  it.each(["local", "test", "operator"])(
+    "rejects remote provider credentials in %s",
+    (appEnvironment) => {
+      const result = validate({
+        APP_ENV: appEnvironment,
+        ...REMOTE_OBSERVABILITY_ENVIRONMENT,
+      });
+      expect(result.errors).toContain(
+        "Remote observability credentials are allowed only in Preview or Production",
+      );
+    },
+  );
+
+  it.each(["NEXT_PUBLIC_SENTRY_DSN", "NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN"])(
+    "rejects browser-exposed observability variable %s",
+    (key) => {
+      const result = validate(
+        previewEnvironment({
+          ...REMOTE_OBSERVABILITY_ENVIRONMENT,
+          [key]: "synthetic-value",
+        }),
+      );
+      expect(result.errors).toContain(
+        `${key} must never expose observability to the browser`,
+      );
+    },
+  );
+
   it.each([
-    "SENTRY_DSN",
     "SENTRY_AUTH_TOKEN",
     "SENTRY_ORG",
     "SENTRY_PROJECT",
     "SENTRY_RELEASE",
-    "NEXT_PUBLIC_SENTRY_DSN",
-  ])("rejects unregistered Sentry variable %s in every environment", (key) => {
-    for (const environment of [
-      { APP_ENV: "local" },
-      { APP_ENV: "test" },
-      previewEnvironment(),
-      {
-        APP_ENV: "production",
-        VERCEL_ENV: "production",
-        GIOIA_PRODUCTION_APPROVAL_ID: "synthetic-approval",
-      },
-      { APP_ENV: "operator" },
-    ]) {
-      const result = validate({ ...environment, [key]: "synthetic-value" });
-      expect(result.errors).toContain(
-        `${key} is forbidden until a Sentry target is registered`,
-      );
-    }
+    "POSTHOG_PERSONAL_API_KEY",
+  ])("rejects unnecessary observability variable %s", (key) => {
+    const result = validate(
+      previewEnvironment({
+        ...REMOTE_OBSERVABILITY_ENVIRONMENT,
+        [key]: "synthetic-value",
+      }),
+    );
+    expect(result.errors).toContain(
+      `${key} is not an approved observability variable`,
+    );
   });
 
   it("keeps Production and operator startup disabled with console metrics", () => {

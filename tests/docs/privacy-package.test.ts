@@ -182,6 +182,8 @@ describe("privacy package launch gates", () => {
       "### Resend",
       "### GitHub / GitHub Actions",
       "### Sentry",
+      "### PostHog",
+      "### Vercel bot controls",
     ]) {
       expect(processors).toContain(heading);
     }
@@ -197,7 +199,9 @@ describe("privacy package launch gates", () => {
       expect(processors).toContain(surface);
     }
     expect(processors).toContain("Customer data, raw exports, access packages");
-    expect(processors).toContain("no SDK or target is installed");
+    expect(processors).toContain("Only\n  `refactor` Preview");
+    expect(processors).toContain("Production is unconfigured");
+    expect(processors).toContain("Free plan advertises one-year");
     expect(processors).toContain(
       "Storage is configured and initialized, but no",
     );

@@ -177,7 +177,32 @@ function validatePublicVariables(env, errors) {
   }
 }
 
-function validateObservability(env, errors) {
+const OBSERVABILITY_PROVIDER_KEYS = new Set([
+  "SENTRY_DSN",
+  "POSTHOG_PROJECT_TOKEN",
+  "POSTHOG_HOST",
+]);
+
+function isSentryEuDsn(value) {
+  if (!hasValue(value) || value.trim() !== value) return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.username.length > 0 &&
+      url.password === "" &&
+      url.port === "" &&
+      /(?:^|\.)ingest\.de\.sentry\.io$/.test(url.hostname) &&
+      /^\/[0-9]+$/.test(url.pathname) &&
+      url.search === "" &&
+      url.hash === ""
+    );
+  } catch {
+    return false;
+  }
+}
+
+function validateObservability(appEnv, env, errors) {
   if (
     Object.hasOwn(env, "OBSERVABILITY_TRANSPORT") &&
     env.OBSERVABILITY_TRANSPORT !== "console"
@@ -186,12 +211,53 @@ function validateObservability(env, errors) {
   }
 
   for (const [key, value] of Object.entries(env)) {
+    if (!hasValue(value)) continue;
     if (
-      hasValue(value) &&
-      (key.startsWith("SENTRY_") || key.startsWith("NEXT_PUBLIC_SENTRY_"))
+      key.startsWith("NEXT_PUBLIC_SENTRY_") ||
+      key.startsWith("NEXT_PUBLIC_POSTHOG_")
     ) {
-      errors.push(`${key} is forbidden until a Sentry target is registered`);
+      errors.push(`${key} must never expose observability to the browser`);
+    } else if (
+      (key.startsWith("SENTRY_") || key.startsWith("POSTHOG_")) &&
+      !OBSERVABILITY_PROVIDER_KEYS.has(key)
+    ) {
+      errors.push(`${key} is not an approved observability variable`);
     }
+  }
+
+  const configuredKeys = [...OBSERVABILITY_PROVIDER_KEYS].filter((key) =>
+    hasValue(env[key]),
+  );
+  if (configuredKeys.length === 0) return;
+  if (appEnv !== "preview" && appEnv !== "production") {
+    errors.push(
+      "Remote observability credentials are allowed only in Preview or Production",
+    );
+  }
+  for (const key of OBSERVABILITY_PROVIDER_KEYS) {
+    if (!hasValue(env[key])) {
+      errors.push(`Remote observability requires ${key}`);
+    }
+  }
+  if (hasValue(env.SENTRY_DSN) && !isSentryEuDsn(env.SENTRY_DSN)) {
+    errors.push("SENTRY_DSN must be an EU Sentry ingestion DSN");
+  }
+  if (
+    hasValue(env.POSTHOG_PROJECT_TOKEN) &&
+    !/^phc_[A-Za-z0-9_-]{20,}$/.test(env.POSTHOG_PROJECT_TOKEN)
+  ) {
+    errors.push("POSTHOG_PROJECT_TOKEN has an invalid format");
+  }
+  if (
+    hasValue(env.POSTHOG_HOST) &&
+    env.POSTHOG_HOST !== "https://eu.i.posthog.com"
+  ) {
+    errors.push("POSTHOG_HOST must use the EU ingestion endpoint");
+  }
+  if (!/^[0-9a-f]{40}$/.test(env.VERCEL_GIT_COMMIT_SHA ?? "")) {
+    errors.push(
+      "Remote observability requires the exact VERCEL_GIT_COMMIT_SHA release",
+    );
   }
 }
 
@@ -578,7 +644,7 @@ export function validateEnvironment(env, { command = "application" } = {}) {
   }
 
   validatePublicVariables(env, errors);
-  validateObservability(env, errors);
+  validateObservability(appEnv, env, errors);
   validateBookingSecurity(appEnv, env, errors);
   validateOwnerSessionSecurity(appEnv, env, errors);
   validatePaginationCursorSecurity(appEnv, env, errors);

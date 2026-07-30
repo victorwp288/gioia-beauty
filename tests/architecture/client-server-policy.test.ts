@@ -9,6 +9,7 @@ afterEach(cleanupFixtures);
 
 describe("client/server boundary policy", () => {
   it.each([
+    "@sentry/node",
     "@supabase/ssr",
     "@supabase/supabase-js",
     "firebase",
@@ -18,6 +19,7 @@ describe("client/server boundary policy", () => {
     "firebase/storage",
     "server-only",
     "postgres/cf",
+    "posthog-node",
     "resend",
     "svix/webhooks",
     "firebase-admin/app",

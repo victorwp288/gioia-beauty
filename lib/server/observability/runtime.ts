@@ -2,17 +2,27 @@ import "server-only";
 
 import { type ObservedMethod, type ObservedRoute } from "./contracts.ts";
 import { createErrorReporter } from "./errorReporter.ts";
+import {
+  captureProviderUnexpected,
+  writeProviderStructuredLine,
+} from "./providerRuntime.ts";
 import { observeRoute, type RouteHandler } from "./routeMetrics.ts";
 import { createStructuredLogger } from "./structuredLogger.ts";
 
 function writeStructuredLine(line: string): void {
-  if (process.env.OBSERVABILITY_TRANSPORT !== "console") return;
-  process.stdout.write(line);
+  try {
+    if (process.env.OBSERVABILITY_TRANSPORT === "console") {
+      process.stdout.write(line);
+    }
+  } catch {
+    // Observability must never change business behavior.
+  }
+  writeProviderStructuredLine(line);
 }
 
 const structuredLogger = createStructuredLogger({ sink: writeStructuredLine });
 const errorReporter = createErrorReporter({
-  sink: null,
+  sink: captureProviderUnexpected,
   logger: structuredLogger,
 });
 

@@ -172,6 +172,21 @@ operational/Auth/Storage residue. Public availability still returns controlled
 abuse/challenge adapter is intentionally unconfigured. Vercel Production,
 Firebase, Resend, and customer data were not changed.
 
+On 2026-07-30, three additional server-only variables were added to Vercel
+Preview scoped only to `refactor`: `SENTRY_DSN`, `POSTHOG_PROJECT_TOKEN`, and
+`POSTHOG_HOST`. They target fresh EU provider projects and require the exact
+Vercel commit SHA as the release. The code has no branch toggle: a future
+Production cutover can use the same names after its separate gates, while
+Local/Test/operator reject them and an incomplete or wrong-region bundle fails
+startup. No Production variable, deployment, Firebase setting, database, or
+customer data was changed.
+
+The Preview pilot is server-only. It emits one PII-minimized PostHog completion
+event per observed route and one fixed Sentry surrogate for 5xx/throws.
+Autocapture, browser SDKs, replay, tracing, profiling, logs, request inspection,
+GeoIP, and person profiles are disabled. Provider test-fire and immutable
+deployment proof remain pending until the implementation commit is pushed.
+
 ## Local and CI
 
 - Local: Docker Supabase, synthetic seed data, fake application email, and capture-only Auth mail.
