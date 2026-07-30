@@ -25,6 +25,20 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 
 ---
 
+## 2026-07-30 — Restored the TEST runtime credential and Preview branch binding
+**Phase:** Phase 3 hosted runtime follow-up; no masterplan item newly ticked
+**Labels/environment:** owner-approved `[TEST]` runtime credential rotation/read; owner-approved `[REMOTE-CONFIG]` Vercel Preview/refactor variable update
+**Data impact:** one TEST role-password configuration write; one maintenance-control row read; zero business/Auth/Storage/customer rows
+**Target:** Supabase TEST `hzibzwhrwmljgjjdzspi`; Vercel `gioia-beauty` Preview branch `refactor` only
+**Expected reads/writes/rows:** one `app_runtime` password rotation, one exact Keychain item update, one fresh one-row read after the required 125-second pooler propagation window, and one branch-scoped `SUPABASE_DATABASE_URL` update
+**Done:** Generated a new protected `app_runtime` credential, applied it with SQL snippet autosave disabled, cleared the editor immediately, stored the exact transaction-pooler DSN in Keychain without printing it, and updated only the `refactor` Preview override in Vercel. Temporary probe/transfer artifacts were removed.
+**Verified/reconciled:** the immediate pooler probe failed during propagation as documented; the single fresh post-window probe authenticated and returned exactly one `open` maintenance row with a positive version. The Vercel UI confirmed the updated variable remains Sensitive, Preview-only, and scoped to `refactor`.
+**Production actions performed:** none; Firebase/Firestore, live site/domain, Vercel Production, Production Supabase, `main`, and customer data untouched
+**Backup/restore evidence:** n/a; resettable empty TEST project and credential-only change
+**Rollback/forward recovery:** remove only the `refactor` Preview override to fail closed; rotate the isolated TEST role again if credential recovery is required
+**Next:** Commit/push this entry on `refactor` to trigger a Preview deployment, require exact-head READY, then verify `/api/health` and `/api/maintenance` both return 200 on its immutable protected URL and inspect PII-free runtime logs.
+**Gotchas:** Supavisor required the repository-documented 125-second credential propagation window. Vercel's settings-triggered redeploy dialog defaulted to a Production deployment even after selecting Preview, so it was cancelled without creating any deployment; use the Git-triggered `refactor` Preview path instead.
+
 ## 2026-07-30 — Rejected stale Keychain Preview DSN before network use
 **Phase:** Phase 3 hosted runtime follow-up; no masterplan item newly ticked
 **Labels/environment:** owner-approved Keychain service read in memory; `[LOCAL]` exact target validation only
