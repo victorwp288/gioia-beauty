@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createMaintenanceStatusGetHandler } from "@/lib/server/maintenanceStatusHandler.ts";
-import { DatabaseConfigurationError } from "@/lib/server/database/runtime.ts";
+import {
+  DatabaseConfigurationError,
+  DatabaseRuntimeError,
+} from "@/lib/server/database/runtime.ts";
 import type {
   RuntimeDatabase,
   RuntimeTransaction,
@@ -53,7 +56,12 @@ describe("GET /api/maintenance", () => {
 
   it.each([
     [new DatabaseConfigurationError(), "configuration"],
-    [new Error("secret database detail"), "database"],
+    [
+      new DatabaseRuntimeError("connection", "authentication"),
+      "database_connection_authentication",
+    ],
+    [new DatabaseRuntimeError("query", "unknown"), "database_query_unknown"],
+    [new Error("secret database detail"), "database_unknown"],
   ] as const)(
     "logs only the fixed dependency stage for a failed maintenance read",
     async (failure, expectedStage) => {

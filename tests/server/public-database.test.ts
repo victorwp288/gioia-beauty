@@ -8,6 +8,7 @@ import { createPublicBookingRepository } from "@/lib/server/database/publicBooki
 import {
   DatabaseAuthorizationContextError,
   DatabaseConfigurationError,
+  DatabaseRuntimeError,
   createRuntimeDatabase,
   type RuntimeDatabase,
   type RuntimeDatabaseOptions,
@@ -190,6 +191,53 @@ describe("runtime Postgres adapter", () => {
 
     expect(clientFactory.mock.calls[0]?.[1]).not.toHaveProperty("ssl");
     expect(unsafe.mock.calls[0]?.[0]).toBe("set local role app_runtime");
+  });
+
+  it.each([
+    ["28P01", "authentication"],
+    ["ECONNREFUSED", "network"],
+    ["EDBHANDLEREXITED", "provider"],
+    ["ERR_TLS_CERT_ALTNAME_INVALID", "tls"],
+    ["unrecognized", "unknown"],
+  ] as const)(
+    "classifies a failed connection code %s without leaking its error",
+    async (code, reason) => {
+      const connectionFailure = Object.assign(
+        new Error("secret connection detail"),
+        { code },
+      );
+      const database = createRuntimeDatabase({
+        client: { begin: vi.fn(async () => Promise.reject(connectionFailure)) },
+      });
+
+      const error = await database
+        .transaction(async () => undefined)
+        .catch((caught) => caught);
+
+      expect(error).toEqual(new DatabaseRuntimeError("connection", reason));
+      expect(String(error)).not.toContain("secret");
+    },
+  );
+
+  it("classifies a failed transaction callback without leaking its error", async () => {
+    const database = createRuntimeDatabase({
+      client: {
+        begin: vi.fn(async (work) =>
+          work({
+            unsafe: vi.fn(async () => {
+              throw new Error("secret query detail");
+            }),
+          }),
+        ),
+      },
+    });
+
+    const error = await database
+      .transaction(async () => undefined)
+      .catch((caught) => caught);
+
+    expect(error).toEqual(new DatabaseRuntimeError("query", "unknown"));
+    expect(String(error)).not.toContain("secret");
   });
 
   it.each([

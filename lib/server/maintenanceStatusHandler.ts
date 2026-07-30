@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   DatabaseConfigurationError,
+  DatabaseRuntimeError,
   createRuntimeDatabase,
   type RuntimeDatabase,
 } from "./database/runtime.ts";
@@ -26,7 +27,10 @@ const MaintenanceStatusResponseSchema = z
   })
   .strict();
 
-type MaintenanceFailureStage = "configuration" | "database";
+type MaintenanceFailureStage =
+  | "configuration"
+  | `database_${DatabaseRuntimeError["stage"]}_${DatabaseRuntimeError["reason"]}`
+  | "database_unknown";
 
 function writeMaintenanceFailureStage(stage: MaintenanceFailureStage): void {
   console.warn(
@@ -59,11 +63,13 @@ export function createMaintenanceStatusGetHandler(
       });
     } catch (error) {
       try {
-        failureSink(
+        const stage: MaintenanceFailureStage =
           error instanceof DatabaseConfigurationError
             ? "configuration"
-            : "database",
-        );
+            : error instanceof DatabaseRuntimeError
+              ? `database_${error.stage}_${error.reason}`
+              : "database_unknown";
+        failureSink(stage);
       } catch {
         // Diagnostics must never change the fixed public failure contract.
       }

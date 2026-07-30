@@ -65,6 +65,25 @@ export class DatabaseAuthorizationContextError extends Error {
   }
 }
 
+export type DatabaseRuntimeFailureStage = "connection" | "query";
+export type DatabaseRuntimeFailureReason =
+  "authentication" | "network" | "provider" | "tls" | "unknown";
+
+export class DatabaseRuntimeError extends Error {
+  readonly stage: DatabaseRuntimeFailureStage;
+  readonly reason: DatabaseRuntimeFailureReason;
+
+  constructor(
+    stage: DatabaseRuntimeFailureStage,
+    reason: DatabaseRuntimeFailureReason,
+  ) {
+    super("Database runtime failed");
+    this.name = "DatabaseRuntimeError";
+    this.stage = stage;
+    this.reason = reason;
+  }
+}
+
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPABASE_CA_FINGERPRINT =
@@ -72,6 +91,24 @@ const SUPABASE_CA_FINGERPRINT =
 const RUNTIME_LOGIN_ROLE = "app_runtime";
 const RUNTIME_PROJECT_REF = "hzibzwhrwmljgjjdzspi";
 const RUNTIME_POOLER_HOST = "aws-1-eu-central-2.pooler.supabase.com";
+
+function classifyRuntimeFailure(error: unknown): DatabaseRuntimeFailureReason {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String(error.code).toUpperCase()
+      : "";
+  if (code === "28P01") return "authentication";
+  if (
+    ["08006", "ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT"].includes(
+      code,
+    )
+  ) {
+    return "network";
+  }
+  if (code === "EDBHANDLEREXITED") return "provider";
+  if (code.startsWith("ERR_TLS_") || code.startsWith("CERT_")) return "tls";
+  return "unknown";
+}
 
 function isLoopbackHostname(hostname: string): boolean {
   return ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
@@ -203,20 +240,35 @@ export function createRuntimeDatabase({
     sessionId: string,
     work: (transaction: RuntimeTransaction) => Promise<T>,
   ): Promise<T> {
-    return getClient().begin(async (transaction) => {
-      if (assumeLocalRuntimeRole) {
-        await transaction.unsafe("set local role app_runtime");
+    let enteredTransaction = false;
+    try {
+      return await getClient().begin(async (transaction) => {
+        enteredTransaction = true;
+        if (assumeLocalRuntimeRole) {
+          await transaction.unsafe("set local role app_runtime");
+        }
+        await transaction.unsafe(
+          "select set_config('request.jwt.claim.sub', $1, true), " +
+            "set_config('request.jwt.claim.session_id', $2, true), " +
+            "set_config('request.jwt.claims', '{}', true), " +
+            "set_config('statement_timeout', '8000', true), " +
+            "set_config('lock_timeout', '3000', true)",
+          [actorUserId, sessionId],
+        );
+        return work(transaction);
+      });
+    } catch (error) {
+      if (
+        error instanceof DatabaseConfigurationError ||
+        error instanceof DatabaseAuthorizationContextError
+      ) {
+        throw error;
       }
-      await transaction.unsafe(
-        "select set_config('request.jwt.claim.sub', $1, true), " +
-          "set_config('request.jwt.claim.session_id', $2, true), " +
-          "set_config('request.jwt.claims', '{}', true), " +
-          "set_config('statement_timeout', '8000', true), " +
-          "set_config('lock_timeout', '3000', true)",
-        [actorUserId, sessionId],
+      throw new DatabaseRuntimeError(
+        enteredTransaction ? "query" : "connection",
+        classifyRuntimeFailure(error),
       );
-      return work(transaction);
-    });
+    }
   }
 
   return {
