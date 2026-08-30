@@ -13,7 +13,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
 });
 
-const Map = ({ latitude, longitude }) => {
+const Map = ({ latitude, longitude, locale = "it" }) => {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -25,10 +25,12 @@ const Map = ({ latitude, longitude }) => {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
-    L.marker([latitude, longitude]).addTo(map).bindPopup("Ci trovi qui. ");
+    L.marker([latitude, longitude])
+      .addTo(map)
+      .bindPopup(locale === "en" ? "Find us here." : "Ci trovi qui.");
 
     return () => map.remove();
-  }, [latitude, longitude]);
+  }, [latitude, locale, longitude]);
 
   return (
     <div

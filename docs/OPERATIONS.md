@@ -168,6 +168,6 @@ On a stop, preserve the source and target, keep writes frozen, and follow the pr
   restore readiness.
 - Error rate, latency, rate-limit, database connection/pool, and outbox pending/failed/dead-letter alerts.
 - Bounded daily review of failed webhook/outbox machine codes; no payload logging.
-- Supabase security and performance advisors after every migration and on a regular schedule.
+- Supabase security and performance advisors for each coherent migration batch/release candidate and on a regular schedule; focused local assertions are enough during iterative greenfield development.
 - Dependency, secret-history, unit/integration/concurrency/E2E, visual, and accessibility gates on every release candidate.
 - Monthly account-recovery check and quarterly restore drill with recorded RPO/RTO observations.

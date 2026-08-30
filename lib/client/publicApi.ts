@@ -1,12 +1,14 @@
-import {
-  ApiErrorResponseSchema,
-  CommandResultResponseSchema,
-  PublicAvailabilityResponseSchema,
-  PublicNonEnumeratingAcceptedResponseSchema,
-  type CommandResultResponse,
-  type PublicAvailabilityResponse,
-} from "@/lib/domain/schemas/index.ts";
+import type {
+  CommandResultResponse,
+  PublicAvailabilityResponse,
+} from "@/lib/domain/schemas/responses.ts";
 import { SERVICE_CATALOG } from "@/lib/domain/catalog/index.ts";
+import {
+  ApiErrorResponseWire,
+  CommandResultResponseWire,
+  PublicAvailabilityResponseWire,
+  PublicNonEnumeratingAcceptedResponseWire,
+} from "@/lib/client/wireValidators.ts";
 
 export class ClientApiError extends Error {
   readonly code: string;
@@ -91,6 +93,17 @@ export function catalogSelection(serviceName: string, duration: number) {
   };
 }
 
+export function catalogSelectionById(serviceId: string, variantId: string) {
+  const service = SERVICE_CATALOG.services.find(
+    (candidate) => candidate.active && candidate.id === serviceId,
+  );
+  const variant = service?.variants.find(
+    (candidate) => candidate.active && candidate.id === variantId,
+  );
+  if (!service || !variant) return null;
+  return { serviceId: service.id, variantId: variant.id, service, variant };
+}
+
 async function decodeResponse(response: Response): Promise<unknown> {
   try {
     return await response.json();
@@ -124,7 +137,7 @@ async function expectedJson<T>(
 ): Promise<T> {
   const body = await decodeResponse(response);
   if (!response.ok) {
-    const parsed = ApiErrorResponseSchema.safeParse(body);
+    const parsed = ApiErrorResponseWire.safeParse(body);
     throw new ClientApiError(
       response.status,
       parsed.success ? parsed.data.code : "REQUEST_FAILED",
@@ -168,7 +181,7 @@ export async function getPublicAvailability(
       method: "GET",
       signal,
     },
-    PublicAvailabilityResponseSchema,
+    PublicAvailabilityResponseWire,
   );
 }
 
@@ -199,7 +212,7 @@ export async function createPublicBooking(
       },
       method: "POST",
     },
-    CommandResultResponseSchema,
+    CommandResultResponseWire,
   );
 }
 
@@ -221,7 +234,7 @@ export async function subscribeToNewsletter(
       },
       method: "POST",
     },
-    PublicNonEnumeratingAcceptedResponseSchema,
+    PublicNonEnumeratingAcceptedResponseWire,
   );
 }
 
@@ -241,21 +254,35 @@ export function bookingErrorInvalidatesSelection(error: unknown): boolean {
   );
 }
 
-export function publicErrorMessage(error: unknown): string {
+export function publicErrorMessage(
+  error: unknown,
+  locale: string = "it",
+): string {
+  const english = locale === "en";
   if (!(error instanceof ClientApiError)) {
-    return "Il servizio non è disponibile. Riprova tra poco.";
+    return english
+      ? "The service is unavailable. Please try again shortly."
+      : "Il servizio non è disponibile. Riprova tra poco.";
   }
   if (["SLOT_UNAVAILABLE", "DATE_CLOSED_FOR_VACATION"].includes(error.code)) {
-    return "L’orario scelto non è più disponibile. Selezionane un altro.";
+    return english
+      ? "That time is no longer available. Please choose another."
+      : "L’orario scelto non è più disponibile. Selezionane un altro.";
   }
   if (error.code === "RATE_LIMITED") {
-    return "Hai effettuato troppe richieste. Attendi qualche minuto e riprova.";
+    return english
+      ? "You have made too many requests. Wait a few minutes and try again."
+      : "Hai effettuato troppe richieste. Attendi qualche minuto e riprova.";
   }
   if (error.code === "HUMAN_VERIFICATION_REQUIRED") {
-    return "È necessaria una verifica prima di continuare. Riprova tra poco.";
+    return english
+      ? "A security check is required before continuing. Please try again."
+      : "È necessaria una verifica prima di continuare. Riprova tra poco.";
   }
   if (error.code === "MAINTENANCE_ACTIVE") {
-    return "Le prenotazioni sono temporaneamente sospese. Contatta il salone per assistenza.";
+    return english
+      ? "Booking is temporarily paused. Contact the salon for assistance."
+      : "Le prenotazioni sono temporaneamente sospese. Contatta il salone per assistenza.";
   }
   if (
     [
@@ -269,7 +296,11 @@ export function publicErrorMessage(error: unknown): string {
       "SLOT_OUTSIDE_BUSINESS_HOURS",
     ].includes(error.code)
   ) {
-    return "Controlla i dati inseriti e seleziona nuovamente data e orario.";
+    return english
+      ? "Check your details and select the date and time again."
+      : "Controlla i dati inseriti e seleziona nuovamente data e orario.";
   }
-  return "Il servizio non è disponibile. Riprova tra poco.";
+  return english
+    ? "The service is unavailable. Please try again shortly."
+    : "Il servizio non è disponibile. Riprova tra poco.";
 }

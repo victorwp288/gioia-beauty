@@ -2,17 +2,10 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  toastError: vi.fn(),
-  toastSuccess: vi.fn(),
-}));
-
 vi.mock("next/script", () => ({ default: () => null }));
-vi.mock("react-toastify", () => ({
-  toast: { error: mocks.toastError, success: mocks.toastSuccess },
-}));
 
 import NewsletterSignup from "@/components/NewsletterSignup.jsx";
+import { PublicBookingNotificationsProvider } from "@/components/booking/PublicBookingNotifications.jsx";
 
 const REQUEST_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CHALLENGE_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
@@ -62,7 +55,11 @@ describe("Newsletter Turnstile retry", () => {
       .mockResolvedValueOnce(jsonResponse({ code: "REQUEST_ACCEPTED" }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
-    render(<NewsletterSignup />);
+    render(
+      <PublicBookingNotificationsProvider>
+        <NewsletterSignup />
+      </PublicBookingNotificationsProvider>,
+    );
 
     await user.type(
       screen.getByRole("textbox", { name: "Email per la newsletter" }),
@@ -91,7 +88,10 @@ describe("Newsletter Turnstile retry", () => {
     await user.click(
       screen.getByRole("button", { name: "Iscriviti alla newsletter" }),
     );
-    await waitFor(() => expect(mocks.toastSuccess).toHaveBeenCalledOnce());
+    const success = await screen.findByText(
+      "Controlla la tua email per confermare l’iscrizione.",
+    );
+    expect(success).toHaveAttribute("role", "status");
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const firstInit = fetchMock.mock.calls[0][1];

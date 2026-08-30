@@ -27,7 +27,7 @@ vi.mock("@/lib/client/ownerApi.ts", () => ({
   ownerErrorMessage: () => "Errore sintetico",
 }));
 
-import Login from "@/app/login/page.jsx";
+import Login from "@/app/(owner)/login/page.jsx";
 
 beforeEach(() => {
   mocks.loginOwner.mockResolvedValue({

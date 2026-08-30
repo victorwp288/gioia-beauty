@@ -30,14 +30,14 @@ and the migration/runbook/tests that enforce it. Until then:
 
 ### Environment and action classification
 
-| Environment/action                         | Permitted data                                                                   | Required label and rule                                                                                                                                                                                   |
-| ------------------------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local/CI                                   | Synthetic fixtures only                                                          | `[LOCAL]`; reset freely, fake email only.                                                                                                                                                                 |
-| Greenfield Supabase `hzibzwhrwmljgjjdzspi` | Synthetic or separately approved anonymized data only                            | `[TEST]`; replacement for the retired provider-failed TEST project. Name/verify the target before work. Raw customer data immediately makes the target Production.                                        |
-| Preview/staging                            | Synthetic by default; approved anonymized derivative only                        | `[TEST]`; serialized reset, non-delivering email, no Production credentials.                                                                                                                              |
-| Restricted recovery                        | Approved PII-bearing restore, named access, email disabled, destruction deadline | Reading the source is `[PROD-READ]`; creating/restoring the PII-bearing clone is separately `[PROD-DATA]`; later destruction is `[DESTRUCTIVE]`. Each needs exact approval. It is never ordinary staging. |
-| Current Firestore `gioia-beauty-b95e0`     | Live customer/business data                                                      | Every bounded lookup/export is `[PROD-READ]`; every change is separately approved `[PROD-DATA]`, `[PROD-CONFIG]`, or `[DESTRUCTIVE]`.                                                                     |
-| Future Production Supabase                 | Live data only after approved cutover/reclassification                           | Same Production controls; no action is inherited from greenfield authorization.                                                                                                                           |
+| Environment/action                         | Permitted data                                                                   | Required label and rule                                                                                                                                                                                       |
+| ------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local/CI                                   | Synthetic fixtures only                                                          | `[LOCAL]`; reset freely, fake email only.                                                                                                                                                                     |
+| Greenfield Supabase `hzibzwhrwmljgjjdzspi` | Synthetic or separately approved anonymized data only                            | `[TEST]`; replacement for the retired provider-failed TEST project. Verify the target once for Fast Lane work; auth/access changes remain Guarded. Raw customer data immediately makes the target Production. |
+| Preview/staging                            | Synthetic by default; approved anonymized derivative only                        | `[TEST]`; ordinary work is Fast Lane, destructive shared reset is serialized, non-delivering email only, and no Production credentials.                                                                       |
+| Restricted recovery                        | Approved PII-bearing restore, named access, email disabled, destruction deadline | Reading the source is `[PROD-READ]`; creating/restoring the PII-bearing clone is separately `[PROD-DATA]`; later destruction is `[DESTRUCTIVE]`. Each needs exact approval. It is never ordinary staging.     |
+| Current Firestore `gioia-beauty-b95e0`     | Live customer/business data                                                      | Every bounded lookup/export is `[PROD-READ]`; every change is separately approved `[PROD-DATA]`, `[PROD-CONFIG]`, or `[DESTRUCTIVE]`.                                                                         |
+| Future Production Supabase                 | Live data only after approved cutover/reclassification                           | Same Production controls; no action is inherited from greenfield authorization.                                                                                                                               |
 
 A synthetic access/erasure rehearsal is `[LOCAL]` or `[TEST]`. A real-subject
 dry run still reads Production PII and therefore needs exact `[PROD-READ]`
@@ -412,28 +412,22 @@ succeeded. The full restore and deployment gates in
 ## Migration ordering
 
 This document creates no migration and reserves no Production action.
-The current reviewed source manifest and direct-runtime follow-up may have
-Local/CI evidence, but they have not been applied and accepted by the protected
-replacement hosted-TEST checkpoint. Their presence is not remote schema
-evidence. The Phase 2 TEST checkpoint is still open.
-
-**The Phase 2 TEST checkpoint also remains unresolved.**
-
-The prior project’s fresh-role canary and pooler-failure evidence is historical
-only and does not transfer to replacement TEST project `hzibzwhrwmljgjjdzspi`.
-It does not establish a replacement Preview binding, accept the hosted migration
-candidate, or complete the required clean rebuild/two-cycle/zero-residue
-evidence.
+The replacement hosted-TEST technical checkpoint completed on 2026-07-21/22;
+its exact migration, runtime-role, Preview, and zero-residue evidence remains in
+the worklog and environment registry. The retired project's evidence remains
+historical only and does not transfer. Completion of the technical checkpoint
+does not approve any privacy decision, personal-data operation, provider action,
+or Production cutover.
 
 The replacement boundary uses one durable least-privilege `app_runtime` login
 directly through the transaction pooler. It owns no database object and receives
 no direct table or sequence ACL; only reviewed private-schema usage and runtime
-function execution are allowed. Destructive TEST lifecycle/reset work must first
-prove zero active `app_runtime` sessions and no active Preview traffic, preserve
-the exact durable role and unchanged SCRAM verifier across both rebuild cycles,
-then freshly prove direct `app_runtime` authentication and the reviewed
-function-only authorization boundary before unlock. There is no credential
-disable, rotation, restoration, or recovery flow in this design.
+function execution are allowed. When the deliberate full destructive hosted
+reset harness is used, its zero-session, no-active-Preview, durable-role,
+credential, and function-boundary checks still apply. Ordinary additive
+greenfield migrations and synthetic application work use the Fast Lane and do
+not repeat that credential lifecycle. There is no credential disable, rotation,
+restoration, or recovery flow in this design.
 
 This TEST-only durable-runtime design does not read or change personal data and has no
 effect on current Firebase Production, Vercel Production, or a future
@@ -442,14 +436,12 @@ remains a separately approved action.
 
 Ordering is therefore:
 
-1. preserve the unresolved Phase 2 checkpoint and the exact durable
-   `app_runtime` role/SCRAM identity; do not infer Phase 2 or hosted-TEST
-   acceptance from the retired project, replacement registration, or local
-   migrations;
-2. review the exact Phase 3 candidate-head migration manifest and run its
-   protected hosted-TEST apply/rebuild, security, concurrency, and reconciliation
-   gates only after the zero-active-session/no-active-Preview condition and the
-   named preflight are satisfied; and
+1. preserve the accepted least-privilege `app_runtime` boundary and historical
+   checkpoint evidence without making its exact-set manifest the living
+   allowlist for ordinary greenfield iteration;
+2. repeat the protected hosted reset/security/reconciliation harness only when
+   its boundary changes, a deliberate full shared-target reset is required, or
+   release/cutover acceptance is in scope; and
 3. add privacy hold/request/event, scrub/purge, and restore-replay migrations
    only with the next available migration identity and only after the applicable
    owner, legal, and provider decisions below are approved.

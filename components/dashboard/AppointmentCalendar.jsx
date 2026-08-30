@@ -62,7 +62,12 @@ const AppointmentCalendar = ({
   }, [appointments]);
 
   // Custom day content to show appointment indicators
-  const DayContent = ({ date }) => {
+  const CalendarDayButton = ({
+    day: calendarDay,
+    children,
+    ...buttonProps
+  }) => {
+    const date = calendarDay.date;
     // Fix timezone issue: use local date instead of UTC
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -73,14 +78,12 @@ const AppointmentCalendar = ({
     const appointmentCount = dayAppointments.length;
 
     return (
-      <div className="relative w-full h-full flex flex-col items-center justify-center">
-        <span className="text-sm">{date.getDate()}</span>
+      <button {...buttonProps}>
+        <span className="text-sm">{children}</span>
         {appointmentCount > 0 && (
-          <div
+          <span
             className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 pointer-events-none select-none z-10"
             style={{ pointerEvents: "none" }}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
           >
             <Badge
               variant="secondary"
@@ -89,9 +92,9 @@ const AppointmentCalendar = ({
             >
               {appointmentCount}
             </Badge>
-          </div>
+          </span>
         )}
-      </div>
+      </button>
     );
   };
 
@@ -106,13 +109,14 @@ const AppointmentCalendar = ({
         months:
           "flex w-full flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0 lg:h-full",
         month: "w-full space-y-4 lg:flex lg:h-full lg:flex-col",
-        table: "w-full table-fixed lg:h-full",
-        row: "mt-2 flex w-full lg:mt-1 lg:first:mt-0",
-        cell: "h-9 flex-1 text-center text-sm p-0 relative lg:h-12 [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-        day: "inline-flex h-9 w-full items-center justify-center whitespace-nowrap rounded-md p-0 text-sm font-normal ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 aria-selected:opacity-100 lg:h-12",
+        month_grid: "w-full table-fixed lg:h-full",
+        week: "mt-2 flex w-full lg:mt-1 lg:first:mt-0",
+        day: "h-9 flex-1 text-center text-sm p-0 relative lg:h-12 has-data-selected:bg-accent first:has-data-selected:rounded-l-md last:has-data-selected:rounded-r-md focus-within:relative focus-within:z-20",
+        day_button:
+          "relative inline-flex h-9 w-full items-center justify-center whitespace-nowrap rounded-md p-0 text-sm font-normal ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 aria-selected:opacity-100 lg:h-12",
       }}
       components={{
-        DayContent: DayContent,
+        DayButton: CalendarDayButton,
       }}
       modifiers={{
         selected: (date) => selectedDate && isSameDate(date, selectedDate),

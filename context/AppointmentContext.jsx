@@ -402,7 +402,6 @@ export const AppointmentProvider = ({ children }) => {
       fetchAppointments,
       fetchVacations,
       loading,
-      refreshAppointments,
       updateAppointment,
       updateVacationPeriod,
       vacationPeriods,

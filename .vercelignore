@@ -1,0 +1,5 @@
+# Local test and browser artifacts are never deployment inputs.
+/.playwright-cli/
+/playwright-report/
+/test-results/
+/coverage/

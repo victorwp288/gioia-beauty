@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  catalogSelection,
+  catalogSelectionById,
   getPublicAvailability,
   salonDateFromLocalDate,
   timeFromStartMinutes,
@@ -13,8 +13,8 @@ import {
 
 export const useOptimizedTimeSlots = (
   selectedDate,
-  appointmentType,
-  duration,
+  serviceId,
+  variantId,
   _options = {},
 ) => {
   const [timeSlots, setTimeSlots] = useState([]);
@@ -31,8 +31,8 @@ export const useOptimizedTimeSlots = (
     return isDateAvailableForBooking(selectedDate);
   }, [selectedDate, businessHours]);
   const selection = useMemo(
-    () => catalogSelection(appointmentType, Number(duration)),
-    [appointmentType, duration],
+    () => catalogSelectionById(serviceId, variantId),
+    [serviceId, variantId],
   );
 
   const getTimeSlotsForDate = useCallback(

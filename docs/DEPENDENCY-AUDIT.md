@@ -1,6 +1,6 @@
 # Dependency audit
 
-Snapshot date: 2026-07-09. Scope: the `refactor` branch on Node 22.21.1 and npm 10.9.4.
+Snapshot refreshed: 2026-07-29. Scope: the local `refactor` worktree on Node 24.18.0 LTS and npm 11.16.0.
 
 ## Outcome
 
@@ -20,6 +20,11 @@ npm audit --omit=dev --audit-level=high
 
 ## Fixed in this milestone
 
+- Upgraded Next to 16.2.12, React/React DOM to 19.2.8, Tailwind to 4.3.3, and the compatible Radix, form, calendar, email, Supabase, Playwright, PostCSS, Prettier, and validation packages.
+- Migrated the Next file convention from `middleware.ts` to `proxy.ts`, the calendar wrapper to DayPicker 10, validation contracts to Zod 4, and ESLint to Next 16's native flat configuration.
+- Added the official React Compiler Babel plugin in annotation mode for one measured gallery boundary. Removed `@hookform/resolvers` after replacing its public-browser-only Zod adapter with a focused resolver; server/API/domain validation remains on Zod 4.
+- Pinned ESLint 9.39.5 because ESLint 10.8.0 currently crashes inside the React plugin bundled by `eslint-config-next` 16.2.12. This is a verified compatibility hold, not an ignored update.
+- Overrode only the vulnerable transitive `minimatch`/`brace-expansion` pair to their patched current releases. Lint, the full test suite, and the production build cover the resolved graph.
 - Upgraded Next from unsupported 14.2.16 to 15.5.20 and aligned `eslint-config-next`.
 - Kept React and React DOM on 18.3.1 to avoid an unrelated public-UI migration; Next 15 supports this line.
 - Upgraded Firebase Web to 12.16.0 and Firebase Admin to 14.1.0.
@@ -28,7 +33,7 @@ npm audit --omit=dev --audit-level=high
 - Upgraded ESLint 8 to 9.39.4 and replaced deprecated `next lint` with the ESLint CLI.
 - Applied compatible overrides for Babel runtime, JWS, brace expansion, minimatch, cross-spawn, glob, js-cookie, Picomatch, YAML, and PostCSS. Tests, lint, and the production build cover the overridden graph.
 
-No `npm audit fix --force` or dependency downgrade was used.
+The older bullets record the original July 9 remediation baseline; the refreshed state above supersedes their versions without invalidating that evidence. No `npm audit fix --force` or dependency downgrade was used.
 
 ## Accepted temporary finding
 

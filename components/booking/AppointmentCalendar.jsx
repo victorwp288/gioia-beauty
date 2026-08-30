@@ -11,7 +11,7 @@ export function AppointmentCalendar({
   const filteredAppointments = appointments.filter(
     (appointment) =>
       new Date(appointment.selectedDate).toDateString() ===
-      selectedDate.toDateString()
+      selectedDate.toDateString(),
   );
 
   const formatDate = (date) => {
@@ -36,7 +36,7 @@ export function AppointmentCalendar({
           mode="single"
           selected={selectedDate}
           onSelect={handleDateSelect}
-          initialFocus
+          autoFocus
         />
       </div>
 

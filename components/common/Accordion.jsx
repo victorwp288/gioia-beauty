@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import Image from "next/image";
 
 const Accordion = ({ title, description, image, children, imagePosition }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const contentId = useId();
 
   const toggleAccordion = () => {
     setIsOpen(!isOpen);
@@ -13,17 +14,16 @@ const Accordion = ({ title, description, image, children, imagePosition }) => {
   return (
     <div className="h-auto w-full overflow-hidden border-[0.5px] border-solid border-[#e2ecf9] bg-white shadow-[0px_2px_5px_#e2ecf9da]">
       <div
-        className={`flex cursor-pointer flex-col items-center md:flex-row ${
+        className={`flex flex-col items-center md:flex-row ${
           imagePosition === "right" ? "md:flex-row-reverse" : ""
         }`}
-        onClick={toggleAccordion}
       >
         <div className="w-full md:basis-[50%]">
           <div className="relative w-full h-64 md:h-75">
             <Image
               src={image}
               fill
-              alt="mani-piedi"
+              alt={`${title} - Gioia Beauty`}
               className="object-cover"
               sizes="(max-width: 768px) 100vw, 50vw"
             />
@@ -34,6 +34,9 @@ const Accordion = ({ title, description, image, children, imagePosition }) => {
           <p className="w-full text-sm md:w-[85%]">{description}</p>
           <button
             type="button"
+            aria-expanded={isOpen}
+            aria-controls={contentId}
+            onClick={toggleAccordion}
             className="border-0 bg-white text-xs font-bold text-primary no-underline"
           >
             {isOpen ? "Chiudi ⋀" : "Scopri di più →"}
@@ -41,6 +44,8 @@ const Accordion = ({ title, description, image, children, imagePosition }) => {
         </div>
       </div>
       <div
+        id={contentId}
+        hidden={!isOpen}
         className={`overflow-hidden transition duration-300 ease-in-out ${
           isOpen ? "h-auto" : "h-0"
         }`}

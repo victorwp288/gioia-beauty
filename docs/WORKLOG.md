@@ -1,6 +1,6 @@
 # Worklog
 
-Session journal for the refactor. **Newest entry on top.** Every working session inserts one entry immediately below the divider — this is how the next session (human or LLM) picks up where you left off.
+Session journal for durable refactor milestones. **Newest entry on top.** Add an entry for every Guarded task and whenever Fast Lane work creates a lasting milestone, decision, blocker, or handoff. Routine Fast Lane iteration does not need a ceremonial entry.
 
 ## Entry template
 
@@ -21,11 +21,133 @@ Session journal for the refactor. **Newest entry on top.** Every working session
 **Gotchas:** <surprises, decisions made, anything the next session must know — omit if none>
 ```
 
-Rules: keep entries under ~20 lines; insert the newest entry immediately below the divider; don't duplicate what the masterplan or git history already says; "Next" must be actionable without reading this whole file. Never rewrite old entries.
+Rules: keep entries under ~20 lines; insert the newest entry immediately below the divider; don't duplicate what the masterplan or git history already says; "Next" must be actionable without reading this whole file. A useful Fast Lane entry may be concise; Guarded entries use the full evidence template. Never rewrite old entries.
 
 ---
 
+## 2026-07-29 — Corrected QA certificate serialization and restored booking status
+
+**Phase:** Phase 4 isolated Preview runtime; Phase 7 public booking QA
+**Labels/environment:** isolated protected Vercel QA Preview and two bounded non-PII `[TEST]` maintenance-status reads
+**Data impact:** bounded read only; two reads of the cutover-write state, with no booking/customer row read and no write
+**Target:** Supabase TEST `hzibzwhrwmljgjjdzspi`; Vercel Preview `dpl_HREALsFKxvu5aJRcnAiCrGbFLba9` at `gioia-beauty-qa-20260729.vercel.app`
+**Done:** Traced the visible fail-closed booking warning to `/api/maintenance` returning 503 on the preceding deployment. Shell command substitution had removed the pinned CA PEM's canonical final newline, so strict certificate validation rejected configuration before opening a database connection. Redeployed the same source with the byte-exact canonical certificate and repointed only the QA alias; Preview protection remains enabled.
+**Verified/reconciled:** Vercel reports the corrected deployment Ready. Authenticated read-only checks against both its immutable URL and the exact QA alias return `MAINTENANCE_STATUS`, `publicBookingEnabled: true`, `ownerMutationsEnabled: true`, and `OPERATIONS_OPEN`. Temporary credential-bearing deployment material was deleted and a repository scan remains clean.
+**Production actions performed:** none; no `main`, Production/domain promotion, Firebase/Firestore, live app, customer data, email, IAM, or database write
+**Rollback/forward recovery:** repoint only the QA alias to known-good QA deployment `dpl_A3C8bHVCsmPRunWq5UPL2dFMaGQL`; do not use the invalid-certificate deployment `dpl_BxQGwnxxFystE8x1YaR5bavX4PhN`
+**Next:** Refresh or reopen the exact QA alias in the authorized mobile browser and continue the English booking smoke; if the stale warning remains, wait for the hook's 30-second refresh or fully reload the tab.
+**Gotchas:** When passing the pinned PEM through a shell variable, append its canonical final newline explicitly; `$(<file)` strips trailing newlines and fails the deliberate byte-for-byte certificate check.
+
+## 2026-07-29 — Fixed protected Preview booking access diagnosis, mobile arrows, and English booking
+
+**Phase:** Fast Lane Phase 7 bilingual public booking and mobile QA
+**Labels/environment:** `[LOCAL]` source/tests/browser; isolated protected Vercel QA Preview only
+**Data impact:** none; the browser check blocked booking writes and the deployment performed no Firebase/Firestore or database operation
+**Target:** Vercel Preview `dpl_BxQGwnxxFystE8x1YaR5bavX4PhN` at `gioia-beauty-qa-20260729.vercel.app`; existing Supabase TEST configuration retained unchanged
+**Done:** Replaced the English-to-Italian booking handoff with a complete English booking form while keeping canonical service/variant IDs authoritative; localized calendar dates, validation, maintenance/API feedback, notifications, and confirmation. Updated DayPicker 10 navigation layout so both mobile arrows anchor inside the calendar. Diagnosed the screenshot's unavailable state as missing/expired Vercel Deployment Protection authorization, not a booking/Supabase outage; protection remains enabled because this QA target retains private TEST data.
+**Verified/reconciled:** ESLint passes; TS7 and TS6 pass; 4 focused files/35 tests pass; Next 16 webpack production build generates all routes. A 390×844 Chrome check proved English service labels with canonical values, working month navigation, both arrow boxes fully inside the 351 px calendar, and zero booking writes. Vercel reports the deployment Ready and only the QA alias was repointed.
+**Production actions performed:** none; no `main`, Production/domain promotion, Firebase/Firestore, live app, email provider, or customer action
+**Rollback/forward recovery:** repoint only the QA alias to prior QA deployment `dpl_A3C8bHVCsmPRunWq5UPL2dFMaGQL` or revert this localized booking/calendar batch
+**Next:** On mobile Safari, sign in to Vercel and reopen the exact QA alias, then visually approve `/en#booking-section`; later localize customer email and newsletter lifecycles before calling all transactional surfaces bilingual.
+**Gotchas:** A cached QA page can render while its browser-side `/api/maintenance` request is redirected to Vercel SSO, producing the fail-closed yellow warning. Never disable Preview protection or expose a bypass token while retained TEST customer data exists.
+
+## 2026-07-29 — Verified the fixed isolated Preview on desktop/mobile and reconciled TEST
+
+**Phase:** Guarded Phase 4 Preview product verification; Phase 7 public/mobile and critical-flow QA
+**Labels/environment:** owner-approved QA-only Vercel Preview and `[TEST]` fixtures; `[LOCAL]` fix; one bounded Resend provider test
+**Data impact:** one synthetic booking plus two fake outbox messages, four synthetic vacation create/cancel lifecycles, and temporary owner/Auth/session rows, all deleted; one QA email to the owner's address; retained imported TEST rows unchanged
+**Target:** Supabase TEST `hzibzwhrwmljgjjdzspi`; final Vercel deployment `dpl_A3C8bHVCsmPRunWq5UPL2dFMaGQL` at the QA-only alias; Firebase, live app, `main`, Production, and stable `refactor` alias untouched
+**Done:** Added `.vercelignore`; rotated only the shared TEST `app_runtime` credential with explicit owner approval and deployed the dirty Next 16.2.12 snapshot only to the isolated alias. Public desktop/mobile, localization, navigation, gallery/map, login protection, booking creation, and duplicate/overlap removal passed. Fixed the recursive `react-toastify` close callback that masked vacation results, added its regression test, removed vacation-data console logging/redundant refetches, and exposed the pause/vacation control on mobile.
+**Verified/reconciled:** health returned `ok`; maintenance reported public booking and owner mutations enabled. Desktop and 390×844 owner login plus vacation create/cancel passed; the mobile dialog was usable with no horizontal overflow and zero console/page errors. Resend accepted QA email `e3ef27de-65c4-462a-9cc3-027420f91af8`; its temporary key/files were deleted. TEST reconciliation is zero for the marker booking, outbox/change/command rows, four vacation rows plus eight audit/command pairs, temporary owner/Auth/sessions, and exact QA login buckets. ESLint, TypeScript, focused 2/2 tests, `git diff --check`, Webpack build, default Turbopack build, and both hosted Next 16.2.12 builds pass.
+**Production actions performed:** none; no Production/domain promotion, Firebase/Firestore, live-app, shared email worker, webhook, or customer email action
+**Backup/restore evidence:** n/a; bounded reversible TEST fixtures only, with exact zero cleanup
+**Rollback/forward recovery:** the QA alias is isolated; repoint only that alias to the prior QA deployment or revert the local toast/mobile files and `.vercelignore` if rejected
+**Next:** review the local diff, then run branch CI/PR only when explicitly requested; keep the quarantined representative rows untouched until the owner requests handover cleanup
+**Gotchas:** the approved TEST credential rotation can invalidate older TEST Previews still holding the previous runtime password; the final QA deployment uses fresh per-deployment secrets and fake email.
+
+## 2026-07-29 — Adopted measured Next 16 and React 19 performance tooling
+
+**Phase:** Fast Lane Phase 7 React/Next optimization and diagnostics
+**Labels/environment:** `[LOCAL]`; source, optimized builds, loopback Chrome, and synthetic API stubs only
+**Data impact:** none; no Firebase/Firestore, Supabase/retained TEST data, Auth, provider, deploy, or live-system access
+**Done:** Enabled React Compiler in annotation mode for the gallery with compiler lint gates; used React 19 `useEffectEvent` to keep one notification-cleanup interval; added repeatable Next native bundle analysis, React-profile/CPU-profile builds, and a loopback-only Playwright/CDP performance harness. Replaced public response/form Zod adapters with strict focused validators while preserving authoritative server schemas, removed `@hookform/resolvers`, and stabilized the deferred booking layout. Investigated and rejected Activity, optimistic/action state, broad transitions, and deferred gallery filtering because they would retain sensitive/stale UI state, alter authoritative mutation boundaries, or add no measurable benefit. Cache Components remained explicitly out of scope.
+**Verified/reconciled:** compiler output contains the memo-cache transform; build compiled in 2.9–3.3 s and CPU profiles were idle-bound with no application hotspot. Gallery initial JS grew only 586 B gzip, inside the 5 KB gate; home initial JS is flat (+4 B). Deferred booking fell from 146.9 to 73.9 kB gzip (−49.7%), with Zod absent from the public graph and retained for owner/server paths. Local Chrome home/booking and gallery traces pass with zero CLS/long tasks. Three mobile Lighthouse samples scored Performance 92/94/94 and Accessibility/Best Practices 100; desktop scored 100/100/100. TS7/TS6, lint, formatting, 190 files/2,245 tests, and the production audit gate pass. Local SEO remains intentionally 69 only because non-Production is `noindex`.
+**Production actions performed:** none; no Preview, Production, Firestore, Supabase, provider, or configuration action
+**Rollback/forward recovery:** revert only this uncommitted Fast Lane optimization batch; server-side Zod/API validation and all live-system boundaries remain unchanged
+**Next:** Review the local UI, then when requested run the same profiler and Lighthouse commands against one immutable Preview. Keep Compiler annotation-only until a separately profiled component clears the same bundle/interaction gates.
+**Gotchas:** React Activity would preserve hidden dashboard/newsletter state including customer contact data, so intentional unmounting remains. Build profiling instrumentation adds global client weight and is diagnostic-only; deploy only a normal `npm run build` output.
+
+## 2026-07-29 — Upgraded the complete compatible web toolchain
+
+**Phase:** Fast Lane Phase 7 framework and dependency modernization
+**Labels/environment:** `[LOCAL]`; package/codemod/source migration and local verification only
+**Data impact:** none; no database, Firebase/Firestore, retained TEST data, Auth, provider, deploy, or live-system access
+**Done:** Upgraded to Node 24.18.0 LTS/npm 11.16.0, Next 16.2.12, React 19.2.8, Tailwind 4.3.3, Zod 4.4.3, DayPicker 10, Resend 6, current Radix/form/Supabase/Vercel UI packages, Playwright 1.62, Jest DOM 7, jsdom 30, lint-staged 17, PostCSS 8.5.25, Prettier 3.9.6, Supabase CLI 2.110.0, Actions checkout v7, and setup-node v6. Migrated Middleware to Proxy, moved Tailwind to CSS-first configuration, modernized ESLint flat config, updated React 19/calendar/validation APIs, and removed unused React Datepicker/React Leaflet dependencies.
+**Verified/reconciled:** clean `npm ci`; default Next 16 Turbopack build compiled in 2.9 s and generated 28 static pages; TS7, TS6, ESLint, 188 files/2,236 tests, focused Proxy/Zod tests, and production dependency audit pass with 0 high/critical. Lighthouse 13.4 mobile scores Performance 93–100 and Accessibility/Best Practices 100 across home, English home, services, gallery, and contacts; local SEO remains intentionally 69 from non-Production `noindex`. `npm outdated` is empty except intentional Node-types and ESLint-major holds. Local Playwright is externally blocked because this Mac has no Docker/Supabase daemon; Gitleaks 8.30.1 is likewise unavailable locally and remains in CI.
+**Production actions performed:** none; no Preview, Production, Firestore, Supabase, email, or configuration action
+**Rollback/forward recovery:** revert this uncommitted Fast Lane dependency/source batch; live Firebase and retained TEST rehearsal remain untouched
+**Next:** Review the local UI, then when requested publish one Preview and run the public/owner smoke plus repeated mobile Lighthouse on its immutable URL. Confirm the upgraded Actions and Supabase CLI through CI before Production promotion.
+**Gotchas:** ESLint 10.8 currently crashes inside Next 16.2.12's bundled React plugin, so the newest compatible ESLint 9.39.5 is pinned. Six accepted moderate advisories remain only in Firebase Admin's unused optional Storage/UUID chain until the legacy Firebase boundary is deleted.
+
+## 2026-07-29 — Completed the deep local SEO and performance pass
+
+**Phase:** Fast Lane Phase 7 SEO, performance, localization, accessibility, and product QA
+**Labels/environment:** `[LOCAL]`; optimized build, Google Lighthouse 13, and local headless-Chrome interaction checks only
+**Data impact:** none; no Firebase/Firestore, retained TEST data, Auth, providers, deploys, or live systems accessed
+**Done:** Centralized owner-confirmed Via Emilia 60 NAP/hours/geo; completed route-specific bilingual metadata, canonicals/`hreflang`, LocalBusiness/Service/Breadcrumb schema, 18-URL sitemap, five bilingual service pairs, and full 12-category/74-service Italian/English catalogues. Reduced the homepage to 119 kB first-load JS; split/deferred booking, newsletter, map, gallery, and owner-dashboard code; consolidated public CSS; compressed 12 large JPEGs by 47.7% and decoded pixels by 81.3%; added local telemetry guards, accessible landmarks/skip links/contrast, and proximity-loaded gallery images.
+**Verified/reconciled:** Next build generated 29 pages; default TypeScript 7.0.2 and TS6 compatibility checks, ESLint, 188 files/2,236 tests, and focused architecture/SEO/UI checks pass. Mobile Lighthouse: home 99/100/100, English home 99/100/100, services 99/100/100, gallery 97/100/100, contacts 98/100/100 for Performance/Accessibility/Best Practices; TBT and CLS are zero on representative pages. Local SEO is 69 solely because non-Production remains intentionally `noindex`; all other Lighthouse SEO audits pass.
+**Production actions performed:** none; Search Console and Bing Webmaster submission remain owner-deferred
+**Rollback/forward recovery:** revert only this uncommitted Fast Lane batch; live Firebase and retained private TEST rehearsal remain untouched
+**Next:** Review the local result, then when requested deploy one Preview and run a simple route/changed-flow smoke plus Lighthouse on its immutable URL. Add the missing environment keys before expecting booking APIs to succeed; current local `/api/maintenance` correctly fails closed with 503 and a user-facing message.
+**Gotchas:** TypeScript 7 improves compiler/tooling throughput, not browser runtime performance. English booking still links to the authoritative Italian form until stable catalog IDs support safe transactional translation. Resolve the quarantined future-booking review only at handover as already recorded.
+
+## 2026-07-29 — Added bilingual SEO foundation and cut homepage JavaScript by 44%
+
+**Phase:** Fast Lane Phase 7 SEO, localization, performance, and product QA
+**Labels/environment:** `[LOCAL]`; production-build and local-browser verification only
+**Data impact:** none; no database, Auth, provider, Preview deployment, or live-system access
+**Target:** local worktree and local production server; existing protected Preview tab restored unchanged afterward
+**Expected reads/writes/rows:** no remote reads/writes; local static pages and fail-closed APIs only
+**Done:** Split public/owner route-group layouts; added crawlable English home/gallery/contact/privacy routes, five bilingual high-intent service landing-page pairs, and a language switch; corrected canonicals, `hreflang`, sitemap, Preview noindex, visible FAQ/schema, headings/alts, hero priority, social image ratio, internal service links, and private-route noindex. Deferred the heavy booking island, gallery lightbox, and map; fixed stale booking slots, Italian Monday-first Rome calendar boundaries, duplicate confirmation reloads, 404 navigation, cookie consent state, mobile-menu/accordion accessibility, and `/export` shell leakage.
+**Verified/reconciled:** production build passes; homepage first-load JS 248→138 kB, gallery 122→113 kB, contacts 107 kB; OG image 744→324 kB at 1200×630. TS7 typecheck 1.33 s vs TS6 4.02 s. ESLint, TS7, TS6, 185 files/2,225 tests, and 44 focused tests pass. Local Chrome verified Italian→English, `html lang=en`, translated content, gallery filter/lazy lightbox, deferred map, deferred booking, Italian calendar labels/week order, and fail-closed missing-key behavior.
+**Production actions performed:** none; no deploy, Firebase/Firestore, Supabase, Vercel configuration, customer data, email, or cutover action
+**Backup/restore evidence:** n/a; source-controlled Fast Lane changes only
+**Rollback/forward recovery:** revert this uncommitted batch; existing retained TEST data and live Firebase remain untouched
+**Next:** Review the local public-site changes, then deploy a simple Preview smoke when requested and run repeated mobile Lighthouse/Speed Insights. Separately confirm the Via Emilia 58/60 legal address and create owner-approved service-category pages. Localize booking/email/newsletter only after stable catalog IDs replace Italian display-name identity.
+**Gotchas:** English marketing is complete, but online booking deliberately hands off to the authoritative Italian form so translated labels cannot corrupt catalog identity. The legal Italian privacy text remains authoritative; the English privacy page says so explicitly.
+
+## 2026-07-29 — Verified retained-data Preview and deferred quarantine cleanup
+
+**Phase:** Phase 4 product verification; deferred Guarded Phase 5 reconciliation
+**Labels/environment:** owner-approved `[TEST]` Auth/read-only Preview check and aggregate review of retained PII-bearing TEST data
+**Data impact:** temporary synthetic owner/session lifecycle only; imported business rows retained unchanged
+**Target:** Supabase TEST `hzibzwhrwmljgjjdzspi`; protected `refactor` Vercel Preview; Firestore/live app untouched in this check
+**Expected reads/writes/rows:** bounded dashboard reads; exactly one temporary owner/Auth lifecycle; 2,433 source = 1,667 imported + 766 quarantined
+**Done:** Preview rendered 117 current-month schedule rows, 14 upcoming vacations, and 48 subscribers without business mutations. Removed the temporary Auth user/session/account and two run-scoped login-abuse buckets; retained 1,595 schedule rows, 24 vacations, and 48 subscribers. Recorded quarantine as deferred handover work so site development can continue first.
+**Verified/reconciled:** 241 certain future confirmed source appointments = 197 imported + 44 quarantined, delta zero. The 44 are 41 overlap dispositions and 3 unmapped-service records; three retained future appointments also intersect one active vacation. Target has zero same-kind schedule/vacation overlaps. Aggregate manifest is local-only, mode `0600`, and PII-scanned.
+**Production actions performed:** none in this check; no Firestore read/write, live app change, provider activation, deploy, or cutover
+**Backup/restore evidence:** encrypted local source artifact retained outside git; no restore operation
+**Rollback/forward recovery:** TEST copy remains private and non-authoritative; delete it only on Victor's handover instruction. Use Local or an isolated synthetic target for writable development tests.
+**Next:** Start the site-finish product pass: audit the protected Preview on desktop and mobile across public pages, booking, login, and dashboard; write one prioritized UI/UX punch list, then implement the first coherent Fast Lane batch with focused visual/interaction checks.
+**Gotchas:** quarantine does not block site development, but the 44 future appointments and three vacation conflicts block handover/cutover until privately resolved.
+
+## 2026-07-29 — Replaced default release ceremony with risk-proportionate lanes
+
+**Phase:** Operating policy across greenfield Phases 1–4 and Guarded Phase 5
+**Labels/environment:** `[LOCAL]`; Fast Lane policy and test-gating definition
+**Data impact:** none
+**Target:** repository guidance/test configuration only; Firestore, Supabase, Vercel, providers, and live systems untouched
+**Expected reads/writes/rows:** none
+**Done:** Made empty synthetic-only Supabase development the Fast Lane for ordinary product/schema/seed/Preview work; moved Firestore, real data, auth/access control, live providers/users, Production, destructive actions, backup/restore, and cutover to the Guarded Lane. Preserved prior milestones and technical controls while scoping full hosted/reset/recovery harnesses to their actual boundaries; moved the frozen exact-manifest test behind `npm run test:guarded-manifest` so ordinary append-only schema work is not blocked by historical acceptance hashes.
+**Verified/reconciled:** 18/18 documentation contracts and 4/4 Guarded manifest tests pass; default manifest test correctly skips 4/4 without the Guarded flag; edited formatted files pass Prettier; relative Markdown links and `git diff --check` pass
+**Production actions performed:** none
+**Backup/restore evidence:** n/a; no data or live-system action
+**Rollback/forward recovery:** revert only this uncommitted policy/test-gating diff if rejected; technical safeguards and historical evidence are unchanged
+**Next:** Resume ordinary greenfield product work through Fast Lane with focused checks and a simple Preview smoke. Seek exact Guarded approval only when a task actually crosses Firestore/real-data/auth/live-provider/Production/destructive/cutover boundaries.
+**Gotchas:** Historical entries below retain their original stricter evidence and "Next" lines; this newest entry supersedes their default process without invalidating completed work.
+
 ## 2026-07-22 — Proved hosted privacy isolation and maintenance recovery
+
 **Phase:** Phase 4 application-cutover items 6–7
 **Labels/environment:** owner-approved label-only Keychain metadata read and in-memory secret use; owner-approved `[TEST]` Preview browser/Auth/database maintenance rehearsal; `[LOCAL]` harness fixes and verification
 **Data impact:** disposable synthetic TEST creates, updates, cancellations, and exact deletes only; no customer or Production data
@@ -40,6 +162,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** blocked maintenance writes correctly bypass the abuse limiter and create zero buckets. The first hosted attempt exposed the fixture's missing `randomBytes(32)` argument and failed closed; cleanup/fingerprint proof passed before the successful rerun. Local Auth readiness retry is local-only.
 
 ## 2026-07-22 — Closed the approved Phase 3/4 hosted TEST gates
+
 **Phase:** Phase 3 technical closeout; Phase 4 application-cutover items 1–4
 **Labels/environment:** owner-approved label-only Keychain metadata read; owner-approved `[TEST]` Preview browser/Auth/database/maintenance/fake-worker actions; `[LOCAL]` fixes, verification, and documentation
 **Data impact:** one additive TEST ACL migration; one bounded synthetic booking/owner/Auth/maintenance fixture lifecycle; all operational/Auth/Storage fixture rows deleted; no customer or Production data
@@ -54,6 +177,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** the hosted `postgres` role is not a local superuser equivalent and required explicit EXECUTE on seven owner-only lifecycle functions. A local E2E retry was skipped because an unrelated Demokrati Supabase stack owns port 54322; it was not stopped or touched, and the prior isolated Local 11/11 plus exact-head CI database replays remain valid.
 
 ## 2026-07-22 — Applied the Phase 3/4 TEST candidate and repaired Preview attestation
+
 **Phase:** Phase 3/4 hosted TEST activation; final hosted browser/worker acceptance remains open
 **Labels/environment:** owner-approved `[REMOTE-CONFIG]` Vercel Preview/refactor only; owner-approved `[TEST]` migrations and bounded verification; `[LOCAL]` attestation compatibility fix
 **Data impact:** four additive schema migration rows plus seven empty privacy tables/functions/indexes; five branch-only Preview bindings; zero business/Auth/Storage/customer rows
@@ -68,6 +192,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Vercel sensitive values pull as a redacted placeholder; the first fresh Cron bearer was therefore replaced before use and the final value is protected under a known exact Keychain label. The reviewed harness cannot run until the unrecorded database Keychain item labels are discovered; broad Keychain listing was denied and no workaround was attempted. No Phase 3/4 checkbox was ticked on partial hosted evidence.
 
 ## 2026-07-22 — Completed the Phase 3/4 Local release-candidate foundation
+
 **Phase:** Phase 3/4 Local readiness; hosted TEST completion remains approval-gated
 **Labels/environment:** `[LOCAL]` implementation and disposable verification only; proposed `[REMOTE-CONFIG]`/`[TEST]` actions not executed
 **Data impact:** repeated disposable Local schema/fixture writes with exact teardown; zero remote/customer/Production rows
@@ -82,6 +207,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Phase 3/4 combined items remain conservatively unchecked until hosted proof. The privacy foundation is intentionally inert until all 18 decisions are approved, and the current TEST project still has the previously accepted 63-migration state until the reviewed TEST apply occurs.
 
 ## 2026-07-22 — Bound refactor Preview to replacement TEST and proved the hosted server/Auth boundary
+
 **Phase:** Phase 3 server adapter hosted proof; Phase 4 hosted boundary partial; Phase 2 remains complete
 **Labels/environment:** owner-approved `[REMOTE-CONFIG]` Vercel Preview/refactor only; `[TEST]` synthetic Auth/reconciliation; `[LOCAL]` cleanup-contract and documentation
 **Data impact:** 14 current branch-specific Preview bindings, three Preview deployments, one-row maintenance reads, three bounded synthetic owner/Auth fixture lifecycles, and exact final zero operational/Auth/Storage residue; no customer data
@@ -96,6 +222,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Real hosted Supabase password login creates one `auth.mfa_amr_claims` row; it cascades from the exact synthetic Auth session and is narrowly recognized, while every unrelated Auth auxiliary row still fails cleanup. Npm still reports six moderate transitive `uuid` findings whose offered forced fix downgrades Firebase Admin; no high production advisory remains.
 
 ## 2026-07-21 — Completed the hosted Phase 2 gate and owner Auth proof
+
 **Phase:** Phase 2 complete; Phase 3 owner Auth complete; remaining Phase 3/4 hosted/Preview/provider gates stay open
 **Labels/environment:** owner-approved `[TEST]` two-cycle destructive/synthetic acceptance and final bounded read-only reconciliation; `[LOCAL]` documentation only afterward
 **Data impact:** two atomic 63-migration rebuilds with synthetic pgTAP, booking, owner, Auth, outbox, and abuse fixtures; every cycle cleaned to zero operational/Auth/Storage rows; no customer or Production data
@@ -110,6 +237,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The healthy replacement proves the schema and app design are sound; the old failure was project-specific pooler state. Keep the environment model to Local + one disposable TEST + future paid Production—provider billing tiers and database roles are separate concerns, not extra app environments.
 
 ## 2026-07-21 — Added the missing inter-cycle Supavisor drain
+
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** owner-approved `[TEST]` exact-head gate and bounded read-only reconciliation; `[LOCAL]` lifecycle correction
 **Data impact:** cycle A atomically rebuilt 63 migrations, ran synthetic database/Auth/concurrency fixtures, and cleaned to zero; cycle B refused before retained mutation while 16 idle runtime pooler backends remained; no customer, Production, or retained operational/Auth/Storage rows
@@ -124,6 +252,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** A clean table/Auth reconciliation does not imply the pooler has released runtime server backends. Every hosted Next child lifecycle must cross the same fixed drain plus authoritative zero-session boundary before a reset or final success.
 
 ## 2026-07-21 — Bound owner-login abuse residue to the hosted TEST fixture
+
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** owner-approved `[TEST]` full-gate attempt and bounded read-only reconciliation; `[LOCAL]` cleanup-contract correction
 **Data impact:** cycle A created synthetic fixtures only; the cleanup transaction rolled back and currently retains 27 commands, 5 entries, 10 fake outbox rows, 5 changes/locks, 2 owners/sessions/Auth users, 1 identity, and 2 owner-login abuse buckets; no customer, Storage, or Production rows
@@ -138,6 +267,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** On a dirty fixture database, the normal target selector intentionally chooses different empty dates; recovery must reconstruct the five original targets from their exact synthetic notes before cleanup. The two HMAC hashes are intentionally unpredictable, so the guard relies on exact total/scope and immutable structural invariants rather than matching hash values.
 
 ## 2026-07-21 — Repaired the hosted owner-auth child environment
+
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** owner-approved `[TEST]` full-gate attempt, bounded aggregate/log/readiness diagnostics; `[LOCAL]` harness correction
 **Data impact:** one cycle-A 63-migration rebuild and synthetic acceptance run through all four concurrency races; cleanup restored zero operational/Auth/Storage/customer rows; readiness proof wrote no fixtures
@@ -152,6 +282,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The harness predated Phase 3 pagination security and its old test shape-matched selected variables instead of validating the entire child environment, so Next exited before Auth and stdio suppression hid the cause.
 
 ## 2026-07-21 — Extended hosted timestamp parity to webhook re-subscription
+
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** one owner-approved `[TEST]` rollback-only pgTAP proof plus one bounded Postgres-log read; `[LOCAL]` transport correction
 **Data impact:** one 28-file hosted pgTAP attempt with temporary `pgtap` create/drop and rollback-only synthetic fixtures; zero retained operational/Auth/Storage/customer rows
@@ -166,6 +297,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The earlier failure in `080` masked the later equivalent transport mismatch in `100`; repository-wide command-cycle audit is now explicit rather than relying on first-failure discovery.
 
 ## 2026-07-21 — Separated hosted pgTAP re-subscription timestamps
+
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** one owner-approved `[TEST]` exact-head rollback-only pgTAP proof; `[LOCAL]` transport hardening
 **Data impact:** one isolated 28-file hosted pgTAP attempt with temporary `pgtap` create/drop and rollback-only synthetic fixtures; zero retained operational/Auth/Storage/customer rows
@@ -180,6 +312,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Separate PostgreSQL query messages do not guarantee distinct millisecond-canonicalized evidence timestamps when sent back-to-back.
 
 ## 2026-07-21 — Fixed hosted pgTAP statement-timestamp parity
+
 **Phase:** Phase 2 hosted TEST acceptance repair; Phase 2/3/4 completion remains open
 **Labels/environment:** owner-approved `[TEST]` destructive/synthetic gate attempts and bounded diagnostics; `[LOCAL]` runner correction
 **Data impact:** two cycle-A atomic 63-migration rebuilds; six rollback-only hosted pgTAP executions with temporary `pgtap` create/drop; zero retained operational/Auth/Storage/customer rows
@@ -194,6 +327,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** A PostgreSQL simple-query message can contain many semicolon-delimited commands yet retain one `statement_timestamp()` across them; local CLI execution did not model that transport detail.
 
 ## 2026-07-21 — Widened the Supavisor drain margin after a clean timing stop
+
 **Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
 **Labels/environment:** owner-approved `[TEST]` guarded attempt and bounded read-only reconciliation; `[LOCAL]` timing hardening
 **Data impact:** no rebuild/schema/business/Auth/Storage writes; exactly one successful runtime auth probe; read-only aggregate/catalog reconciliation only
@@ -208,6 +342,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The observed provider timeout is approximate, not an exact scheduling guarantee; the authoritative boundary remains a fresh zero-session query after the 30-second margin.
 
 ## 2026-07-21 — Stopped safely on Supavisor name rewriting and switched to drain-only
+
 **Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
 **Labels/environment:** owner-approved `[TEST]` guarded checkpoint attempt and read-only reconciliation; `[LOCAL]` operator/session lifecycle correction
 **Data impact:** one read-only runtime credential probe succeeded; the first rebuild refused to start and rolled back; final operational/Auth/Storage/customer rows, sessions, and locks are zero
@@ -222,6 +357,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The successful psql process can exit before Supavisor's 120-second idle timeout releases its backend, whose live `application_name` is `Supavisor`. Never infer a safe kill target; the post-drain zero-session proof is authoritative.
 
 ## 2026-07-21 — Fixed the hosted credential stop on reserved postgres.js clients
+
 **Phase:** Phase 2 hosted TEST checkpoint repair; Phase 2/3/4 hosted acceptance remains open
 **Labels/environment:** `[LOCAL]` harness correction and regression coverage; prior bounded `[TEST]` evidence only
 **Data impact:** none in this repair; hosted TEST remains at 63 migrations/205 reference rows/zero residue with `app_runtime` LOGIN and password null
@@ -236,6 +372,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** A reserve-shaped fake with `begin` masked the real client contract; regressions now require the lock client to lack `begin` and prove worker transaction ordering/cleanup under the held lock.
 
 ## 2026-07-21 — Prepared an exact guarded bootstrap for the replacement TEST project
+
 **Phase:** Phase 2 hosted bootstrap preparation; Phase 2/3/4 hosted acceptance remains open
 **Labels/environment:** owner-approved `[REMOTE-CONFIG]` TEST credential/Auth changes, read-only `[TEST]` catalog inspection, and `[LOCAL]` operator hardening
 **Data impact:** rotated TEST operator password; disabled public signup while Email and Confirm Email remain enabled; zero database/Auth-user/Storage/customer rows and zero schema writes
@@ -250,6 +387,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The first generated operator password appeared in dashboard automation output and was immediately invalidated by the second rotation before any connection. Keychain stores raw passwords rather than DSNs because interactive `security -w` truncated long DSN input; runtime construction must remain in-memory and nonprinting.
 
 ## 2026-07-21 — Rebound TEST and removed the obsolete runtime carrier
+
 **Phase:** Phase 1 TEST registry; Phase 2 hosted checkpoint preparation; Phase 3/4 hosted gates remain open
 **Labels/environment:** `[LOCAL]` implementation and read-only `[TEST]` inspection; no remote mutation
 **Data impact:** none; replacement project remains empty with zero app/Auth/Storage rows
@@ -264,6 +402,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Supabase labels the project's main branch “Production,” but repository authority is TEST-only. It currently allows public signup by default. The unrelated `demokrati` stack still owns the normal Local Supabase ports and was not touched.
 
 ## 2026-07-21 — Advanced TEST to 62 migrations but stopped at the durable carrier gate
+
 **Phase:** Phase 2 hosted-TEST acceptance; Phase 3/4 final hosted gates remain blocked
 **Labels/environment:** owner-approved `[TEST]` additive migration and `[TEST]`/`[DESTRUCTIVE]` two-cycle gate; `[LOCAL]` tracking only
 **Data impact:** one reviewed additive constraint migration; one migration-history version correction; one fail-closed credential lifecycle; zero customer, operational, Auth, or Storage rows
@@ -278,6 +417,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Local Docker DB/E2E stayed unavailable because the unrelated `demokrati` Supabase stack owns 54321/54322; exact-head CI supplied both clean DB cycles. Phase 3 privacy decisions and provider/Preview configuration remain owner/external gates, not code omissions.
 
 ## 2026-07-21 — Cleared the confirmed TEST network ban and made credential probes truly one-shot
+
 **Phase:** Phase 2 hosted-TEST recovery; final two-cycle acceptance item remains open
 **Labels/environment:** owner-approved `[REMOTE-CONFIG]` removal of one exact TEST ban; one read-only `[TEST]` transaction-pooler probe; `[LOCAL]` recovery hardening
 **Data impact:** none; zero schema, table, Auth, Storage, customer, or credential writes from the probe; one TEST control-plane ban entry removed
@@ -292,6 +432,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Dropping schemas did not cause this incident. The old five-attempt `28P01` verifier plus restoration after a failed checkpoint could create or extend the provider ban; bare postgres.js was also unsuitable because it may reconnect internally during initial authentication.
 
 ## 2026-07-21 — Advanced hosted TEST to 61 migrations and isolated project pooler refusal
+
 **Phase:** Phase 2 final hosted-TEST acceptance gate; checklist remains open
 **Labels/environment:** owner-approved `[TEST]` additive schema, protected role, and destructive synthetic checkpoint; `[LOCAL]` fixes and verification
 **Data impact:** added 24 reviewed migration-history rows and 11 TEST reference/config rows; one protected credential lifecycle and one destructive rebuild/pgTAP attempt auto-cleaned; final operational/Auth/Storage/customer rows zero
@@ -306,6 +447,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Supabase's public status and project control plane report healthy while both shared poolers refuse this project; the direct database endpoint is IPv6-only and this workstation has no route. The unrelated `demokrati` stack owns local port 54322 and was not stopped or altered.
 
 ## 2026-07-21 — Replaced the blocked runtime login with a credential-only carrier
+
 **Phase:** Phase 2 hosted-TEST recovery foundation; final `[TEST]` checklist item remains open
 **Labels/environment:** one owner-approved bounded `[TEST]` fresh-role canary; `[LOCAL]` carrier implementation and disposable synthetic verification
 **Data impact:** TEST canary created, authenticated, contained, and dropped one temporary role; Local resets used synthetic fixtures only; zero business/Auth/storage/customer rows
@@ -320,6 +462,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The successful fresh-role canary disproves a project-wide pooler outage but does not prove the durable SET-role boundary or hosted schema. The old `app_runtime` pooler identity may remain provider-stale; the new design no longer depends on repairing it.
 
 ## 2026-07-21 — Guarded `app_runtime` recovery still failed closed
+
 **Phase:** Phase 2 final hosted-TEST acceptance gate; no checklist item completed
 **Labels/environment:** bounded `[TEST]` role recovery and identity diagnostics; `[LOCAL]` read-only repo/config validation
 **Data impact:** one serialized `app_runtime` recovery lifecycle attempted; final role remains `NOLOGIN`/password-null with zero sessions or locks; no business/Auth/storage/customer rows
@@ -334,6 +477,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Both protected DSNs/config and both `postgres` pooler modes now work, but the guarded custom-role lifecycle still does not complete; the customer-visible evidence cannot identify Supavisor's internal failing stage.
 
 ## 2026-07-20 — Rehearsed the Phase 5 Local logical-recovery precursor
+
 **Phase:** Phase 5 Local precursor only; every hosted TEST and Production checklist item remains open
 **Labels/environment:** [LOCAL] only; disposable synthetic Supabase/PostgreSQL on loopback 56321/56322; production Firebase, `main`, and hosted Supabase untouched
 **Data impact:** destructive Local resets; bounded synthetic import/replay; one frozen-state logical dump; one clone-only row deletion; two scratch restores; final Local volumes removed
@@ -348,6 +492,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The same-cluster Local database clone does not prove hosted backups/PITR, Auth/Kong recovery, the real Firebase shape/sink/rules, or post-reopen recovery. No Phase 5 checkbox was ticked.
 
 ## 2026-07-20 — Rehearsed Phase 4 legacy migration and browser acceptance locally
+
 **Phase:** Phase 4 Local migration/recovery and browser acceptance; hosted TEST, real-source inventory, and production candidate remain open
 **Labels/environment:** [LOCAL] only; disposable synthetic Supabase, system Chrome, fake email/challenge/alerts; production Firebase and `main` untouched
 **Data impact:** destructive Local resets; one five-record synthetic import plus exact replay; bounded synthetic owner create/soft-cancel/canary/reconcile writes; no remote/customer data
@@ -362,6 +507,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** No Phase 4 checkbox was ticked because every migration item is `[TEST]`, combined browser items still require TEST proof, and the exact source freeze is not yet appropriate. Linux CI still needs approved visual baselines; current CI credits are unavailable.
 
 ## 2026-07-20 — Completed the Phase 4 Local application-cutover vertical
+
 **Phase:** Phase 4 Local implementation; hosted TEST/Preview acceptance and source freeze remain open
 **Labels/environment:** [LOCAL] only; synthetic Docker Supabase, fake email/challenge/alerts; production Firebase and `main` untouched
 **Data impact:** destructive reset plus bounded synthetic create/update/soft-cancel/unsubscribe writes in disposable Local; final stack/volumes removed
@@ -376,6 +522,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The Local cutover is complete, but Phase 4 is not closed: every combined item still needs TEST evidence, and the two TEST-only items plus exact production-candidate freeze remain outstanding.
 
 ## 2026-07-20 — Completed the Phase 3 local server/reliability vertical
+
 **Phase:** Phase 3 Local implementation and acceptance; Phase 2 hosted-TEST gate unchanged
 **Labels/environment:** [LOCAL] only; synthetic Docker Supabase and fake email/challenge/alert adapters
 **Data impact:** destructive resets and bounded writes only in disposable synthetic Local; final stack/volumes removed with zero runtime-role, booking, or command residue
@@ -390,6 +537,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Phase 3 closure still needs owner/legal `RET-01`–`RET-17`/`RET-HOLD`, Italian policy/consent wording, processor/DPA evidence, approved TEST Sentry/CAPTCHA/alert/provider targets, and hosted TEST proof.
 
 ## 2026-07-20 — Escalated the custom-role pooler fault and bounded recovery retries
+
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 remains sequenced behind it
 **Labels/environment:** [LOCAL] operator hardening/tests plus bounded [TEST] dashboard, connection, role-state, log, and authenticated probe reads; one guarded TEST recovery lifecycle; one external support request
 **Data impact:** one `app_runtime` restore/authenticate/automatic-containment lifecycle; final `app_runtime` remains NOLOGIN/password-null with zero runtime sessions; no business/Auth/storage/customer rows
@@ -404,6 +552,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The shared transaction endpoint is healthy for `postgres`; failure is isolated to Supavisor custom-role auth-query/cache handling. The previous unclassified 10x250ms loop could exceed Supavisor credential-refresh limits and prolong its circuit breaker.
 
 ## 2026-07-20 — Revalidated the TEST gate; transaction-pooler recovery still failed closed
+
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 remains blocked
 **Labels/environment:** [LOCAL] repo/docs/official-doc audit plus bounded [TEST] control-plane/advisor/count reads and one guarded TEST credential-recovery attempt
 **Data impact:** bounded read; one serialized recovery-only role lifecycle was attempted, but no recovery SQL reached Postgres; final state remains `app_runtime` NOLOGIN with zero runtime/business/Auth/storage residue; no customer or Production data
@@ -418,6 +567,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Phase 3 also requires owner-approved `RET-01`–`RET-17`/`RET-HOLD`, Italian privacy/newsletter consent wording, processor evidence, and a separately approved TEST Sentry target; these are acceptance gates, not safe defaults Codex can invent. The owner reaffirmed the accelerated cadence: minimal focused checks during a large vertical batch, then one full end-of-batch verification/review sweep; mandatory phase and safety gates remain.
 
 ## 2026-07-14 — Reproved both TEST cycles after restart; transaction-pooler recovery still failed
+
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 remains blocked
 **Labels/environment:** owner-approved destructive synthetic [TEST] checkpoint plus bounded [TEST] control-plane diagnostics/recovery and [LOCAL] process inspection
 **Data impact:** two complete 37-migration TEST rebuild/acceptance cycles cleaned to zero residue; one exact orphan Supavisor lock backend conditionally terminated; no customer or Production data
@@ -432,6 +582,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Restarting Postgres restored enough connectivity for both destructive cycles but did not repair the transaction-pooler tenant. Public health and project state can be green while this project-specific Supavisor path remains broken.
 
 ## 2026-07-14 — Audited Phase 3 and stopped at the project-specific Supavisor gate
+
 **Phase:** Phase 2 final staging acceptance gate; Phase 3 full-scope inventory
 **Labels/environment:** [LOCAL] read-only code/docs/security audit plus bounded [TEST] project/log/connectivity reads and owner-approved guarded synthetic checkpoint/recovery attempts
 **Data impact:** none; both protected database attempts failed before a Postgres session, so 0 schema/business/Auth/storage/provider writes and 0 customer/Production rows
@@ -446,6 +597,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Public Supabase status and project health are green while this exact eu-central-2 Supavisor backend still refuses both roles. Phase 3 also requires explicit owner decisions/evidence for privacy retention/DPA/public-policy values and a separately approved TEST Sentry target before those checkboxes can close.
 
 ## 2026-07-14 — Kept TEST fail-closed after a Supavisor final-guard stall
+
 **Phase:** Phase 2 final staging acceptance; checklist item remains open
 **Labels/environment:** [LOCAL] operator/tests/build plus owner-approved destructive synthetic [TEST] checkpoint and bounded TEST control-plane recovery
 **Data impact:** two TEST rebuild/acceptance cycles cleaned to zero known residue; one orphan TEST pooler backend terminated after the local operator was interrupted; no customer or Production data
@@ -460,6 +612,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** session pooler returned `econnrefused`, transaction pooler returned `EDBHANDLEREXITED`, and the Supabase dashboard reported an active technical issue. Vercel Preview still has the prior database URL and was unchanged. The exposed TEST database password and legacy `service_role` JWT remain separate rotation work; never use or log them.
 
 ## 2026-07-14 — Separated TEST runtime commands from privileged reconciliation
+
 **Phase:** Phase 2 final staging acceptance; checklist item remains open
 **Labels/environment:** [LOCAL] concurrency boundary/tests/build plus owner-approved destructive synthetic [TEST] checkpoint
 **Data impact:** one cycle-A TEST rebuild and bounded synthetic race attempt, cleaned to zero known residue; temporary `app_runtime` suspension/recovery; no customer or Production data
@@ -474,6 +627,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Vercel Preview still has the prior database URL and was not changed. The exposed TEST database password and legacy `service_role` JWT remain separate rotation work; never grant `app_runtime` table access to bypass test failures.
 
 ## 2026-07-14 — Hardened the guarded TEST checkpoint after real pooler behavior
+
 **Phase:** Phase 2 final staging acceptance; checklist item remains open
 **Labels/environment:** [LOCAL] operator/tests/build plus owner-approved destructive synthetic [TEST] attempts
 **Data impact:** TEST-only role credential update, temporary `app_runtime` suspension, and bounded synthetic mutation cleaned to zero residue; no customer or Production data
@@ -488,6 +642,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Vercel Preview still holds the previous `SUPABASE_DATABASE_URL`; no Vercel state changed because sending the protected replacement needs explicit external-secret authorization. The exposed TEST database password and legacy `service_role` JWT remain separate rotation work; never use or log the legacy key.
 
 ## 2026-07-14 — TEST checkpoint stopped safely on missing protected credentials
+
 **Phase:** Phase 2 final staging acceptance; checklist item remains open
 **Labels/environment:** approved destructive synthetic [TEST] checkpoint; bounded [TEST] metadata/count reads; [LOCAL] fail-closed operator attempt
 **Data impact:** 0 writes and 0 customer/Production rows; read 1 project record, 37 migration records, 0 security findings, 12 informational performance findings, and 1 aggregate state row
@@ -502,6 +657,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The earlier four-variable shorthand was incomplete; most inputs are safe exact metadata that the operator can derive, but both DSNs are secret and unavailable here. Do not fetch Vercel secrets, reset passwords, or bypass the exact DSN separation.
 
 ## 2026-07-14 — Removed Resend key rotation from the refactor handoff
+
 **Phase:** Phase 2 staging acceptance handoff; documentation-only scope correction
 **Labels/environment:** [LOCAL] documentation only
 **Data impact:** none
@@ -516,6 +672,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** “Forget the Resend key” removes key rotation from this refactor handoff; it does not remove the existing Resend email/outbox architecture.
 
 ## 2026-07-14 — Preserved the Preview credential across TEST checkpoints
+
 **Phase:** Phase 2 final staging checkpoint hardening; the TEST checklist item remains open
 **Labels/environment:** [LOCAL] operator/config/tests/docs/build only; pending separately approved destructive [TEST] checkpoint
 **Data impact:** none; 0 real database, Auth, provider, or customer-data reads/writes/rows
@@ -530,6 +687,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** This shell has none of the four protected TEST variables, so no remote checkpoint was run. Do not fetch/expose Vercel secrets or weaken exact DSN/credential separation.
 
 ## 2026-07-11 — Activated an isolated Vercel Preview and fixed provider scopes
+
 **Phase:** Phase 1 environment isolation plus Phase 2 staging activation; Vercel scope audit ticked
 **Labels/environment:** approved [TEST] Supabase role configuration, [REMOTE-CONFIG]/[PROD-CONFIG] Vercel scope isolation, and Preview deployment
 **Data impact:** none; 0 business/Auth/storage rows read or written. One synthetic TEST role login was activated; no customer data exists in the target.
@@ -544,6 +702,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Local direct Postgres remains unreachable over IPv6 and both shared pool endpoints still time out from this Mac. The Preview build/health path is green, but DB-backed routes remain code-disabled and the durable login must be preserved explicitly across future reset rehearsals.
 
 ## 2026-07-11 — Separated privileged concurrency fixtures and bounded the remote barrier
+
 **Phase:** Phase 2 final staging checkpoint; the TEST checklist item remains open
 **Labels/environment:** [LOCAL] harness/tests/build; approved [REMOTE-CONFIG] Auth signup gate; bounded read/write [TEST] diagnostics and interrupted synthetic race
 **Data impact:** TEST only. Disabled public signup in one isolated Auth project; concurrency attempts used only named synthetic fixtures. Final SQL evidence is 0 schedule entries, 0 commands, 0 owners, 0 runtime sessions, and `app_runtime` login disabled.
@@ -558,6 +717,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The 20-client remote burst exhausted both shared-pool endpoints and they returned Supavisor `econnrefused` while the project remained `ACTIVE_HEALTHY`; do not loop retries. Local tests retain the exact all-worker barrier; remote TEST requires 5 simultaneous DB waiters and still submits/reconciles all 20 requests.
 
 ## 2026-07-11 — Advanced the TEST checkpoint to the external Auth signup gate
+
 **Phase:** Phase 2 staging acceptance; the two-cycle checkpoint remains open and no masterplan item was ticked
 **Labels/environment:** [LOCAL] operator fixes plus destructive/rollback-clean [TEST] checkpoint attempts; pending exact [REMOTE-CONFIG] approval
 **Data impact:** synthetic TEST only; repeated guarded cycle-A rebuild/acceptance attempts cleaned back to 37 migrations with 0 operational/Auth/storage/test-extension residue. No customer data.
@@ -572,6 +732,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The Auth verifier is intentionally fail-closed; do not weaken it to accept enabled signup. The owner fixture is provisioned directly for the isolated acceptance cycle, so disabling public signup does not block the test owner.
 
 ## 2026-07-11 — Removed the remote pgTAP Docker dependency and proved zero residue
+
 **Phase:** Phase 2 staging migration/reset acceptance foundation; the final two-cycle TEST checkpoint remains open
 **Labels/environment:** [LOCAL] runner/reconciliation/tests/build; guarded destructive [TEST] cycle-A attempts and rollback-only pgTAP verification
 **Data impact:** TEST synthetic state only; two cycle-A atomic rebuild attempts and three 21-file pgTAP suites, with committed test transactions rolled back and the test-only pgTAP extension removed. No customer data.
@@ -586,6 +747,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Supabase CLI 2.109.1 requires Docker for `test db` even with a remote DSN; this Mac intentionally has no container runtime. Never use `sql.file` here because it rereads after digest validation; execute only the same verified in-memory source.
 
 ## 2026-07-11 — Pinned TEST database TLS trust before the greenfield checkpoint
+
 **Phase:** Phase 2 staging migration/reset acceptance foundation; the TEST checkpoint remains open
 **Labels/environment:** [LOCAL] trust/runtime/CLI tooling and tests; bounded read-only [TEST] TLS, lint, and advisor diagnostics
 **Data impact:** none; TEST diagnostics read connection/schema metadata only, with no schema/data/Auth/provider write and no customer data
@@ -600,6 +762,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The pinned CLI emits structured JSON only with `--output-format json`; default successful lint output can be empty. Never replace explicit CA trust with `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, or disabled verification.
 
 ## 2026-07-11 — Completed the inert bounded owner outbox read family
+
 **Phase:** Phase 3 authenticated owner read and reliable-side-effect foundation; broad checklist items remain open
 **Labels/environment:** [LOCAL] schema/contracts/handler, synthetic Auth/executors, static analysis, documentation, and build only
 **Data impact:** none; no SQL/function/repository singleton, real Auth/DB/provider call, route, UI activation, migration, environment key, remote, or customer-data action
@@ -614,6 +777,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Existing outbox indexes support provider lookup, claiming, and expired leases—not `(created_at DESC,id DESC)` owner listing. The future TEST-backed read migration must add/prove the exact global and status-filtered plans, repeat owner/session authorization atomically, preserve cursor microseconds, and keep recipient PII private/no-store/no-log.
 
 ## 2026-07-11 — Batched inert vacation, subscriber, and schedule-export owner reads
+
 **Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
 **Labels/environment:** [LOCAL] injected server contracts/handlers, synthetic Auth/executors, static analysis, documentation, and build only
 **Data impact:** none; no SQL/function/repository singleton, real Auth/DB/provider call, route, UI activation, migration, environment key, remote, or customer-data action
@@ -628,6 +792,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Future vacation SQL must use overlap semantics. Future subscriber SQL/indexes must match `(created_at DESC,id DESC)` and bounded status filters; do not recreate legacy global sorts by loading every page. Each export page repeats its BOM/header, so the future client must follow `X-Next-Cursor` and merge pages deliberately rather than treating page one as complete.
 
 ## 2026-07-11 — Guarded inert owner schedule read handlers
+
 **Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
 **Labels/environment:** [LOCAL] injected server handlers, synthetic Auth/executors, static analysis, documentation, and build only
 **Data impact:** none; no SQL/function/repository singleton, real Auth/DB/provider call, route, UI activation, migration, environment key, remote, or customer-data action
@@ -642,6 +807,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Read-only GET intentionally has no mutation Origin/CSRF gate; it is GET/body-only and relies on SameSite cookies plus SOP/CORP/private no-store. Future executors must repeat owner/session authorization atomically with the read. Trusted context cookies are passed through; request/executor data can never supply response headers.
 
 ## 2026-07-10 — Bound inert owner schedule list and count contracts
+
 **Phase:** Phase 3 authenticated owner read foundation; broad owner-operation checklist remains open
 **Labels/environment:** [LOCAL] pure server contracts, synthetic tests, static analysis, documentation, and build only
 **Data impact:** none; no SQL/function, repository executor, Auth/DB/provider call, route, UI activation, migration, environment key, remote, or customer-data action
@@ -656,6 +822,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** A page with `nextCursor` is not complete month coverage; count is a filtered range total, not per-day/all-time. List/count calls are live rather than snapshot-consistent across reschedules. The future read migration needs an index matching `(local_date,start_minutes,id)` plus TEST plan/bound proof before activation.
 
 ## 2026-07-10 — Locked outbox activation behind verifier-backed evidence
+
 **Phase:** Phase 3 reliable-side-effect/Cron foundation; broad atomic-outbox checklist remains open
 **Labels/environment:** [LOCAL] pure server contract, static import/activation guards, synthetic tests, documentation, and build only
 **Data impact:** none; no route, schedule, database/provider singleton or call, migration, environment key, renderer registration, remote, or customer-data action
@@ -670,6 +837,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** V1 deliberately has no success path; future readiness requires a contract-version change plus trusted proof producers. Hash presence is only artifact binding, not execution proof, and remote alert-receiver configuration remains a separately approved activation preflight.
 
 ## 2026-07-10 — Alerted on completion-observed outbox dead letters
+
 **Phase:** Phase 3 reliable-side-effect/Cron foundation; broad atomic-outbox checklist remains open
 **Labels/environment:** [LOCAL] inert response classification, synthetic tests, documentation, static analysis, and build only
 **Data impact:** none; no route, database/provider singleton or call, migration, environment key, fixture, remote, or customer-data action
@@ -684,6 +852,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** This 503 observes only dead letters returned by fenced completion. Claim SQL can dead-letter up to its candidate limit for `AGGREGATE_STATE_STALE`/`LEASE_EXPIRED` and omit them, while historical dead letters are not queried; 200, zero counters, and `budgetReached: false` are not queue-health proof. Cron activation remains blocked.
 
 ## 2026-07-10 — Made renderer operational faults recoverable and alerting
+
 **Phase:** Phase 3 reliable-side-effect/newsletter foundation; broad outbox and newsletter checklist items remain open
 **Labels/environment:** [LOCAL] server-only contracts, synthetic tests, static analysis, and build only
 **Data impact:** none; no route, worker singleton/catalog registration, database/provider call, migration, environment key, fixture, remote, or customer-data action
@@ -698,6 +867,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Operational faults retry only while fenced completion is proven and still alert with 503; an unproven completion takes precedence. Expired or more-than-five-minute-future snapshots remain permanent invalid input. Route/catalog activation is still blocked by the TEST checkpoint, missing persisted 24-hour cutoff, claim-time dead-letter undercount, and complete dead-letter monitoring.
 
 ## 2026-07-10 — Defined the inert newsletter confirmation email
+
 **Phase:** Phase 3 newsletter/outbox foundation; broad outbox and newsletter checklist items remain open
 **Labels/environment:** [LOCAL] pure server renderer contract, synthetic tests, static analysis, and build only
 **Data impact:** none; no route, worker catalog, database/provider singleton, environment key, schema, migration, fixture, remote, or customer-data action
@@ -712,6 +882,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Current migration 37 persists only `policy_version`; renderer registration remains unsafe until the reserved post-checkpoint migration snapshots token ID/timing/key ID atomically and confirmation SQL consumes the exact versioned consent cycle. `newsletter-consent-v1` still lacks an approved immutable Italian policy/form artifact, and no confirmation landing/POST route exists.
 
 ## 2026-07-10 — Proved the inert outbox execution deadline
+
 **Phase:** Phase 3 reliable-side-effect/Cron foundation; the broad outbox checklist item remains open
 **Labels/environment:** [LOCAL] injected server implementation, fake-clock tests, static analysis, and build only
 **Data impact:** none; no route, database/provider singleton, environment key, Cron configuration, schema, migration, fixture, remote, or customer-data action
@@ -726,6 +897,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The response deadline cannot undo an already-started external side effect; the real worker prevents late claim/provider continuations, while a late fenced completion may still commit and is reported uncertain. Route activation remains blocked by the TEST checkpoint, dead-letter alerting, claim-time dead-letter undercount, persisted 24-hour provider-idempotency cutoff, and full newsletter/TEST proof.
 
 ## 2026-07-10 — Authenticated the inert outbox worker boundary
+
 **Phase:** Phase 3 reliable-side-effect/Cron foundation; the broad outbox checklist item remains open
 **Labels/environment:** [LOCAL] injected server implementation, tests, static analysis, and build only
 **Data impact:** none; no route, database/provider singleton, environment key, Cron configuration, schema, migration, fixture, remote, or customer-data action
@@ -740,6 +912,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Vercel Cron uses a static bearer and can miss or duplicate delivery; user-agent/schedule headers are not authentication. Route activation remains blocked by the unproven TEST checkpoint, absent newsletter renderer/dead-letter alerting, claim-time dead-letter undercount, missing persisted 24-hour provider-idempotency cutoff, and an unproven end-to-end deadline.
 
 ## 2026-07-10 — Bound inert migration plans to complete operator intent
+
 **Phase:** Phase 1 production-operator workflow foundation; the broad checklist item remains open
 **Labels/environment:** [LOCAL] pure plan/compiler implementation, tests, static analysis, and build only
 **Data impact:** none; no database, provider, network, Auth, route, schema, migration, fixture, environment, remote, or customer-data action
@@ -754,6 +927,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** v2 is not an executor or authority grant; Production is disabled and its evidence must later be resolved outside this pure compiler. CI injects `SUPABASE_TELEMETRY_DISABLED=1`; only that exact value-agnostic key bypasses provider-family rejection. The repository has 37 reviewed migrations while the last authorized TEST metadata snapshot recorded 35; do not author reserved migration 38 before the checkpoint.
 
 ## 2026-07-10 — Bound dashboard Auth refresh to the validated client
+
 **Phase:** Phase 3 owner Auth reliability/security hardening; the broad Auth checklist item remains open pending TEST/E2E proof
 **Labels/environment:** [LOCAL] middleware implementation and static/unit/build verification only
 **Data impact:** none; no database, route, schema, migration, fixture, provider, environment, remote, or customer-data action
@@ -768,6 +942,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Middleware refresh is not authorization; every owner route still performs its own fresh bound Auth check. One build attempt hit a transient missing `.next` trace artifact after page generation; the immediate sequential rerun passed fully.
 
 ## 2026-07-10 — Authenticated bounded pagination context without activating reads
+
 **Phase:** Phase 3 owner-read/server-boundary foundation; database adapter and authenticated read operations remain open
 **Labels/environment:** [LOCAL] implementation/tests plus one bounded read-only [TEST] Supabase metadata refresh
 **Data impact:** none; no route, repository, schema, migration, Auth, fixture, email, provider configuration, application query, or customer-data operation
@@ -782,6 +957,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** `app_runtime` has no table `SELECT` and no owner list/count/vacation function exists, so adding a read route/repository now would be false safety. Cursors authenticate but neither authorize nor conceal claims; future SQL must use the exact pinned keyset order and preserve six-digit `timestamptz` text rather than JavaScript `Date`/floating-point conversion.
 
 ## 2026-07-10 — Defined the privacy and processor launch gates
+
 **Phase:** Phase 3 pre-cutover privacy foundation; the broad privacy checklist item remains open
 **Labels/environment:** [LOCAL] documentation, static inventory, and test verification only
 **Data impact:** none; no route, schema, migration, Auth, fixture, provider, environment, remote, or customer-data action
@@ -796,6 +972,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** All retention periods, processor/DPA facts, sensitive-note policy, public policy wording, and evidence lifetimes are pending owner/legal/provider decisions. Firebase Storage is configured but unproven; schedule locks are non-personal mutex state. A premature generic privacy executor was rejected and deleted because caller-declared target labels and stub replay would create false safety; executable privacy work waits for the durable SQL ledger/functions after the checkpoint and newsletter migration.
 
 ## 2026-07-10 — Added PII-safe API observability boundaries
+
 **Phase:** Phase 3 minimal observability foundation; the broad Sentry/alerts checklist item remains open
 **Labels/environment:** [LOCAL] server implementation, environment validation, static/unit/build verification only
 **Data impact:** none; no schema, migration, Auth, fixture, email, provider, remote, or customer-data action
@@ -810,6 +987,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Provider capture stays inert until a reviewed Sentry TEST target exists; returned/caught 503s produce only a completion metric, while only uncaught throws produce the fixed surrogate-error event. Sink adapters are trusted synchronous code, and the broad masterplan item remains unchecked.
 
 ## 2026-07-10 — Enforced the client/server source boundary
+
 **Phase:** Phase 3 server-adapter/browser-secret isolation foundation; actual adapter completion and TEST/bundle proof remain open
 **Labels/environment:** [LOCAL] source cleanup, static architecture analysis, unit/static/build verification only
 **Data impact:** none; deleted two verified-unimported client modules and browser-inapplicable process hooks, with no route, schema, migration, Auth, fixture, email, provider, environment, or remote call
@@ -824,6 +1002,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Source-graph evidence is not built-bundle proof, so Phase 3's server-adapter and observability items remain unchecked. The new guard intentionally fails if its prerequisite cleanup commit is omitted. Reliable visual baselines still require local Firebase emulators, Java, deterministic fixtures, and a remote-request firewall.
 
 ## 2026-07-10 — Bound newsletter token wire and purpose policy
+
 **Phase:** Phase 3 newsletter/double-opt-in server foundation; persistence, rendering, routes, and end-to-end confirmation remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; domain/server schemas and pure tests only, with no database, Auth, route, UI, email, provider, fixture, migration, environment-secret, or remote call
@@ -838,6 +1017,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Wire parsing is only syntax and HMAC verification is still not authorization, consumption, revocation, or single-use. Current SQL remains subscriber-ID/version-blind and the outbox lacks token/key/timing snapshots; no route or renderer is safe yet. Future action GETs must never mutate (scanner-safe landing plus explicit guarded POST), and purpose must be hard-coded by the route rather than inferred as authorization from the token.
 
 ## 2026-07-10 — Added inert newsletter action-token authentication
+
 **Phase:** Phase 3 newsletter/double-opt-in server foundation; consent-cycle persistence, rendering, routes, and end-to-end confirmation remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; pure injected cryptography and schemas only, with no database, Auth, route, UI, email, provider, fixture, migration, environment-secret, or remote call
@@ -852,6 +1032,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The codec authenticates integrity, purpose, time, and opaque consent-cycle claims; it is replayable, non-confidential, and does not authorize or make a link single-use. Migration 38 must snapshot token ID, subscriber version, issue/expiry, purpose, and signing-key ID; atomically bind/consume the right consent cycle; define reissue/retention; and keep old keys until every referenced token expires. Current SQL and outbox snapshots do not satisfy this. Generic `SignedActionTokenSchema` trims input, so future HTTP code must use the exact raw parser.
 
 ## 2026-07-10 — Added strict public newsletter command repositories
+
 **Phase:** Phase 3 newsletter/double-opt-in server foundation; public routes and end-to-end confirmation remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; injected repositories only, with no database, route, UI, email, provider, fixture, schema, migration, or remote call
@@ -866,6 +1047,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Migration-free routes are unsafe: newsletter outbox rendering intentionally fails; token timing/version is not snapshotted; confirm SQL is not consent-cycle-bound; token consumption/retention is unresolved; pending confirmation cannot be reissued. The active UI still writes Firestore and belongs to Phase 4.
 
 ## 2026-07-10 — Added a fail-closed public abuse boundary seam
+
 **Phase:** Phase 3 public abuse-defense foundation; durable limiter/challenge checklist remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; stateless fake decisions and injected repositories only, with no remote, database, provider, schema, fixture, or migration call
@@ -880,6 +1062,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** This seam is an activation stop, not rate-limit evidence, so the broad masterplan item stays unchecked. A future external adapter must receive a curated header allowlist, add a fully valid Production-disable regression after target registration, and pair shared global/per-principal limits with bounded expired-command cleanup.
 
 ## 2026-07-10 — Added a Production-disabled owner outbox retry boundary
+
 **Phase:** Phase 3 reliable-side-effect and authenticated server boundary; broad outbox checklist remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; synthetic requests and injected Auth/repositories only, with no remote, database, provider, schema, fixture, or migration call
@@ -894,6 +1077,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Any injected retry `env` now requires explicit repository, Auth-context, and HMAC-secret sinks as one trusted bundle; incomplete bundles fail before environment validation/cookies/body/Auth/DB. An environment toggle cannot activate Production retry.
 
 ## 2026-07-10 — Rejected ambiguous owner Auth route targets
+
 **Phase:** Phase 3 owner Auth boundary hardening; broad Auth checklist remains open pending TEST/E2E proof
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; injected Auth/repositories and synthetic requests only, with no remote, database, or provider call
@@ -908,6 +1092,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Session still validates the canonical CSRF cookie after its bounded Auth/DB authorization work; changing that pre-existing order could alter cleanup semantics and is outside this query-only slice.
 
 ## 2026-07-10 — Rejected ambiguous owner command targets at the edge
+
 **Phase:** Phase 3 authenticated server boundaries; broad owner-operation checklist remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; synthetic requests and injected Auth/repositories only, with no remote or database call
@@ -922,6 +1107,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** `readSecurityTokens` reads local cookies before the shared command parser; it performs no Auth/network/DB work. The global positive-version cap is intentional because every consumer maps to a PostgreSQL `integer` column.
 
 ## 2026-07-10 — Hardened temporary legacy mail boundaries
+
 **Phase:** Phase 3 server-boundary containment; target atomic-outbox replacement remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; fake delivery and injected Auth only, with no remote, database, schema, fixture, or provider call
@@ -936,6 +1122,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Legacy mail still has process-local trusted-proxy rate limiting and no durable idempotency; automatic retry remains forbidden, and these routes must be deleted when the atomic outbox replaces all callers.
 
 ## 2026-07-10 — Reconciled and enforced all active API contracts
+
 **Phase:** Phase 3 server-boundary verification; no broad checklist item completed
 **Labels/environment:** [LOCAL] documentation, static analysis, and tests only
 **Data impact:** none; no runtime, database, Auth, provider, schema, fixture, or remote call
@@ -950,6 +1137,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Owner commands still ignore query strings and accept versions above PostgreSQL int32 until repository validation; modern public routes lack durable abuse limits; legacy validation can reflect supplied unknown field names. The inventory now fails CI when any explicit API export changes without a contract update.
 
 ## 2026-07-10 — Bounded public booking streams before buffering
+
 **Phase:** Phase 3 public booking boundary; broad booking/abuse/E2E checklist items remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; no database, Auth, provider, schema, fixture, or remote call
@@ -964,6 +1152,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Legitimate callers must send no query, lowercase canonical UUID idempotency, canonical same-origin when Origin is present, and JSON with only optional UTF-8 charset plus identity encoding. The legacy mail handlers still check 8 KiB only after `request.text()`; all 10 owner mutations currently ignore query strings, and version values above PostgreSQL int32 reach a redacted 503 instead of request validation.
 
 ## 2026-07-10 — Added constant read-free liveness endpoint
+
 **Phase:** Phase 3 observability foundation; combined Sentry/logging/metrics/health checklist item remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; no database, Auth, provider, schema, fixture, or remote call
@@ -978,6 +1167,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** A 200 proves only Next.js process liveness, never database/Auth/provider/migration/queue/restore readiness. Sentry, PII-safe structured logging, and route metrics remain separate work. Manual outbox retry must remain Production-disabled until a post-checkpoint migration enforces the 24-hour provider-idempotency stop.
 
 ## 2026-07-10 — Added inactive verified Resend webhook boundary
+
 **Phase:** Phase 3 reliable-side-effect foundation; broad outbox checklist item remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; no database, Auth, fixture, provider, schema, or remote call
@@ -992,6 +1182,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Only delivered/bounced/complained are stateful; failed/suppressed/delayed require a later schema/state policy. Provider registration and Production secrets/flags/deployment remain separately approved Production actions, and permanent signed 400/409 retry handling is a launch policy/alerting gate.
 
 ## 2026-07-10 — Added inactive bounded email-outbox worker foundation
+
 **Phase:** Phase 3 reliable-side-effect foundation; broad outbox checklist item remains open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; no database, Auth, fixture, provider, schema, or remote call
@@ -1006,6 +1197,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Schedule-only renderers cannot instantiate the worker, so newsletter rows cannot be accidentally claimed. Resend idempotency expires after 24 hours; automatic/manual recovery beyond that window remains a launch stop, not a blind retry.
 
 ## 2026-07-10 — Added owner details, reschedule, and status commands
+
 **Phase:** Phase 3 authenticated server vertical slice; broad checklist items remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; no database, Auth, fixture, schema, or provider call
@@ -1020,6 +1212,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Appointment detail patches translate only supplied camelCase fields to snake_case JSON; explicit null is preserved and absent fields stay absent. `STATUS_TRANSITION_INVALID` is valid at both 400 and 409 and is keyed by status plus code.
 
 ## 2026-07-10 — Exposed five transaction-authorized owner schedule commands
+
 **Phase:** Phase 3 authenticated server vertical slice; broad checklist items remain open
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; no database, Auth, fixture, schema, or provider call
@@ -1034,6 +1227,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Every admin mutation now self-enforces origin/CSRF, fresh Auth, HMAC binding, and transaction-local owner/session authorization. Middleware refresh remains dashboard-only; do not re-add API matching.
 
 ## 2026-07-10 — Guarded owner command request and response boundaries
+
 **Phase:** Phase 3 server vertical-slice foundation; no broad checklist item completed yet
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; no database, Auth, fixture, schema, or provider call
@@ -1048,6 +1242,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Unknown SQLSTATE/message combinations deliberately redact to 503. Only repeated `Set-Cookie` and exact `Expires: 0` may pass from Auth refresh headers into owner command errors.
 
 ## 2026-07-10 — Added session-bound owner schedule command repository
+
 **Phase:** Phase 3 server vertical-slice foundation; Phase 2 remote TEST checkpoint remains pending
 **Labels/environment:** [LOCAL] implementation and static/unit/build verification only
 **Data impact:** none; no database, Auth, fixture, schema, or provider call
@@ -1062,6 +1257,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Owner list/count/vacation-read functions require migration 38 and must wait until current TEST acceptance is captured. Middleware refreshes cookies but is not authorization; every future `/api/admin/**` route must enforce fresh Auth/binding/CSRF itself.
 
 ## 2026-07-10 — Added atomic two-cycle greenfield TEST acceptance operator
+
 **Phase:** Phase 2 TEST acceptance tooling; remote execution remains pending
 **Labels/environment:** [LOCAL] implementation/verification; [TEST] bounded read-only migration metadata inspection
 **Data impact:** 35 TEST migration-history metadata rows read; 0 business rows and 0 remote writes
@@ -1076,6 +1272,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** No operator DSN/public key is available in this process and GitHub Environment `gioia-test` does not exist; no remote rebuild, Auth, fixture, or schema mutation was attempted.
 
 ## 2026-07-10 — Proved twice-clean booking kernel and revocable owner sessions
+
 **Phase:** Phases 1–3; Local acceptance checkpoint
 **Labels/environment:** [LOCAL], ephemeral GitHub Actions Supabase and fail-closed loopback route probe
 **Data impact:** synthetic reset/seed/test writes only; ephemeral containers removed after each cycle
@@ -1090,6 +1287,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** This Mac still has no Docker daemon, so executable DB evidence comes from clean CI. Repository state is 37 migrations/18 private tables; remote TEST is intentionally still 35/17 until the reviewed rebuild runner exists.
 
 ## 2026-07-10 — Established typed database foundation and public booking boundary
+
 **Phase:** Phases 1–3
 **Labels/environment:** [LOCAL], static/build/unit verification only
 **Data impact:** none
@@ -1104,6 +1302,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** This Mac has no Docker, so database execution is deliberately unclaimed until CI. Local Gitleaks is absent; CI installs pinned Gitleaks. The legacy UI/root Firebase provider is not yet wired to the new endpoints and must not be manually loaded.
 
 ## 2026-07-09 — Contained legacy routes and made development fail closed
+
 **Phase:** Phase 0 containment and Phase 1 environment isolation
 **Labels/environment:** [LOCAL], static/build/unit verification only
 **Data impact:** none
@@ -1118,6 +1317,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Public booking email intentionally fails closed on `refactor`, so the branch is not releasable until Phase 3 outbox integration. Supabase CLI 2.105.0 exists, but no Docker/Podman/Colima/OrbStack runtime is installed; prefer repository scaffolding plus the authorized synthetic TEST project until a local runtime is available.
 
 ## 2026-07-09 — Reclassified Supabase as greenfield integration target
+
 **Phase:** Phase 1 environment registry and ADR gate
 **Labels/environment:** [LOCAL] documentation; [TEST] bounded Supabase metadata inspection
 **Data impact:** none; read-only metadata, zero business rows
@@ -1132,6 +1332,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** The older worklog entry is historical and intentionally still says the project was initially reserved for Production; the current environment registry supersedes it.
 
 ## 2026-07-09 — Registered empty Supabase Production target
+
 **Phase:** Phase 1 environment inventory; no implementation checklist item completed
 **Labels/environment:** [PROD-READ] Supabase metadata/schema inspection; [LOCAL] documentation
 **Data impact:** bounded read only; no customer/business rows exist in the target
@@ -1146,6 +1347,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Organization is currently Free. Supabase automatic accessible daily backups are a Pro launch gate; do not mistake this Production target for a staging sandbox.
 
 ## 2026-07-09 — Revalidated masterplan and guarded Supabase decision
+
 **Phase:** planning v2; Phases 0–9 resequenced, no implementation item completed
 **Labels/environment:** [LOCAL], repository documentation only
 **Data impact:** none
@@ -1160,6 +1362,7 @@ Rules: keep entries under ~20 lines; insert the newest entry immediately below t
 **Gotchas:** Supabase ADR remains Proposed until Victor approves the full Production + serialized staging cost. The legacy direct-client Firestore app is not treated as a safe writable rollback after cutover; the safe failure posture is maintenance plus restore/fix-forward.
 
 ## 2026-07-08 — Planning session (no code changes)
+
 **Phase:** pre-work
 **Done:** Audited the codebase, Vercel, and DNS. Wrote `docs/MASTERPLAN.md` (8 phases), `AGENTS.md` (+ `CLAUDE.md` symlink), `docs/DATA-MODEL.md` (legacy format zoo with examples, canonical schema, transition rules — required reading before the migration), and this worklog. Created the `refactor` branch. Ran a full crosscheck pass over all docs: fixed a wrong Phase 6 claim (per-page metadata already exists), corrected the count-query claim (`getTotalAppointmentCount` already uses aggregation), resolved TS-timing and migration-sequencing contradictions (new code is TS from Phase 1; DB migration is additive dual-field until Phase 3), and defined the hotfix branch flow.
 **Verified:** claims re-checked against code (line-level); docs mutually consistent as of this entry.

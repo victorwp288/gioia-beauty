@@ -12,7 +12,7 @@ The current application stores roughly 1,600 appointments/time blocks plus vacat
 - a complete server-side data boundary;
 - real concurrency protection;
 - an authentication/session rewrite;
-- local/staging environments, tests, backups, and restore drills;
+- local/staging environments and tests, plus backup/restore proof before real-data cutover;
 - better dashboard filtering, reporting, and export.
 
 Implementing all of that on Firestore first and moving to Postgres later would create two migrations and substantial disposable infrastructure: deterministic Firestore guard documents, canonical dual writes, Firebase session cookies, rules/emulator coverage, and a temporary server adapter.
@@ -51,11 +51,17 @@ Costs/risks:
 - daily backups alone can still permit roughly a day of data loss; off-platform logical exports or separately approved PITR may be needed;
 - the insecure direct-client Firestore app is not a safe writable rollback; after cutover, failures use maintenance plus Supabase restore/fix-forward, while reverse ETL preserves an emergency copy.
 
-Supabase itself does not make development safe. Safety comes from credential isolation, fail-closed targets, versioned migrations, backups, restore rehearsals, explicit production approval, reconciliation, and rollback.
+Supabase itself does not make development safe. During the synthetic greenfield phase, safety came from credential isolation, fail-closed targets, synthetic data, versioned observable migrations, focused tests, and fake providers. The retained owner-approved rehearsal copy now makes direct TEST-data access Guarded until handover cleanup; Production authority still has not moved. Backups, restore rehearsals, explicit Production approval, reconciliation, and cutover recovery apply when the corresponding real-data or Production boundary enters scope.
+
+## Current development lane
+
+The current registered Supabase project is non-authoritative and has no live users; `docs/ENVIRONMENTS.md` is authoritative for its exact ref and retained-data state. Ordinary repository, Local/CI, UI/copy, application, and separately isolated synthetic work remain Fast Lane. They do not require production-style recovery proof, the full hosted two-cycle checkpoint, runtime-role credential choreography, or repetitive broad E2E. Direct access, Auth, mutation, export, reset, or Preview testing against the retained PII-bearing target is Guarded until handover cleanup.
+
+Firestore access, Production-derived data/import, auth or access-control changes, real provider/live-user activation, Production deployment/config/data, destructive action, and cutover remain Guarded. This narrows process, not the accepted architecture or its technical safeguards.
 
 ## Acceptance and Production gates
 
-Victor accepted the one-migration architecture and authorized project `lxvsspniipcotimbsfqm` as a resettable greenfield integration/staging target on 2026-07-09. It may contain only synthetic data until the final migration is separately approved.
+Victor accepted the one-migration architecture and authorized a resettable greenfield integration/staging target on 2026-07-09. The original project is retired; the current exact TEST target is recorded in `docs/ENVIRONMENTS.md`. The 2026-07-29 representative import was separately approved and remains a temporary retained-data exception; it does not grant Production authority, live-user access, or permission for additional real-data imports.
 
 Acceptance of the architecture does not approve Production spend or cutover. Before Supabase becomes authoritative:
 

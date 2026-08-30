@@ -1,59 +1,95 @@
 import Link from "next/link";
+import { BUSINESS_INFO, formattedAddress } from "@/lib/content/businessInfo";
 
-function Footer() {
+const copyByLocale = {
+  it: {
+    mondayWednesday: "Lunedì, Mercoledì",
+    tuesdayThursday: "Martedì, Giovedì",
+    friday: "Venerdì",
+    weekend: "Sabato, Domenica",
+    closed: "Chiuso",
+    privacy: "Privacy policy",
+    privacyHref: "/policy",
+  },
+  en: {
+    mondayWednesday: "Monday, Wednesday",
+    tuesdayThursday: "Tuesday, Thursday",
+    friday: "Friday",
+    weekend: "Saturday, Sunday",
+    closed: "Closed",
+    privacy: "Privacy policy (Italian)",
+    privacyHref: "/en/privacy",
+  },
+};
+
+function Footer({ locale = "it" }) {
+  const copy = copyByLocale[locale] || copyByLocale.it;
+  const language = locale === "en" ? "en" : "it";
   return (
-    <div className="relative z-0 pl-6 pb-10 text-sm text-slate-400 md:mt-12 md:pl-64 md:pr-64">
+    <footer className="relative z-0 pb-10 pl-6 text-sm text-[#59514f] md:mt-12 md:px-64">
       <div className="grid md:grid-cols-3 pt-8 md:gap-0 gap-8">
         <div className="flex flex-col gap-2 md:gap-4">
           <div>
+            {BUSINESS_INFO.hours.map(({ days, open, close }) => (
+              <p key={days.it}>
+                {days[language]}{" "}
+                <b>
+                  {open} - {close}
+                </b>
+              </p>
+            ))}
             <p>
-              Lunedì, Mercoledi <b>9.00 - 19.00</b>
-            </p>
-            <p>
-              Martedì, Giovedì <b>10.00 - 20.00</b>
-            </p>
-            <p>
-              Venerdì <b>9.00 - 18.30</b>
-            </p>
-            <p>
-              Sabato, Domenica <b>Chiuso</b>
+              {BUSINESS_INFO.closedDays[language]} <b>{copy.closed}</b>
             </p>
           </div>
         </div>
 
         <div className="flex flex-col gap-2 md:gap-4">
-          <div>
+          <address className="flex flex-col not-italic">
             <Link
               target="_blank"
-              href={"https://maps.app.goo.gl/Vg7QqpUBStAnfnzV7"}
+              href={BUSINESS_INFO.mapsUrl}
+              rel="noopener noreferrer"
+              className="flex min-h-11 items-center rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#76575c] focus-visible:ring-offset-2"
             >
-              <p>Via Emilia 60, 29010 Roveleto PC</p>
+              {formattedAddress()}
             </Link>
-            <Link className="underline" href="mailto:gioiabeautyy@gmail.com">
-              <p>gioiabeautyy@gmail.com</p>
+            <Link
+              className="flex min-h-11 items-center break-all underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#76575c] focus-visible:ring-offset-2"
+              href={`mailto:${BUSINESS_INFO.email}`}
+            >
+              {BUSINESS_INFO.email}
             </Link>
-            <Link href="tel:+393914213634">
-              <p>+39 391 421 3634</p>
+            <Link
+              href={`tel:${BUSINESS_INFO.phoneE164}`}
+              className="flex min-h-11 items-center rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#76575c] focus-visible:ring-offset-2"
+            >
+              {BUSINESS_INFO.phoneDisplay}
             </Link>
             <Link
               target="_blank"
-              href="https://www.instagram.com/gioiabeautyy/"
+              href={BUSINESS_INFO.instagramUrl}
+              rel="noopener noreferrer"
+              className="flex min-h-11 items-center rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#76575c] focus-visible:ring-offset-2"
             >
-              <p>@gioiabeautyy</p>
+              {BUSINESS_INFO.instagramHandle}
             </Link>
-          </div>
+          </address>
         </div>
 
         <div>
-          <p>P. IVA 01871820336</p>
+          <p>P. IVA {BUSINESS_INFO.vatNumber}</p>
           <br />
-          <Link className="underline" href="/policy">
-            Privacy policy
+          <Link
+            className="flex min-h-11 items-center underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#76575c] focus-visible:ring-offset-2"
+            href={copy.privacyHref}
+          >
+            {copy.privacy}
           </Link>
-          <p>® 2024 Gioia Beauty</p>
+          <p>© Gioia Beauty</p>
         </div>
       </div>
-    </div>
+    </footer>
   );
 }
 

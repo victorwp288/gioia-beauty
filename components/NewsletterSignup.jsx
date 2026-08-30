@@ -3,7 +3,7 @@ import React, { useCallback, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import TurnstileChallenge from "@/components/common/TurnstileChallenge";
-import { toast } from "react-toastify";
+import { usePublicBookingNotifications } from "@/components/booking/PublicBookingNotifications";
 import {
   ClientApiError,
   newIdempotencyKey,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/client/publicApi.ts";
 
 const NewsletterSignup = () => {
+  const { showError, showSuccess } = usePublicBookingNotifications();
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [humanChallengeRequired, setHumanChallengeRequired] = useState(false);
@@ -34,7 +35,7 @@ const NewsletterSignup = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (humanChallengeRequired && !humanChallengeToken) {
-      toast.error("Completa la verifica di sicurezza e riprova.");
+      showError("Completa la verifica di sicurezza e riprova.");
       return;
     }
     setSubmitting(true);
@@ -55,7 +56,7 @@ const NewsletterSignup = () => {
       setHumanChallengeRequired(false);
       setHumanChallengeToken(null);
       setHumanChallengeUnavailable(false);
-      toast.success("Controlla la tua email per confermare l’iscrizione.");
+      showSuccess("Controlla la tua email per confermare l’iscrizione.");
       setEmail("");
     } catch (error) {
       if (
@@ -71,7 +72,7 @@ const NewsletterSignup = () => {
       if (!shouldRetainPublicIdempotencyKey(error)) {
         subscriptionAttemptRef.current = null;
       }
-      toast.error(publicErrorMessage(error));
+      showError(publicErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -100,7 +101,7 @@ const NewsletterSignup = () => {
             aria-label="Email per la newsletter"
             autoComplete="email"
             required
-            className="bg-primary !placeholder-white text-white"
+            className="bg-primary placeholder-white! text-white"
           />
           {humanChallengeRequired ? (
             <div className="space-y-2">
@@ -126,7 +127,7 @@ const NewsletterSignup = () => {
             </div>
           ) : null}
           <Button
-            className="text-primary inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:shadow disabled:pointer-events-none disabled:opacity-50 bg-white hover:bg-gray-100 h-10 px-4 py-2 mt-3"
+            className="text-primary inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:shadow-sm disabled:pointer-events-none disabled:opacity-50 bg-white hover:bg-gray-100 h-10 px-4 py-2 mt-3"
             type="submit"
             aria-describedby={
               humanChallengeRequired

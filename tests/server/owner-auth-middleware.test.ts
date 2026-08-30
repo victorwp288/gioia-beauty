@@ -13,12 +13,12 @@ vi.mock("server-only", () => ({}));
 import { NextRequest } from "next/server";
 
 import { boundedOwnerAuthFetch } from "@/lib/server/auth/supabaseAuthClient.ts";
-import { config, middleware } from "@/middleware.ts";
+import { config, proxy } from "@/proxy.ts";
 
 const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const originalKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-describe("owner Auth middleware", () => {
+describe("owner Auth proxy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,15 +37,14 @@ describe("owner Auth middleware", () => {
     else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalKey;
   });
 
-  it("refreshes only private owner navigation in the Node runtime", () => {
+  it("refreshes only private owner navigation", () => {
     expect(config).toEqual({
       matcher: ["/dashboard/:path*", "/export/:path*"],
-      runtime: "nodejs",
     });
   });
 
   it("keeps owner surfaces private when Auth is not configured", async () => {
-    const response = await middleware(
+    const response = await proxy(
       new NextRequest("https://app.example.test/dashboard"),
     );
     expect(response.headers.get("cache-control")).toContain("no-store");
@@ -66,7 +65,7 @@ describe("owner Auth middleware", () => {
       process.env.NEXT_PUBLIC_SUPABASE_URL = url;
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = key;
 
-      const response = await middleware(
+      const response = await proxy(
         new NextRequest("https://app.example.test/dashboard"),
       );
 
@@ -107,7 +106,7 @@ describe("owner Auth middleware", () => {
     });
 
     const request = new NextRequest("https://app.example.test/dashboard");
-    const response = await middleware(request);
+    const response = await proxy(request);
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("x-supabase-auth")).toBe("refreshed");
     expect(response.cookies.get("sb-project-auth-token")?.value).toBe(
@@ -145,7 +144,7 @@ describe("owner Auth middleware", () => {
       new Error("customer@example.test private Auth response"),
     );
 
-    const response = await middleware(
+    const response = await proxy(
       new NextRequest("https://app.example.test/dashboard"),
     );
     expect(mocks.getUser).toHaveBeenCalledTimes(1);

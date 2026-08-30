@@ -5,6 +5,7 @@ import React, {
   useReducer,
   useCallback,
   useEffect,
+  useEffectEvent,
 } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import { UI_CONFIG } from "../lib/utils/constants";
@@ -67,6 +68,69 @@ const initialState = {
     infoCount: 0,
   },
 };
+
+function ConfirmationDialogs({ confirmations }) {
+  return (
+    <>
+      {confirmations.map((confirmation) => (
+        <AlertDialog
+          key={confirmation.id}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open && confirmation.allowClose) {
+              confirmation.onClose();
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{confirmation.title}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmation.message}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex gap-2">
+              {confirmation.allowClose && (
+                <AlertDialogCancel
+                  onClick={confirmation.onClose}
+                  className="mr-auto bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
+                >
+                  ✕ Close
+                </AlertDialogCancel>
+              )}
+              <div className="flex gap-2 ml-auto">
+                {confirmation.cancelText && (
+                  <AlertDialogCancel onClick={confirmation.onCancel}>
+                    {confirmation.cancelText}
+                  </AlertDialogCancel>
+                )}
+                <AlertDialogAction
+                  onClick={confirmation.onConfirm}
+                  className={
+                    confirmation.type === "error"
+                      ? "bg-red-600 hover:bg-red-700 focus:bg-red-700 active:bg-red-800 text-white border-red-600 dark:bg-red-600 dark:hover:bg-red-700 dark:text-white !important"
+                      : ""
+                  }
+                  style={
+                    confirmation.type === "error"
+                      ? {
+                          backgroundColor: "#dc2626",
+                          borderColor: "#dc2626",
+                          color: "white",
+                        }
+                      : {}
+                  }
+                >
+                  {confirmation.confirmText}
+                </AlertDialogAction>
+              </div>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ))}
+    </>
+  );
+}
 
 // Action types
 const ActionTypes = {
@@ -296,6 +360,15 @@ export const NotificationProvider = ({ children }) => {
   // TOAST NOTIFICATIONS
   // ============================================================================
 
+  const removeToast = useCallback((id) => {
+    dispatch({
+      type: ActionTypes.REMOVE_TOAST,
+      payload: id,
+    });
+
+    toast.dismiss(id);
+  }, []);
+
   const showToast = useCallback(
     (type, message, options = {}) => {
       if (!state.settings.enableToasts) return null;
@@ -323,7 +396,14 @@ export const NotificationProvider = ({ children }) => {
         toastId: id,
         autoClose: toastConfig.persistent ? false : toastConfig.duration,
         position: state.settings.position,
-        onClose: () => removeToast(id),
+        // react-toastify invokes onClose when toast.dismiss(id) runs. Calling
+        // removeToast here would dismiss the same toast again and recurse.
+        onClose: () => {
+          dispatch({
+            type: ActionTypes.REMOVE_TOAST,
+            payload: id,
+          });
+        },
       });
 
       // Auto-remove non-persistent toasts
@@ -335,7 +415,7 @@ export const NotificationProvider = ({ children }) => {
 
       return id;
     },
-    [state.settings, generateId],
+    [state.settings, generateId, removeToast],
   );
 
   const showSuccess = useCallback(
@@ -391,16 +471,6 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
-  const removeToast = useCallback((id) => {
-    dispatch({
-      type: ActionTypes.REMOVE_TOAST,
-      payload: id,
-    });
-
-    // Dismiss react-toastify toast
-    toast.dismiss(id);
-  }, []);
-
   const clearToasts = useCallback(() => {
     dispatch({ type: ActionTypes.CLEAR_TOASTS });
     toast.dismiss();
@@ -420,6 +490,13 @@ export const NotificationProvider = ({ children }) => {
   // ============================================================================
   // ALERT NOTIFICATIONS
   // ============================================================================
+
+  const removeAlert = useCallback((id) => {
+    dispatch({
+      type: ActionTypes.REMOVE_ALERT,
+      payload: id,
+    });
+  }, []);
 
   const showAlert = useCallback(
     (type, message, options = {}) => {
@@ -447,15 +524,8 @@ export const NotificationProvider = ({ children }) => {
 
       return id;
     },
-    [generateId],
+    [generateId, removeAlert],
   );
-
-  const removeAlert = useCallback((id) => {
-    dispatch({
-      type: ActionTypes.REMOVE_ALERT,
-      payload: id,
-    });
-  }, []);
 
   const clearAlerts = useCallback(() => {
     dispatch({ type: ActionTypes.CLEAR_ALERTS });
@@ -492,6 +562,13 @@ export const NotificationProvider = ({ children }) => {
   // ============================================================================
   // CONFIRMATION DIALOGS
   // ============================================================================
+
+  const removeConfirmation = useCallback((id) => {
+    dispatch({
+      type: ActionTypes.REMOVE_CONFIRMATION,
+      payload: id,
+    });
+  }, []);
 
   const showConfirmation = useCallback(
     (config) => {
@@ -539,15 +616,8 @@ export const NotificationProvider = ({ children }) => {
         });
       });
     },
-    [generateId],
+    [generateId, removeConfirmation],
   );
-
-  const removeConfirmation = useCallback((id) => {
-    dispatch({
-      type: ActionTypes.REMOVE_CONFIRMATION,
-      payload: id,
-    });
-  }, []);
 
   // ============================================================================
   // SETTINGS
@@ -613,99 +683,28 @@ export const NotificationProvider = ({ children }) => {
   // EFFECTS
   // ============================================================================
 
-  // Clean up expired notifications periodically
+  const cleanupExpiredNotifications = useEffectEvent(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+
+    state.toasts.forEach((toast) => {
+      if (toast.createdAt < cutoff && !toast.persistent) {
+        removeToast(toast.id);
+      }
+    });
+
+    state.alerts.forEach((alert) => {
+      if (alert.createdAt < cutoff && !alert.persistent) {
+        removeAlert(alert.id);
+      }
+    });
+  });
+
+  // Keep one timer subscription while the Effect Event reads current state.
   useEffect(() => {
-    const cleanup = setInterval(
-      () => {
-        const now = Date.now();
-        const cutoff = now - 24 * 60 * 60 * 1000; // 24 hours
-
-        // Remove old toasts that somehow didn't get cleaned up
-        state.toasts.forEach((toast) => {
-          if (toast.createdAt < cutoff && !toast.persistent) {
-            removeToast(toast.id);
-          }
-        });
-
-        // Remove old alerts
-        state.alerts.forEach((alert) => {
-          if (alert.createdAt < cutoff && !alert.persistent) {
-            removeAlert(alert.id);
-          }
-        });
-      },
-      5 * 60 * 1000,
-    ); // Every 5 minutes
+    const cleanup = setInterval(cleanupExpiredNotifications, 5 * 60 * 1000);
 
     return () => clearInterval(cleanup);
-  }, [state.toasts, state.alerts, removeToast, removeAlert]);
-
-  // ============================================================================
-  // CONFIRMATION DIALOGS COMPONENT
-  // ============================================================================
-
-  const ConfirmationDialogs = () => {
-    return (
-      <>
-        {state.confirmations.map((confirmation) => (
-          <AlertDialog
-            key={confirmation.id}
-            open={true}
-            onOpenChange={(open) => {
-              if (!open && confirmation.allowClose) {
-                confirmation.onClose();
-              }
-            }}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{confirmation.title}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {confirmation.message}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="flex gap-2">
-                {confirmation.allowClose && (
-                  <AlertDialogCancel
-                    onClick={confirmation.onClose}
-                    className="mr-auto bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
-                  >
-                    ✕ Close
-                  </AlertDialogCancel>
-                )}
-                <div className="flex gap-2 ml-auto">
-                  {confirmation.cancelText && (
-                    <AlertDialogCancel onClick={confirmation.onCancel}>
-                      {confirmation.cancelText}
-                    </AlertDialogCancel>
-                  )}
-                  <AlertDialogAction
-                    onClick={confirmation.onConfirm}
-                    className={
-                      confirmation.type === "error"
-                        ? "bg-red-600 hover:bg-red-700 focus:bg-red-700 active:bg-red-800 text-white border-red-600 dark:bg-red-600 dark:hover:bg-red-700 dark:text-white !important"
-                        : ""
-                    }
-                    style={
-                      confirmation.type === "error"
-                        ? {
-                            backgroundColor: "#dc2626",
-                            borderColor: "#dc2626",
-                            color: "white",
-                          }
-                        : {}
-                    }
-                  >
-                    {confirmation.confirmText}
-                  </AlertDialogAction>
-                </div>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ))}
-      </>
-    );
-  };
+  }, []);
 
   // Context value
   const contextValue = {
@@ -761,7 +760,7 @@ export const NotificationProvider = ({ children }) => {
         pauseOnFocusLoss
         pauseOnHover
       />
-      <ConfirmationDialogs />
+      <ConfirmationDialogs confirmations={state.confirmations} />
     </NotificationContext.Provider>
   );
 };

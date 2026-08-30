@@ -1,19 +1,9 @@
-import { z } from "zod";
+import {
+  MaintenanceStatusWire,
+  type MaintenanceStatus,
+} from "@/lib/client/wireValidators.ts";
 
-const MaintenanceStatusSchema = z
-  .object({
-    code: z.literal("MAINTENANCE_STATUS"),
-    publicBookingEnabled: z.boolean(),
-    ownerMutationsEnabled: z.boolean(),
-    messageCode: z.enum([
-      "OPERATIONS_OPEN",
-      "MAINTENANCE_ACTIVE",
-      "OWNER_RECONCILIATION_ACTIVE",
-    ]),
-  })
-  .strict();
-
-export type MaintenanceStatus = z.infer<typeof MaintenanceStatusSchema>;
+export type { MaintenanceStatus } from "@/lib/client/wireValidators.ts";
 
 export const PUBLIC_MAINTENANCE_MESSAGE =
   "Le prenotazioni online sono temporaneamente sospese per manutenzione. Nessun appuntamento è stato registrato. Riprova più tardi oppure contatta Gioia Beauty al +39 391 421 3634.";
@@ -23,6 +13,26 @@ export const OWNER_MAINTENANCE_MESSAGE =
 
 export const MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE =
   "Impossibile verificare lo stato del servizio. Le modifiche restano temporaneamente bloccate; riprova tra poco.";
+
+const ENGLISH_PUBLIC_MAINTENANCE_MESSAGE =
+  "Online booking is temporarily paused for maintenance. No appointment has been recorded. Please try again later or contact Gioia Beauty on +39 391 421 3634.";
+
+const ENGLISH_MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE =
+  "We could not verify the service status. Booking remains temporarily blocked; please try again shortly.";
+
+export function publicMaintenanceMessage(locale: string = "it"): string {
+  return locale === "en"
+    ? ENGLISH_PUBLIC_MAINTENANCE_MESSAGE
+    : PUBLIC_MAINTENANCE_MESSAGE;
+}
+
+export function maintenanceStatusUnavailableMessage(
+  locale: string = "it",
+): string {
+  return locale === "en"
+    ? ENGLISH_MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE
+    : MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE;
+}
 
 export async function getMaintenanceStatus(
   signal?: AbortSignal,
@@ -37,7 +47,7 @@ export async function getMaintenanceStatus(
   if (!response.ok) {
     throw new Error("MAINTENANCE_STATUS_UNAVAILABLE");
   }
-  const parsed = MaintenanceStatusSchema.safeParse(await response.json());
+  const parsed = MaintenanceStatusWire.safeParse(await response.json());
   if (!parsed.success) {
     throw new Error("INVALID_MAINTENANCE_STATUS");
   }

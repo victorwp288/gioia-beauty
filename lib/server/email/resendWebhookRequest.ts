@@ -26,7 +26,7 @@ const ResendPayloadSchema = z
       .min(1)
       .max(100)
       .regex(/^[a-z][a-z0-9._-]*$/),
-    data: z.record(z.unknown()),
+    data: z.record(z.string(), z.unknown()),
   })
   .passthrough();
 const MessageDataSchema = z

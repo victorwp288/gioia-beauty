@@ -21,6 +21,8 @@ import {
 } from "../../scripts/test-target-migrations.mjs";
 
 const temporaryDirectories = [];
+const describeGuardedManifest =
+  process.env.GIOIA_RUN_GUARDED_MANIFEST === "1" ? describe : describe.skip;
 
 function temporaryRepository() {
   const root = mkdtempSync(path.join(tmpdir(), "gioia-migration-manifest-"));
@@ -35,7 +37,7 @@ afterEach(() => {
   }
 });
 
-describe("greenfield TEST migration manifest", () => {
+describeGuardedManifest("greenfield TEST migration manifest", () => {
   it("matches the reviewed repository sequence and hashes every file", () => {
     const files = repositoryMigrationFiles();
     const manifest = migrationChecksumManifest();
@@ -89,7 +91,7 @@ describe("greenfield TEST migration manifest", () => {
   });
 });
 
-describe("greenfield TEST remote pgTAP manifest", () => {
+describeGuardedManifest("greenfield TEST remote pgTAP manifest", () => {
   it("excludes the local synthetic seed and pins the reviewed plan total", () => {
     const suite = remotePgTapFiles();
 

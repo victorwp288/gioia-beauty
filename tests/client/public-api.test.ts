@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   bookingErrorInvalidatesSelection,
   catalogSelection,
+  catalogSelectionById,
   ClientApiError,
   createPublicBooking,
   getPublicAvailability,
@@ -51,9 +52,23 @@ describe("public API client conversions", () => {
         expect(
           catalogSelection(service.nameIt, variant.serviceDurationMinutes),
         ).toMatchObject({ serviceId: service.id, variantId: variant.id });
+        expect(catalogSelectionById(service.id, variant.id)).toMatchObject({
+          serviceId: service.id,
+          variantId: variant.id,
+        });
       }
     }
     expect(catalogSelection("Servizio inesistente", 60)).toBeNull();
+    expect(
+      catalogSelectionById("missing-service", "missing-variant"),
+    ).toBeNull();
+    const firstService = SERVICE_CATALOG.services.at(0);
+    const secondVariant = SERVICE_CATALOG.services.at(1)?.variants.at(0);
+    expect(firstService).toBeDefined();
+    expect(secondVariant).toBeDefined();
+    expect(
+      catalogSelectionById(firstService?.id ?? "", secondVariant?.id ?? ""),
+    ).toBeNull();
   });
 });
 
@@ -233,6 +248,89 @@ describe("public API client HTTP contracts", () => {
         variantId: "manicure-30-min",
       }),
     ).rejects.toMatchObject({ code: "INVALID_RESPONSE", status: 200 });
+  });
+
+  it.each([
+    {
+      date: "2026-02-30",
+      serviceId: "manicure",
+      variantId: "manicure-30-min",
+      slots: [],
+    },
+    {
+      date: "2026-08-10",
+      serviceId: "manicure",
+      variantId: "manicure-30-min",
+      slots: [555, 540],
+    },
+    {
+      date: "2026-08-10",
+      serviceId: "manicure",
+      variantId: "manicure-30-min",
+      slots: [541],
+    },
+    {
+      date: "2026-08-10",
+      serviceId: "manicure",
+      variantId: "manicure-30-min",
+      slots: [],
+      unexpected: true,
+    },
+  ])("preserves strict availability response validation %#", async (body) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(body)));
+    await expect(
+      getPublicAvailability({
+        date: "2026-08-10",
+        serviceId: "manicure",
+        variantId: "manicure-30-min",
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_RESPONSE", status: 200 });
+  });
+
+  it("rejects extra command response fields and malformed error metadata", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            code: "BOOKING_CREATED",
+            resourceId: RESOURCE_ID,
+            replayed: false,
+            unexpected: true,
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { code: "lowercase", requestId: "not-a-uuid" },
+            { status: 429 },
+          ),
+        ),
+    );
+
+    await expect(
+      createPublicBooking(
+        {
+          date: "2026-08-10",
+          startMinutes: 600,
+          serviceId: "manicure",
+          variantId: "manicure-30-min",
+          clientName: "Cliente Test",
+          clientEmail: "cliente@example.test",
+          clientPhone: "+39000000000",
+          clientNote: null,
+        },
+        IDEMPOTENCY_KEY,
+      ),
+    ).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+
+    await expect(
+      getPublicAvailability({
+        date: "2026-08-10",
+        serviceId: "manicure",
+        variantId: "manicure-30-min",
+      }),
+    ).rejects.toMatchObject({ code: "REQUEST_FAILED", requestId: null });
   });
 });
 

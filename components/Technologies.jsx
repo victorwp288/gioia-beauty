@@ -6,7 +6,54 @@ import { whiteTick } from "./ImagesExports";
 import rightArrow from "@/images/chevron-right.svg";
 import leftArrow from "@/images/chevron-left.svg";
 
-function Technologies() {
+const technologiesByLocale = {
+  it: [
+    [
+      "Laser",
+      "Il laser Eraser usa una matrice tridimensionale e tre lunghezze d’onda per un trattamento potente, sicuro e senza dolore.",
+    ],
+    [
+      "LPG",
+      "Cellu M6 Alliance stimola naturalmente collagene, elastina e acido ialuronico, aiuta a levigare la cellulite e a rimodellare la figura.",
+    ],
+    [
+      "Elettroporatore",
+      "Piccoli impulsi rendono temporaneamente la pelle più permeabile e favoriscono l’assorbimento dei cosmetici per trattamenti viso e corpo.",
+    ],
+    [
+      "Ossigeno dermo infusione",
+      "Ossigeno puro e acido ialuronico migliorano idratazione, luminosità e compattezza della pelle.",
+    ],
+    [
+      "Pressoterapia",
+      "Compressioni e decompressioni graduali favoriscono il drenaggio, il ritorno venoso e una piacevole sensazione di leggerezza.",
+    ],
+  ],
+  en: [
+    [
+      "Laser",
+      "Eraser combines a three-dimensional matrix with three wavelengths for a powerful, safe and comfortable treatment.",
+    ],
+    [
+      "LPG",
+      "Cellu M6 Alliance naturally stimulates collagen, elastin and hyaluronic acid while helping smooth cellulite and reshape the silhouette.",
+    ],
+    [
+      "Electroporation",
+      "Gentle electrical pulses temporarily increase skin permeability, helping selected cosmetics reach the areas targeted by face and body treatments.",
+    ],
+    [
+      "Oxygen dermal infusion",
+      "Pure oxygen and hyaluronic acid help improve hydration, radiance and the appearance of firmer skin.",
+    ],
+    [
+      "Pressotherapy",
+      "Gradual compression and release supports drainage and circulation, leaving the legs feeling lighter.",
+    ],
+  ],
+};
+
+function Technologies({ locale = "it" }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [windowWidth, setWindowWidth] = useState(0);
   const viewportRef = useRef(null);
@@ -29,33 +76,12 @@ function Technologies() {
     };
   }, []);
 
-  const technologies = [
-    {
-      title: "Laser",
-      description:
-        "Il laser eraser presente in istituto è la prima tecnologia laser a matrice tridimensionale che ottimizza la tripla lunghezza d’onda assicurando un trattamento unico e performante. Massima potenza, totale sicurezza e zero dolore.",
-    },
-    {
-      title: "LPG",
-      description:
-        "Cellu m6 Alliance effettua un massaggio meccanico sulla superficie della pelle per stimolare in modo naturale e sicuro le cellule. Stimola la produzione di collagene, elastina e acido ialuronico, la pelle risulta più giovane, compatta e luminosa. Attiva la lipolisi per levigare la cellulite, rimodellare e snellire la figura.",
-    },
-    {
-      title: "Elettroporatore",
-      description:
-        "L’elettroporatore è un macchinario perfetto per trattare gli inestetismi di viso e corpo. Tramite piccoli impulsi elettrici rende le cellule più permeabili, facendo penetrare i cosmetici applicati in profondità. Perfetto per contrastare l'invecchiamento cutaneo, per pelli con rughe e macchie, per inestetismi come la perdita di tono e la cellulite.",
-    },
-    {
-      title: "Ossigeno dermo infusione",
-      description:
-        "L’ossigeno dermo infusione è una tecnologia estetica che, tramite ossigeno puro in combinazione con acido iarulonico, migliora l'idratazione, rende la pelle liftata, contrasta le rughe, drena e ossigena i tessuti. Dona alla pelle un immediato effetto di compattezza, rendendola fin da subito più liscia e luminosa.",
-    },
-    {
-      title: "Pressoterapia",
-      description:
-        "Attraverso compressioni e decompressioni graduali di specifici gambali, la pressoterapia simula un massaggio drenante manuale. Favorisce le naturali funzioni del corpo, il ritorno venoso e l'eliminazione di sostanze di scarto dell'organismo. È particolarmente indicata per chi soffre di ritenzione idrica, cellulite, gambe gonfie e adiposità.",
-    },
-  ];
+  const technologies = technologiesByLocale[locale].map(
+    ([title, description]) => ({
+      title,
+      description,
+    }),
+  );
 
   const maxIndex = useMemo(() => {
     return Math.max(technologies.length - itemsPerView, 0);
@@ -78,7 +104,10 @@ function Technologies() {
   const containerWidth = viewportRef.current?.offsetWidth || 1;
   const dragPct = dragStartX !== null ? (dragDelta / containerWidth) * 100 : 0;
   const targetMaxPct = (100 / itemsPerView) * maxIndex;
-  const effectivePct = Math.max(0, Math.min(translatePct - dragPct, targetMaxPct));
+  const effectivePct = Math.max(
+    0,
+    Math.min(translatePct - dragPct, targetMaxPct),
+  );
 
   const onTouchStart = (e) => {
     if (e.touches && e.touches.length > 0) {
@@ -114,9 +143,11 @@ function Technologies() {
   return (
     <div className="m-auto md:w-[70vw] md:py-12 py-6">
       <div className="m-auto w-[90vw] md:w-[70vw] flex flex-col gap-2 py-4 pb-6 md:gap-4 md:py-4">
-        <h4 className=" text-xs font-extrabold text-white ">SCOPRI</h4>
+        <p className="text-xs font-extrabold text-white">
+          {locale === "en" ? "DISCOVER" : "SCOPRI"}
+        </p>
         <h2 className="font-serif text-3xl font-bold tracking-tight text-white md:text-3xl">
-          Le tecnologie
+          {locale === "en" ? "Our technology" : "Le tecnologie"}
         </h2>
       </div>
       <div className="relative">
@@ -129,26 +160,26 @@ function Technologies() {
           onTouchCancel={endDrag}
         >
           <div
-            className={`flex will-change-transform ${dragStartX === null ? "transition-transform duration-300 ease-out" : ""}`}
+            className={`flex ${dragStartX === null ? "motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out" : "will-change-transform"}`}
             style={{ transform: `translateX(-${effectivePct}%)` }}
           >
             {technologies.map((tech, index) => (
               <div
                 key={index}
-                className="flex-shrink-0 basis-full md:basis-1/3"
+                className="shrink-0 basis-full md:basis-1/3"
               >
                 <div className="text-white flex flex-col gap-2 px-6 py-4 md:px-7">
                   <Image
                     src={whiteTick}
                     width={26}
                     height={26}
-                    alt="technology indicator"
+                    alt=""
                     style={{
                       maxWidth: "100%",
                       height: "auto",
                     }}
                   />
-                  <h2 className="text-lg font-semibold">{tech.title}</h2>
+                  <h3 className="text-lg font-semibold">{tech.title}</h3>
                   <p className="text-sm w-[90%]">{tech.description}</p>
                 </div>
               </div>
@@ -158,12 +189,15 @@ function Technologies() {
 
         {currentIndex > 0 && (
           <button
+            type="button"
             onClick={prev}
-            aria-label="Previous"
-            className="absolute left-2 md:-left-10 top-1/2 -translate-y-1/2 text-white rounded-full"
+            aria-label={
+              locale === "en" ? "Previous technology" : "Tecnologia precedente"
+            }
+            className="absolute left-0 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full text-white focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#62747e] md:-left-12"
           >
             <Image
-              alt="left arrow"
+              alt=""
               src={leftArrow}
               style={{
                 maxWidth: "100%",
@@ -174,12 +208,15 @@ function Technologies() {
         )}
         {currentIndex < maxIndex && (
           <button
+            type="button"
             onClick={next}
-            aria-label="Next"
-            className="absolute right-2 md:-right-10 top-1/2 -translate-y-1/2 text-white rounded-full"
+            aria-label={
+              locale === "en" ? "Next technology" : "Tecnologia successiva"
+            }
+            className="absolute right-0 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full text-white focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#62747e] md:-right-12"
           >
             <Image
-              alt="right arrow"
+              alt=""
               src={rightArrow}
               style={{
                 maxWidth: "100%",

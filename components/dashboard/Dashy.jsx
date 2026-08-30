@@ -1,8 +1,7 @@
 "use client";
 import { Clock3, Database, Edit, Mail, Plus, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import PhoneInput from "react-phone-input-2";
-import "react-phone-input-2/lib/style.css";
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -68,9 +67,46 @@ import {
 } from "@/lib/client/maintenanceApi.ts";
 
 // Separate Components
-import SubscriberList from "../SubscriberList";
 import AppointmentCalendar from "./AppointmentCalendar";
-import VacationManager from "./VacationManager";
+
+const loadSubscriberList = () => import("../SubscriberList");
+const loadVacationManager = () => import("./VacationManager");
+const loadPhoneNumberInput = () => import("./PhoneNumberInput");
+
+const SubscriberList = dynamic(loadSubscriberList, {
+  loading: () => (
+    <p className="px-4 py-8 text-center text-sm text-zinc-500">
+      Caricamento iscritti...
+    </p>
+  ),
+});
+
+const VacationManager = dynamic(loadVacationManager, {
+  loading: () => null,
+});
+
+const PhoneNumberInput = dynamic(loadPhoneNumberInput, {
+  loading: () => (
+    <div
+      aria-label="Caricamento numero di telefono"
+      className="h-10 w-full animate-pulse rounded-md border border-gray-300 bg-gray-50"
+      role="status"
+    />
+  ),
+  ssr: false,
+});
+
+function preloadSubscriberList() {
+  void loadSubscriberList();
+}
+
+function preloadVacationManager() {
+  void loadVacationManager();
+}
+
+function preloadPhoneNumberInput() {
+  void loadPhoneNumberInput();
+}
 
 const Dashy = ({ user, authLoading }) => {
   // ⚠️ ALL HOOKS MUST BE CALLED FIRST - Rules of Hooks
@@ -297,6 +333,7 @@ const Dashy = ({ user, authLoading }) => {
 
   const handleAddAppointment = () => {
     if (blockDisabledMutation()) return;
+    preloadPhoneNumberInput();
     // Reset form and errors for new appointment
     resetForm();
     setFormErrors({});
@@ -480,6 +517,8 @@ const Dashy = ({ user, authLoading }) => {
       setIsBlockModalOpen(true);
       return;
     }
+
+    preloadPhoneNumberInput();
 
     // Clear any previous errors
     setFormErrors({});
@@ -819,7 +858,7 @@ const Dashy = ({ user, authLoading }) => {
 
       <div className="relative mx-auto flex w-full max-w-[1680px] flex-col gap-4">
         {/* Top bar with break, newsletter, and dark mode toggle */}
-        <div className="z-30 grid gap-3 rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-3 shadow-sm backdrop-blur-sm dark:border-zinc-700/70 dark:bg-zinc-900/75 md:grid-cols-[1fr_auto] md:items-center md:px-4">
+        <div className="z-30 grid gap-3 rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-3 shadow-xs backdrop-blur-xs dark:border-zinc-700/70 dark:bg-zinc-900/75 md:grid-cols-[1fr_auto] md:items-center md:px-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
               Dashboard Operativo
@@ -844,7 +883,9 @@ const Dashy = ({ user, authLoading }) => {
           <div className="flex items-center justify-end gap-2">
             <Button
               onClick={() => setIsVacationModalOpen(true)}
-              className="hidden items-center gap-2 sm:flex"
+              onFocus={preloadVacationManager}
+              onMouseEnter={preloadVacationManager}
+              className="flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
               Imposta pausa
@@ -852,6 +893,8 @@ const Dashy = ({ user, authLoading }) => {
             <Button
               variant="secondary"
               onClick={() => setIsSubscriberModalOpen(true)}
+              onFocus={preloadSubscriberList}
+              onMouseEnter={preloadSubscriberList}
               className="hidden items-center gap-2 dark:bg-gray-600 sm:flex"
             >
               <Mail className="h-4 w-4" />
@@ -899,22 +942,21 @@ const Dashy = ({ user, authLoading }) => {
         ) : null}
 
         {/* Newsletter Subscriber List Dialog */}
-        <Dialog
-          open={isSubscriberModalOpen}
-          onOpenChange={setIsSubscriberModalOpen}
-        >
-          <DialogContent className="max-w-lg w-full p-0 dark:border-none dark:bg-zinc-900">
-            <div className="p-4">
-              <DialogHeader>
-                <DialogTitle>Iscrizioni newsletter</DialogTitle>
-              </DialogHeader>
-              <SubscriberList
-                mutationsDisabled={mutationsDisabled}
-                onClose={() => setIsSubscriberModalOpen(false)}
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
+        {isSubscriberModalOpen ? (
+          <Dialog open onOpenChange={setIsSubscriberModalOpen}>
+            <DialogContent className="max-w-lg w-full p-0 dark:border-none dark:bg-zinc-900">
+              <div className="p-4">
+                <DialogHeader>
+                  <DialogTitle>Iscrizioni newsletter</DialogTitle>
+                </DialogHeader>
+                <SubscriberList
+                  mutationsDisabled={mutationsDisabled}
+                  onClose={() => setIsSubscriberModalOpen(false)}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        ) : null}
 
         <div className="min-h-0">
           {/* Main Content Card with Overflow Fixes */}
@@ -940,6 +982,8 @@ const Dashy = ({ user, authLoading }) => {
                 </Button>
                 <Button
                   onClick={handleAddAppointment}
+                  onFocus={preloadPhoneNumberInput}
+                  onMouseEnter={preloadPhoneNumberInput}
                   className="flex items-center gap-2"
                   disabled={mutationsDisabled}
                 >
@@ -971,13 +1015,13 @@ const Dashy = ({ user, authLoading }) => {
                       filteredAppointments.map((appointment) => (
                         <div
                           key={appointment.id}
-                          className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800"
+                          className="rounded-lg border border-zinc-200 bg-white p-3 shadow-xs dark:border-zinc-700 dark:bg-zinc-800"
                         >
                           <div className="space-y-1">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
                               {appointment.appointmentType}
                             </p>
-                            <p className="max-w-[230px] break-words text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-100">
+                            <p className="max-w-[230px] wrap-break-word text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-100">
                               {appointment.name}
                             </p>
                             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -990,7 +1034,7 @@ const Dashy = ({ user, authLoading }) => {
                             </div>
                           )}
                           {appointment.note && (
-                            <div className="mt-1 text-xs leading-[1.25] text-zinc-600 dark:text-zinc-400">
+                            <div className="mt-1 text-xs leading-tight text-zinc-600 dark:text-zinc-400">
                               <span className="font-semibold">Note:</span>{" "}
                               {appointment.note}
                             </div>
@@ -1065,7 +1109,7 @@ const Dashy = ({ user, authLoading }) => {
                                     className="hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
                                   >
                                     <TableCell className="w-[170px] align-top dark:text-zinc-200">
-                                      <div className="max-w-[170px] break-words whitespace-normal leading-[1.15]">
+                                      <div className="max-w-[170px] wrap-break-word whitespace-normal leading-[1.15]">
                                         {appointment.appointmentType}
                                       </div>
                                     </TableCell>
@@ -1085,7 +1129,7 @@ const Dashy = ({ user, authLoading }) => {
                                     </TableCell>
                                     <TableCell className="dark:text-zinc-200 max-w-32">
                                       <div
-                                        className="max-w-32 break-words whitespace-normal text-xs leading-[1.2] text-zinc-600 dark:text-zinc-400"
+                                        className="max-w-32 wrap-break-word whitespace-normal text-xs leading-[1.2] text-zinc-600 dark:text-zinc-400"
                                         title={
                                           appointment.note || "Nessuna nota"
                                         }
@@ -1362,7 +1406,7 @@ const Dashy = ({ user, authLoading }) => {
 
                 <div>
                   <Label htmlFor="phone">Numero di telefono</Label>
-                  <PhoneInput
+                  <PhoneNumberInput
                     country="it"
                     value={formData.number}
                     onChange={(value) => handleInputChange("number", value)}
@@ -1405,7 +1449,7 @@ const Dashy = ({ user, authLoading }) => {
                         onChange={(e) =>
                           handleAppointmentTypeChange(e.target.value)
                         }
-                        className={`h-10 text-sm w-full rounded-md border focus:outline-none px-3 py-2
+                        className={`h-10 text-sm w-full rounded-md border focus:outline-hidden px-3 py-2
                         ${
                           formErrors.appointmentType
                             ? "border-red-500 focus:border-red-500"
@@ -1621,11 +1665,13 @@ const Dashy = ({ user, authLoading }) => {
         </Dialog>
 
         {/* Vacation Manager Modal */}
-        <VacationManager
-          isOpen={isVacationModalOpen}
-          mutationsDisabled={mutationsDisabled}
-          onClose={() => setIsVacationModalOpen(false)}
-        />
+        {isVacationModalOpen ? (
+          <VacationManager
+            isOpen
+            mutationsDisabled={mutationsDisabled}
+            onClose={() => setIsVacationModalOpen(false)}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -6,43 +6,46 @@ Guidance for AI agents (and humans) working in this repo. Read this before writi
 
 Production website + booking system for **Gioia Beauty**, a real beauty salon in Roveleto di Cadeo, Italy (live at https://www.gioiabeauty.net). Public site (services, gallery, contacts, booking) + admin dashboard (`/dashboard`) used daily by the owner. Content and UI copy are in **Italian**.
 
-This is a real business, not a demo: bugs lose bookings, and Firestore reads cost real money.
+This is a real business, not a demo: bugs lose bookings, and Firestore reads cost real money. **Current authority matters:** Firestore is the protected live Production system. Supabase remains a non-authoritative greenfield rebuild with no live users, but TEST currently retains an explicitly approved, PII-bearing rehearsal copy until handover cleanup.
 
-## Session workflow (mandatory)
+## Two-lane operating model
 
-**At session start:**
-1. Read this file, then the newest entry in `docs/WORKLOG.md` — its "Next" line is usually your task.
-2. Check `docs/MASTERPLAN.md` for the current phase (first phase with unchecked boxes).
-3. Run `git status --short --branch` first. If the tree is dirty, preserve the user's work and do not checkout/pull over it. If clean, `git checkout refactor && git pull`. Never commit directly to `main`; reviewed hotfix PRs and phase PRs are the only path to production.
-4. Declare the task's blast-radius label, environment/target, and data impact using `docs/PRODUCTION-SAFETY.md` before running DB/auth/deploy/provider commands.
+Choose the lane from what the change can reach. If a task mixes lanes, split it and guard only the risky action.
 
-**At session end (do not skip, even if the task is unfinished):**
-1. Run the applicable verification checklist. App/runtime changes require a passing build; documentation-only work may record a pre-existing unchanged build failure. Before isolation, do not open the app merely to satisfy manual-flow verification.
-2. Tick completed `- [ ]` items in `docs/MASTERPLAN.md` (`- [x]`) — this is the at-a-glance progress tracker. Tick only what is actually done and verified; partial work stays unchecked and goes in the worklog instead.
-3. Insert the newest entry below the divider in `docs/WORKLOG.md` (template at the top). The "Next" line must let a cold session start without archaeology.
-4. Commit with a clear phase-prefixed message. Push only coherent work. Until environment isolation is complete, DB-aware work must not create a Preview deployment that can reach production; documentation-only pushes are safe.
+**Current TEST exception (2026-07-29):** Supabase `hzibzwhrwmljgjjdzspi` is no longer synthetic-only while the retained representative rehearsal data exists. Repository, Local/CI, UI, copy, and isolated synthetic work remain Fast Lane. Any action that can read, write, export, reset, expose, or authenticate against the retained TEST data is Guarded. Do not run broad mutation/cleanup fixtures against it; use Local or a separately isolated synthetic target for writable testing.
 
-Small, coherent commits over one mega-commit — Victor reviews the branch diff before merging. If you discover something out of scope, note it in the worklog's Gotchas rather than fixing it opportunistically.
+### Fast Lane — the current default
 
-**Owner-approved accelerated cadence (2026-07-11):** prefer complete vertical
-batches over separate sessions for each internal layer. During implementation,
-run only the smallest focused checks needed to catch high-fanout mistakes and
-parallelize independent audits. Defer the full format, lint, typecheck, unit,
-integration, database, build, security, and independent-review sweep until the
-large vertical batch is coherent; do not repeat that full sweep after each
-schema, contract, repository, handler, or route layer. Do not split schema,
-contract, repository, handler, route, and client integration into
-separate milestones when they can safely land together. This changes cadence,
-not scope or safety: every production/remote approval boundary, TEST gate,
-bounded-query rule, build requirement, and final worklog/CI obligation remains.
+Use Fast Lane when the work stays inside repository code, Local/CI, or the registered non-production Supabase/Preview target with synthetic data and fake/non-delivering providers. It includes UI and copy, non-sensitive workflows, isolated bug fixes, ordinary features, app integration, versioned greenfield schema iteration, synthetic seeds/test users, and Preview/staging deployments.
 
-## ⚠️ Read the masterplan first
+Fast Lane workflow:
 
-**`docs/MASTERPLAN.md` governs all refactor work.** It contains the audited problem list, target architecture, production labels, nine sequenced implementation phases, and optional future work. Before making a change, find which phase it belongs to and follow that phase's checklist. Don't freelance improvements that skip the sequence.
+1. Run `git status --short --branch`; preserve user-owned changes and never auto-checkout, pull, reset, or clean over them.
+2. Confirm the target is Local/CI or the registered synthetic-only TEST/Preview target. Use no Firestore access, real/restorable customer data, Production credentials, or real provider side effects.
+3. Implement one coherent vertical change. Keep schema changes committed, reproducible, observable, and reversible or safely forward-fixable.
+4. Run the smallest focused checks that cover the changed boundary. Run typecheck/lint/build when the affected code or release boundary warrants it. For a Preview deploy, verify the resolved TEST target and perform one simple health/static-route plus changed-flow smoke check.
+5. Update `docs/WORKLOG.md` only for a durable milestone, decision, blocker, or handoff; update a masterplan checkbox only when that listed outcome is actually complete. Commit or push only when requested.
+
+Fast Lane does **not** require a production backup/restore ceremony, a recovery drill, broad hosted proof, database-role credential choreography, exact-head multi-environment replay, repetitive full-suite runs, an exact row ledger, or a formal production preflight. Existing full harnesses remain useful at release/risk boundaries; they are not the entry price for routine development.
+
+### Guarded Lane — protect the actual boundary
+
+Use Guarded Lane for any Firebase/Firestore access; real, restorable, identifying, or linkable personal data; real-data import; authentication/authorization or access-control changes; real secrets or credential/provider activation; payments; live external integrations; enabling live users; Production deploys, writes, configuration, or routing; backup/restore; shared-target destructive resets; irreversible/destructive actions; or cutover.
+
+Before the guarded action, read `docs/PRODUCTION-SAFETY.md` and the relevant environment/runbook docs. State the exact target, authority, data impact, expected bounds, stop conditions, verification, and rollback/forward-recovery path. Obtain the explicit approval required there. Apply backup, restore, reconciliation, freeze, and protected-operator controls only where the real-data/Production/destructive boundary requires them.
+
+When uncertain, ask: **Can this reach Firestore, real people or their data, live users or money, Production configuration, or cause irreversible loss?** If no and isolation is verified, use Fast Lane. If yes, use Guarded Lane.
+
+## Lightweight session workflow
+
+- Read this file and run `git status` first. Read only the masterplan/worklog/domain docs relevant to the task; Guarded work must also read the safety and environment guidance.
+- Prefer complete vertical batches over sessions split by schema/contract/repository/handler/client layer. Do not repeat the full verification matrix after each layer.
+- The masterplan is the migration/security/release roadmap, not a blocker for isolated Fast Lane product work. Historical worklog entries and completed checkpoint evidence stay valid but do not create new default ceremony.
+- Never commit directly to `main`. Do not commit, push, deploy, or mutate a remote target unless the task authorizes that action.
 
 ## Stack
 
-- Next.js 14 (App Router), **JavaScript** today. The masterplan patches it immediately and later targets the current supported Next 16.x line. New core/server files are strict TypeScript after the Phase 1 compatibility gate; legacy code is deleted/consolidated before surviving files are converted.
+- Next.js 15.5 (App Router) with React 18; legacy UI is still mostly JavaScript, while new core/server code is strict TypeScript. The masterplan later targets the current supported Next 16.x line.
 - Tailwind 3 + shadcn/ui (`components/ui/`)
 - Firebase Auth + Firestore client SDK today. The planned target is Supabase Postgres/Auth via one rehearsed migration, conditional on cost approval and staging proof; Firestore remains authoritative until the controlled cutover.
 - Resend for email (`/api/send`, `/api/cancel`), deployed on Vercel (project `gioia-beauty`)
@@ -51,29 +54,27 @@ bounded-query rule, build requirement, and final worklog/CI obligation remains.
 
 ```bash
 npm run dev      # dev server on :3000
-npm run build    # production build — run before considering any change done
-npm run lint     # eslint (next lint)
+npm run build    # production build — use for affected runtime/release boundaries
+npm run lint     # ESLint
 ```
 
-**Current safety warning:** Phase 1's first fail-closed gate now forces the legacy Firebase client to loopback emulators in Local/Test/Preview and rejects production targets/credentials. Root hooks still auto-fetch, so do not open the app merely for smoke testing until the named local services and synthetic fixtures are running. The live `main` deployment remains on production Firebase and is unchanged by refactor-branch work.
-
-Vitest route, client, and environment tests now exist; Testing Library, Playwright, local Supabase, and CI still land in Phase 1 before database/auth implementation. Until local backing services and fixtures exist, do not manually exercise the app; it will fail against missing loopback services. Static verification is lint/build/unit tests. After the full test foundation lands, run the affected unit/integration/E2E set.
+The `refactor` branch fails closed from Production Firebase in Local/Test/Preview and has a complete local Supabase/test foundation. Interactive tests must use named synthetic fixtures and the registered non-production target. The live `main` deployment still uses Production Firebase and is unchanged by refactor-branch work.
 
 ## Hard rules
 
-1. **Public UI is pixel-frozen.** Internal refactors must render identically. Owner-approved public SEO/content additions are isolated in Phase 7; the admin dashboard may change visually only in Phase 8.
-2. **Be stingy with database operations.** Never add unbounded queries/listeners/prefetches. Every query has a date range, cursor, aggregate, or hard limit. State expected reads/writes/rows per user action and verify them. During the transition, Firestore rules still apply; after cutover, equivalent bounded-query discipline applies to Postgres.
+1. **Make visual intent explicit.** Internal refactors preserve current output. Intentional UI/copy/product changes are Fast Lane in code/Preview and get focused visual/interaction checks; their Production deployment is still Guarded.
+2. **Be stingy with database operations.** Never add unbounded queries/listeners/prefetches. Every query has a date range, cursor, aggregate, or hard limit. Exact expected/observed read-write counts are mandatory for Firestore, real-data, production, migration, and cost-sensitive work; focused bounds assertions are enough for ordinary synthetic Supabase development.
 3. **Keep logic out of components.** The UI will be redesigned soon. Business logic (slot math, date handling, validation) belongs in `lib/` as pure functions; components render state and call actions. A change to booking rules should never require touching JSX.
 4. **Boring, simple code.** Small files (≤ ~300 lines), one canonical path per operation, no clever abstractions, no new hand-rolled caches — ever. Prefer deleting code to adding it.
 5. **Don't commit secrets.** No API keys in source (there's history here too). Env vars only; update `.env.example` when adding one.
-6. **Plan first for anything non-trivial.** The owner of this repo prefers a written plan/iteration before code changes.
+6. **Match planning to risk.** A brief intent is enough for ordinary cross-cutting Fast Lane work. Formal preflight and recovery planning belongs at Guarded boundaries.
 
 ## Production-change safety (mandatory)
 
-Read `docs/PRODUCTION-SAFETY.md` before any database, auth, migration, deployment, DNS, email-provider, environment-variable, backup, or restore work.
+Read `docs/PRODUCTION-SAFETY.md` before Guarded work. Ordinary synthetic Local/TEST schema and application iteration follows the Fast Lane rules above.
 
 - Classify every action as `[LOCAL]`, `[TEST]`, `[REMOTE-CONFIG]`, `[PROD-READ]`, `[PROD-APP]`, `[PROD-CONFIG]`, `[PROD-DATA]`, or `[DESTRUCTIVE]` based on what it can reach—not where it runs.
-- Do not execute `[REMOTE-CONFIG]` or any production-labelled action without Victor's explicit approval for that exact action after showing target, data impact, expected reads/writes/rows, verification, and rollback.
+- Routine `[TEST]` schema/application work and Preview deploys are Fast Lane after the target and synthetic-data boundary are verified. Do not execute `[REMOTE-CONFIG]` or any production-labelled action without Victor's explicit approval for that exact action after showing target, data impact, expected reads/writes/rows, verification, and rollback.
 - Production migrations require a current backup, proven restore, staging rehearsal, dry-run reconciliation, idempotent tooling, stop conditions, and a written recovery path.
 - Local/normal-CI/Preview must fail closed if they resolve production credentials or project IDs. Production credentials never belong in `.env.local`, Preview, source, scripts, or client bundles; the only exception is the dedicated manually approved, short-lived production-operator environment defined in the safety policy.
 - Migration scripts default to dry-run and refuse ambiguous/inferred production targets. No production schema edit is made ad hoc in a provider dashboard.
@@ -115,11 +116,10 @@ Target architecture and relational tables are defined in `docs/MASTERPLAN.md` an
 - **Extra time** = buffer minutes appended after a service; included in the stored end time.
 - Business hours live in `lib/utils/constants.js` (`BUSINESS_HOURS`); open Mon–Fri (varying hours), closed Sat + Sun.
 
-## Verification checklist before "done"
+## Risk-proportionate verification before "done"
 
-1. `npm run build` passes for application/runtime changes. For documentation-only work, record any pre-existing unchanged failure explicitly.
-2. After isolation, the affected public booking flow works end-to-end in the named Local/Test environment and the site looks unchanged. Before isolation, use static/build verification only unless a Production action was explicitly approved.
-3. No new unbounded database queries/listeners; state expected and observed reads/writes/rows per user action.
-4. No console.log with personal data (names, emails, phone numbers).
-5. If you touched anything in the masterplan's scope, tick the corresponding checklist item in `docs/MASTERPLAN.md`.
-6. State blast-radius labels, target environment/project, data impact, production actions (`none` if none), and rollback/next safe action in `docs/WORKLOG.md`.
+**Fast Lane:** run focused tests for the changed behavior; add typecheck/lint/build only when affected; verify a versioned migration with a clean local rebuild or focused database assertion; and use one simple smoke check after a Preview deploy. Confirm no production target, secret, personal data, or real provider side effect was reachable.
+
+**Guarded Lane:** verify the actual security/privacy/production boundary with the applicable negative tests, exact bounds, reconciliation, backup/restore evidence, deployment smoke, and recovery path from `docs/PRODUCTION-SAFETY.md`. Do not substitute a broad unrelated test matrix for boundary proof.
+
+For both lanes: no new unbounded query/listener, no logs containing personal data, and no claim of completion without the relevant checks. Existing CI, migrations, fail-closed environment checks, least-privilege roles, database constraints, and completed milestone evidence remain valid; this policy changes default ceremony, not technical protections or history.

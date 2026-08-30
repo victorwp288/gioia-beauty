@@ -42,7 +42,9 @@ decommission procedure.
   be verified before the cookie decision is approved.
 - **Environment boundary:** Production may process real data; ordinary Preview
   and CI may contain synthetic data only.
-- **Repository evidence:** [`app/layout.js`](../app/layout.js),
+- **Repository evidence:** [`components/layout/PublicDocument.jsx`](../components/layout/PublicDocument.jsx),
+  [`app/(public-it)/layout.js`](<../app/(public-it)/layout.js>),
+  [`app/(public-en)/en/layout.js`](<../app/(public-en)/en/layout.js>),
   [`docs/ENVIRONMENTS.md`](ENVIRONMENTS.md), and
   [`docs/OPERATIONS.md`](OPERATIONS.md).
 - **Pending:** DPA/subprocessor evidence, account owner/recovery, exact processing

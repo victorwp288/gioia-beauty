@@ -19,7 +19,7 @@ traffic.
 | API URL           | <https://hzibzwhrwmljgjjdzspi.supabase.co>                                                                 |
 | Region            | `eu-central-2`                                                                                             |
 | Shared pooler     | `aws-1-eu-central-2.pooler.supabase.com`                                                                   |
-| Current state     | Accepted clean TEST target; current `refactor` Preview is bound fail-closed to this project                |
+| Current state     | PII-bearing retained rehearsal TEST; current protected `refactor` Preview is bound fail-closed to it       |
 | Current authority | Non-production integration/staging only; Firestore remains Production authority until the approved cutover |
 
 Project `lxvsspniipcotimbsfqm` is retired from all current configuration after
@@ -29,12 +29,19 @@ only in the append-only worklog and ADR; none of it transfers to the replacement
 project.
 
 The replacement project passed the guarded hosted checkpoint on 2026-07-21 at
-commit `b3fe610` with exact-head CI run `29863407987`: two complete 63-migration
-rebuild/acceptance cycles, 205 reference/config rows, 28 pgTAP files and 443
-assertions per cycle, matching schema/reference fingerprints, hosted owner Auth,
-and final zero operational/Auth/Storage residue. Phase 2 is complete. The later
-`refactor` head `2a5bdc8` preserved that accepted state and is the source of the
-current Preview deployment described below.
+commit `b3fe610` with exact-head CI run `29863407987`, including two clean
+migration/acceptance cycles, schema/reference fingerprints, hosted owner Auth,
+and final zero operational/Auth/Storage residue. Phase 2 is complete. This is
+durable historical evidence, not a requirement to repeat the full checkpoint
+for ordinary schema, seed, application, or Preview work.
+
+**Current operating rule:** the project remains non-authoritative, but the
+owner-approved 2026-07-29 representative rehearsal left a PII-bearing copy in
+place until handover cleanup. Repository, Local/CI, UI/copy, application
+development, and separately isolated synthetic tests remain Fast Lane. Any
+action that can access, mutate, export, reset, expose, or authenticate against
+this retained target is Guarded. Keep providers fake, do not enable live users,
+and do not run broad mutation/cleanup fixtures against the retained rows.
 
 The outbox route may be invoked manually in a future Preview only when the
 complete environment validates as `APP_ENV=preview`, `VERCEL_ENV=preview`, this
@@ -43,80 +50,29 @@ email webhook, canonical Cron secret, and valid newsletter token keyring. This
 does not authorize a Vercel schedule, Resend, a real alert receiver, provider
 webhook registration, customer data, or any Production action.
 
-The first hosted checkpoint may initialize this replacement only through the
-guarded empty-project path. Under the same exact target, pushed-SHA/green-CI
-preflight, pinned migration-byte manifest, and serialized advisory lock used by
-the two-cycle gate, the initializer accepts exactly two states: the complete
-reviewed 63-migration clean state, or a pristine hosted Supabase baseline with
-zero migration history, no Gioia roles/schema or public user objects, and zero
-Auth/Storage rows. It refuses partial history or catalog/data drift. From the
-pristine state it first requires the live-registered PG17 provider-catalog
-SHA-256 plus exact aggregate bounds across database/role attributes and
-memberships, schemas/ACLs/default ACLs, extensions, relations, columns,
-constraints, indexes, routines, triggers, policies, standalone types, event
-triggers, and publications. The pristine target intentionally has no
-`supabase_migrations` schema; the same transaction creates the current
-three-column CLI-compatible history table, applies all 63 migrations, verifies
-every stored history statement against the reviewed bytes, reconciles exactly 205
-reference/config rows and zero operational/Auth/Storage residue, and only then
-provisions the direct runtime credential and enters cycles A and B.
-
-A pinned-CA handshake and the completed hosted acceptance both chain the
-replacement pooler to Supabase Root 2021 with SHA-256 fingerprint
-`80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`.
-Transport identity remains only one part of the separately recorded acceptance
-evidence.
+The exact-set migration manifest and `npm run db:test:greenfield` preserve the
+reviewed checkpoint as immutable historical evidence. They apply only to that
+frozen schema and are expected to refuse after an additive migration. Ordinary
+work uses the living versioned migration sequence and focused checks. If a
+future full destructive/release/cutover checkpoint is needed, create a new
+versioned candidate manifest/harness with the same exact-target, advisory-lock,
+zero-session/no-active-Preview, credential non-disclosure, schema fingerprint,
+least-privilege, interruption, and final-reconciliation controls; do not rewrite
+the historical manifest.
 
 Safety rules:
 
 - Prefer Local Docker Supabase for rapid iteration, destructive experiments, and CI. Apply only reviewed, committed migrations to this project.
-- Classify project metadata/schema reads and authorized schema/Auth/synthetic-fixture changes as `[TEST]`. State the exact target and bounds before each remote operation.
-- Only synthetic fixtures and fake/non-delivering email are allowed. Never copy real Firebase customer data, production Resend credentials, or production secrets into this project during development.
-- The schema, migrations, test Auth users, functions, and synthetic data may be created, changed, reset, or deleted as required for the rebuild. Remote changes must remain reproducible from the repository.
-- Vercel Preview may use this target only after fail-closed environment isolation is implemented and verified. Serialized Preview/E2E runs must lock and reset or namespace synthetic data.
+- Classify project metadata/schema reads and authorized schema/synthetic-fixture changes as `[TEST]`. Verify the exact target before the first remote operation in a coherent task; do not repeat a production-style preflight for each additive step.
+- Add only synthetic fixtures and fake/non-delivering email during development. The retained 2026-07-29 customer-derived rehearsal is a bounded, owner-approved exception; do not add further real data or expose the retained copy to live users. Production Resend credentials and Production secrets remain forbidden.
+- The schema, migrations, test Auth users, functions, and synthetic data may be created or changed as required for the rebuild. Remote changes must remain reproducible from the repository. A shared-target destructive reset is Guarded for coordination and target confirmation, but it does not need production-data backup/recovery ceremony.
+- Vercel Preview may use this target because fail-closed isolation is implemented and verified. Ordinary non-destructive Preview work is Fast Lane; only shared destructive fixtures/resets need serialization or namespacing.
 - Preview application traffic uses the durable least-privilege `app_runtime`
   login directly through the transaction pooler (`:6543`) with prepared
   statements disabled. The role owns no database object and receives only the
   reviewed private-schema usage and function execution grants required by the
   application; browser roles and privileged `postgres` credentials remain
   invalid application principals.
-- A destructive greenfield checkpoint receives the exact protected
-  `app_runtime.<ref>` transaction-pooler DSN only through the TEST operator
-  environment. It must freshly prove pinned-CA authentication before mutation,
-  prove zero active `app_runtime` sessions and no active Preview traffic, and
-  preserve the exact durable role and unchanged SCRAM verifier across both
-  rebuild cycles. Before releasing the project lock it must freshly prove direct
-  `app_runtime` authentication and the reviewed least-privilege boundary. The
-  DSN and verifier are never accepted from dotenv, serialized config, subprocess
-  arguments, logs, or artifacts.
-- An interrupted checkpoint fails without disabling, dropping, rotating, or
-  recovering the durable runtime identity. A later guarded run must re-establish
-  the same zero-session/no-Preview precondition and unchanged SCRAM proof.
-  Reset/rebuild tooling must also prove `app_runtime` has no object ownership or
-  table/sequence ACL and only the reviewed runtime function boundary.
-- The reserved session connection owns only the session-scoped global advisory
-  lock and final boundary proof. Runtime credential state and the one
-  provisioning transaction use the full operator worker pool because a
-  postgres.js reserved client has no transaction API; the reserved connection
-  continues holding the lock throughout provisioning, the unconditional quiet
-  period, the one authentication probe, both cycles, and final reconciliation.
-  After that probe succeeds, the operator waits a second unconditional 150
-  seconds, including a 30-second margin beyond Supavisor's observed
-  approximately 120-second idle backend timeout, then freshly proves zero
-  application sessions before either rebuild. No backend termination
-  is permitted: Supavisor rewrites the probe application name to `Supavisor`, so
-  application-name targeting is neither exact nor safe.
-- If the initial schema transaction fails, PostgreSQL rolls the entire
-  bootstrap back to the pristine baseline. If interruption occurs after that
-  commit but before runtime credential verification, a later approved run
-  recognizes only the exact 63-migration clean state, does not replay the
-  bootstrap, and resumes the one-time credential gate before either rebuild.
-  Managed resume additionally requires the canonical private-schema SHA-256,
-  including standalone enum/domain/range/type definitions and ACLs plus
-  immutable sequence type/start/increment/min/max/cache/cycle settings; mutable
-  sequence position is intentionally excluded. The same canonical fingerprint
-  is re-asserted inside each rebuild transaction immediately before teardown, so
-  a valid 63-row history cannot mask manual catalog drift.
 - Connection mode is fixed by workload. Trusted migration/operator work prefers the
   direct `db.<ref>.supabase.co:5432` endpoint when its runner has IPv6 (or the
   separately purchased IPv4 add-on); an explicitly pinned shared session pooler
@@ -151,7 +107,9 @@ a database transaction.
 
 ## Preview
 
-After Phase 1 isolation, serialized DB-aware Preview/E2E work may use the greenfield Supabase target above with synthetic fixtures and fake/non-delivering email. Preview must never resolve Firebase Production, real Resend API/webhook credentials, or a Supabase environment containing customer data.
+After Phase 1 isolation, DB-aware Preview/E2E work normally uses synthetic fixtures and fake/non-delivering email. While the retained rehearsal copy exists, only explicitly approved internal read-only Preview checks may access this target; writable tests use Local or a separately isolated synthetic target. Preview must never resolve Firebase Production, real Resend API/webhook credentials, expose customer data publicly, or accept live users/bookings.
+
+An ordinary internal/team Preview deploy and synthetic smoke test is Fast Lane. Enabling access for real users, attaching real providers, accepting real bookings, or routing Production traffic is Guarded and requires the applicable abuse, auth, privacy, provider, and deployment controls.
 
 The committed public abuse guard intentionally code-disables Preview public
 availability, booking, and newsletter operations before business-data work. A

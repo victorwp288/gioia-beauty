@@ -126,11 +126,13 @@ describe("privacy package launch gates", () => {
 
     expect(acceptance).not.toMatch(/^- \[[xX]\]/m);
     expect(privacy).toContain(
-      "The current reviewed source manifest and direct-runtime follow-up",
+      "The replacement hosted-TEST technical checkpoint completed",
     );
     expect(GREENFIELD_TARGET_VERSIONS.length).toBeGreaterThan(0);
-    expect(privacy).toContain("have not been applied");
-    expect(privacy).toContain("The Phase 2 TEST checkpoint is still open");
+    expect(privacy).toContain(
+      "does not approve any privacy decision, personal-data operation",
+    );
+    expect(privacy).toContain("deliberate full destructive hosted");
     expect(privacy).toMatch(
       /only after the applicable\s+owner, legal, and provider decisions/,
     );

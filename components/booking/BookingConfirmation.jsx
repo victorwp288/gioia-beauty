@@ -2,6 +2,8 @@
 import React, { useEffect } from "react";
 import Modal from "react-modal";
 
+import { bookingContent } from "@/lib/content/bookingContent";
+
 const customStyles = {
   content: {
     display: "flex",
@@ -19,61 +21,29 @@ const customStyles = {
   },
 };
 
-const BookingConfirmation = ({ isOpen, onRequestClose }) => {
-  const handleClose = () => {
-    onRequestClose();
-    window.location.reload();
-  };
-
-  // Set the app element when component mounts to avoid SSR issues
+const BookingConfirmation = ({ isOpen, locale = "it", onRequestClose }) => {
+  const copy = bookingContent(locale);
   useEffect(() => {
-    // Try to find the Next.js app element, fallback to body
-    const appElement =
-      document.querySelector("#__next") ||
-      document.querySelector("[data-nextjs-root]") ||
-      document.body;
-
-    if (appElement) {
-      Modal.setAppElement(appElement);
-    }
+    const appElement = document.querySelector("main");
+    if (appElement) Modal.setAppElement(appElement);
   }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      // If the modal is open, set a timeout to refresh the page after 10 seconds
-      const timeoutId = setTimeout(() => {
-        window.location.reload();
-      }, 10000);
-
-      // Return a cleanup function to clear the timeout if the modal is closed before the 10 seconds are up
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen) {
-      // If the modal is open, set a timeout to refresh the page after 10 seconds
-      const timeoutId = setTimeout(() => {
-        window.location.reload();
-      }, 10000);
-
-      // Return a cleanup function to clear the timeout if the modal is closed before the 10 seconds are up
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isOpen]);
   return (
     <Modal
       isOpen={isOpen}
-      onRequestClose={handleClose}
+      onRequestClose={onRequestClose}
       style={customStyles}
-      contentLabel="Appointment Booked"
-      ariaHideApp={false}
+      contentLabel={copy.confirmation}
     >
       <h2 className="font-serif md:text-2xl text-primary font-semibold">
-        L&apos;appuntamento è stato prenotato
+        {copy.confirmation}
       </h2>
 
-      <button className="absolute top-4 right-4" onClick={handleClose}>
+      <button
+        type="button"
+        aria-label={copy.closeConfirmation}
+        className="absolute top-4 right-4"
+        onClick={onRequestClose}
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="20"

@@ -35,7 +35,7 @@ const JsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
     z.number().finite(),
     z.string(),
     z.array(JsonValueSchema),
-    z.record(JsonValueSchema),
+    z.record(z.string(), JsonValueSchema),
   ]),
 );
 
@@ -76,8 +76,8 @@ export const LegacyFirestoreBatchSchema = z
     if (total > MAX_BATCH_RECORDS) {
       context.addIssue({
         code: z.ZodIssueCode.too_big,
+        origin: "array",
         maximum: MAX_BATCH_RECORDS,
-        type: "array",
         inclusive: true,
         exact: false,
         message: `A transform batch cannot exceed ${MAX_BATCH_RECORDS} records`,

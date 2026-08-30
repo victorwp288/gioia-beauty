@@ -16,6 +16,15 @@ The root legacy hooks still auto-fetch, but outside Production they can now reac
 
 This repository isolation does **not** change the live `main` deployment. Production still runs the legacy Firebase application and retains its audited risks until separately approved hotfixes or cutover actions are deployed.
 
+## Operating lanes
+
+This policy protects the risk boundary; it is not a universal release ceremony.
+
+- **Fast Lane (current default):** repository/Local/CI work plus ordinary schema, seed, application, and Preview/staging iteration against the registered empty Supabase TEST target using synthetic data and fake/non-delivering providers. Verify the target once, keep migrations versioned and reproducible, run focused tests, and use a simple deploy smoke. No production backup/restore, protected-operator run, broad hosted proof, runtime-role credential choreography, or repetitive multi-environment replay is required.
+- **Guarded Lane:** Firebase/Firestore, real or restorable personal data, real-data import, auth/authorization controls, real secrets/payments/providers, live-user activation, Production deploy/config/write/routing, backup/restore, shared-target destructive reset, irreversible action, or cutover. Use the labels, approvals, bounds, reconciliation, recovery, and operator gates below in proportion to the action.
+
+Existing migrations, fail-closed checks, least-privilege roles, CI, and completed hosted evidence stay valid. The current exact-set manifest and two-cycle greenfield checkpoint are immutable historical acceptance evidence, not a living allowlist or future runner after schema evolution. The full Preview harness remains available at coherent release/security/cutover boundaries.
+
 ## Mandatory labels
 
 - **`[LOCAL]`** — no remote service and no production credential is reachable; synthetic local data only.
@@ -37,13 +46,13 @@ Classification follows reachable state, not the machine. A command run on a lapt
 
 ## Environment matrix
 
-| Environment         | Database                                                | Data                                                                    | Email                            | Allowed work                                                 |
-| ------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------ |
-| Local               | Local Docker Supabase                                   | Synthetic seed only                                                     | Mailpit/fake                     | Freely writable/resettable                                   |
-| CI                  | Ephemeral local Supabase                                | Deterministic fixtures                                                  | Fake adapter                     | Freely writable/resettable                                   |
-| Preview/staging     | One serialized separate Supabase project                | Synthetic by default; explicitly anonymized snapshot only when approved | Test inbox/non-delivering domain | Locked/reset integration, E2E, and migration rehearsals      |
-| Restricted recovery | Isolated, access-controlled temporary project           | Approved PII-bearing restore only; destroy by deadline                  | Disabled                         | Backup/restore proof and anonymized derivative creation only |
-| Production          | Supabase production after cutover; Firestore until then | Real customer/business data                                             | Real Resend domain               | Only separately approved production operations               |
+| Environment         | Database                                                | Data                                                                      | Email                            | Allowed work                                                                                        |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Local               | Local Docker Supabase                                   | Synthetic seed only                                                       | Mailpit/fake                     | Freely writable/resettable                                                                          |
+| CI                  | Ephemeral local Supabase                                | Deterministic fixtures                                                    | Fake adapter                     | Freely writable/resettable                                                                          |
+| Preview/staging     | Registered separate Supabase TEST project               | Synthetic by default; explicitly anonymized derivative only when approved | Test inbox/non-delivering domain | Fast app/schema iteration and focused Preview smoke; serialize only destructive/shared-fixture work |
+| Restricted recovery | Isolated, access-controlled temporary project           | Approved PII-bearing restore only; destroy by deadline                    | Disabled                         | Backup/restore proof and anonymized derivative creation only                                        |
+| Production          | Supabase production after cutover; Firestore until then | Real customer/business data                                               | Real Resend domain               | Only separately approved production operations                                                      |
 
 Required controls:
 
@@ -53,11 +62,11 @@ Required controls:
 4. Production environment variables exist only in the production provider scope.
 5. Client code receives at most a publishable Auth key and never direct access to business/PII tables. Server business-data access uses a least-privilege pooled Postgres role; any Supabase service secret is narrowly scoped to Auth administration and is understood to bypass RLS.
 6. Firebase/Supabase CLI commands always receive an explicit target. Never rely on a current/default linked production project.
-7. A serialized TEST reset that shares its database with Preview must receive the exact existing least-privilege Preview DSN from protected operator storage. It proves that credential before mutation, suspends it for the entire destructive checkpoint, restores and freshly authenticates it before unlock, and otherwise leaves the role disabled. The DSN never belongs in dotenv, command arguments, logs, or artifacts.
+7. Ordinary additive TEST migrations and Preview deploys do not rotate, suspend, or reprovision the runtime role. If the explicit full destructive `db:test:greenfield` checkpoint is used against the shared target, its existing lock, zero-session, credential, and boundary checks still apply. The DSN never belongs in dotenv, command arguments, logs, or artifacts.
 
 ## Approval boundary
 
-Agents and developers may perform `[LOCAL]` work without a separate production approval. `[TEST]` work must name and verify the target first. `[REMOTE-CONFIG]` changes name the remote target and require explicit approval.
+Agents and developers may perform `[LOCAL]` work without a separate production approval. Fast Lane `[TEST]` work names and verifies the target before its first remote operation; routine schema/application work and Preview deployment then proceed without a production-style preflight. `[REMOTE-CONFIG]` changes name the remote target and require explicit approval.
 
 Each discrete `[PROD-READ]`, `[PROD-APP]`, `[PROD-CONFIG]`, `[PROD-DATA]`, or `[DESTRUCTIVE]` action requires Victor's explicit approval after the exact preflight is shown. Approval for one action does not authorize later actions, and approval of the masterplan does not authorize its future production steps.
 
@@ -80,7 +89,11 @@ Production migrations/imports use a dedicated protected GitHub Environment or eq
 - show plan/run hashes, expected reads/writes/rows, and stop conditions before mutation;
 - redact logs/artifacts, prevent application startup, and revoke/tear down credentials after the run.
 
-## Safe migration tooling
+## Migration tooling by boundary
+
+Ordinary Local/TEST greenfield schema iteration is Fast Lane: create a committed versioned migration, keep it reversible or safely forward-fixable, make its effect observable, use synthetic fixtures, and run a clean local rebuild or focused database assertion plus affected tests. A remote additive apply names the registered TEST target and gets a simple application smoke. It does not require a backup, restore rehearsal, production run ID, exact-set frozen manifest update, role credential lifecycle, or two-cycle hosted acceptance. Once the schema evolves, the frozen historical command is expected to refuse; any future full acceptance checkpoint must create a new versioned candidate manifest/harness without rewriting the old evidence.
+
+The following stronger controls apply to production-capable import/cutover tooling, real-data migrations, Production schema changes, and irreversible/destructive operations:
 
 Migration/import tools must:
 
@@ -148,7 +161,7 @@ mandatory erasure replay before a restored target can reopen live in
 activation/decommission evidence are tracked in [PROCESSORS.md](./PROCESSORS.md).
 Pending values in either file are launch blockers, not approved defaults.
 
-- Keep a source Firestore backup/export before every rehearsal and production cutover.
+- Keep a source Firestore backup/export before every rehearsal that uses real Production-derived data and before production cutover. Synthetic Local/TEST migration rehearsal does not access or back up Firestore.
 - Configure Supabase Pro backups before cutover; before reopening customer writes, create an immediate encrypted post-import logical export/recovery point, restore it into an isolated target, and reconcile it.
 - Daily backups can still permit roughly a day of loss. Add encrypted off-platform logical exports at the owner-approved RPO. PITR is optional and separately cost-approved.
 - Use soft cancellation and audit/history so ordinary mistakes do not require a full restore.
@@ -158,6 +171,8 @@ Pending values in either file are launch blockers, not approved defaults.
 - Record owner-approved RPO and RTO in `docs/OPERATIONS.md`.
 
 ## Deployment and rollback gate
+
+Fast Lane Preview/staging deployments to the registered synthetic-only target need target verification, fake providers, a successful build when affected, and one health/static-route plus changed-flow smoke check. The full gate below applies to Production deployment or a coherent release/cutover candidate.
 
 Before a production deploy:
 
@@ -174,7 +189,9 @@ Stale clients must fail visibly and safely: show refresh/retry guidance, never s
 
 ## Worklog and PR record
 
-Every DB/auth/deploy-related worklog entry and PR includes:
+Fast Lane work needs only a concise lane/target/data statement and focused verification in the handoff or PR; a worklog entry is optional unless the change creates a durable milestone, decision, blocker, or handoff. The complete record below is mandatory for Guarded DB/auth/deploy work.
+
+Every Guarded DB/auth/deploy-related worklog entry and PR includes:
 
 ```text
 Labels/environment:

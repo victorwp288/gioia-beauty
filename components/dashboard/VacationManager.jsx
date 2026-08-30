@@ -77,28 +77,15 @@ const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
     if (isOpen && !hasFetchedRef.current) {
       // Check if we already have vacation data from the context
       if (vacationPeriods && vacationPeriods.length > 0) {
-        console.log(
-          "🏖️ VacationManager: Using existing vacation data from context:",
-          vacationPeriods.length
-        );
         hasFetchedRef.current = true;
         return;
       }
 
       // Only fetch if we don't have data and haven't tried to fetch yet
       hasFetchedRef.current = true;
-      console.log(
-        "🏖️ VacationManager: Loading vacations (no existing data)..."
-      );
       fetchVacations()
-        .then((vacations) => {
-          console.log(
-            "🏖️ VacationManager: Loaded vacations:",
-            vacations?.length || 0
-          );
-        })
-        .catch((error) => {
-          console.error("🏖️ VacationManager: Error loading vacations:", error);
+        .then(() => undefined)
+        .catch(() => {
           hasFetchedRef.current = false; // Reset on error so we can retry
         });
     }
@@ -177,7 +164,7 @@ const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
 
       // Check for overlaps with existing vacation periods
       const existingPeriods = vacationPeriods.filter(
-        (vacation) => !isEditMode || vacation.id !== selectedVacation?.id
+        (vacation) => !isEditMode || vacation.id !== selectedVacation?.id,
       );
 
       const hasOverlap = existingPeriods.some((vacation) => {
@@ -266,23 +253,19 @@ const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
           : "");
 
       if (isEditMode && selectedVacation) {
-        console.log(
-          "✏️ VacationManager: Updating vacation:",
-          selectedVacation.id
-        );
         await notifyAsync(
           () =>
             updateVacationPeriod(
               selectedVacation.id,
               startDate,
               endDate,
-              reason
+              reason,
             ),
           {
             loading: "Updating vacation period...",
             success: "Vacation period updated successfully!",
             error: "Failed to update vacation period",
-          }
+          },
         );
       } else {
         await notifyAsync(
@@ -291,49 +274,14 @@ const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
             loading: "Creating vacation period...",
             success: "Vacation period created successfully!",
             error: "Failed to create vacation period",
-          }
+          },
         );
-        console.log("✅ VacationManager: createVacationPeriod call completed");
       }
 
       setIsAddEditModalOpen(false);
       resetForm();
-
-      // Force refresh the vacation list after successful save
-      console.log("🔄 VacationManager: Refreshing vacation list after save");
-      setTimeout(() => {
-        hasFetchedRef.current = false;
-        fetchVacations()
-          .then((vacations) => {
-            console.log(
-              "🔄 VacationManager: Post-save refresh completed, vacations:",
-              vacations
-            );
-
-            // If we just updated a vacation, verify it's still in the list
-            if (isEditMode && selectedVacation) {
-              const stillExists = vacations.find(
-                (v) => v.id === selectedVacation.id
-              );
-              if (!stillExists) {
-                console.warn(
-                  "⚠️ VacationManager: Updated vacation missing from list, forcing another refresh"
-                );
-                setTimeout(() => {
-                  fetchVacations().catch(console.error);
-                }, 1000);
-              } else {
-                console.log(
-                  "✅ VacationManager: Updated vacation confirmed in list:",
-                  stillExists
-                );
-              }
-            }
-          })
-          .catch(console.error);
-      }, 500);
-    } catch (error) {
-      console.error("❌ VacationManager: Error saving vacation period:", error);
+    } catch {
+      // notifyAsync already presents the bounded user-facing failure.
     }
   };
 
@@ -357,24 +305,14 @@ const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
     // Only proceed if user explicitly clicked "Delete" button
     if (action === "confirm") {
       try {
-        console.log("🗑️ VacationManager: Deleting vacation:", vacation.id);
         await notifyAsync(() => deleteVacationPeriod(vacation.id), {
           loading: "Deleting vacation period...",
           success: "Vacation period deleted successfully!",
           error: "Failed to delete vacation period",
         });
-        console.log("✅ VacationManager: Vacation deleted successfully");
-      } catch (error) {
-        console.error(
-          "❌ VacationManager: Error deleting vacation period:",
-          error
-        );
+      } catch {
+        // notifyAsync already presents the bounded user-facing failure.
       }
-    } else {
-      console.log(
-        "❌ VacationManager: Delete cancelled by user, action:",
-        action
-      );
     }
   };
 
@@ -432,14 +370,11 @@ const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    console.log("🔄 Manual refresh requested");
                     hasFetchedRef.current = false;
                     fetchVacations()
-                      .then((vacations) => {
-                        console.log("🔄 Manual refresh completed:", vacations);
-                      })
-                      .catch((error) => {
-                        console.error("🔄 Manual refresh failed:", error);
+                      .then(() => undefined)
+                      .catch(() => {
+                        hasFetchedRef.current = false;
                       });
                   }}
                   disabled={vacationsLoading}
@@ -496,12 +431,12 @@ const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
                       {vacationPeriods
                         .sort(
                           (a, b) =>
-                            new Date(a.startDate) - new Date(b.startDate)
+                            new Date(a.startDate) - new Date(b.startDate),
                         )
                         .map((vacation) => {
                           const status = getVacationStatus(
                             vacation.startDate,
-                            vacation.endDate
+                            vacation.endDate,
                           );
                           return (
                             <TableRow key={vacation.id}>
@@ -535,13 +470,13 @@ const VacationManager = ({ isOpen, onClose, mutationsDisabled = false }) => {
                               <TableCell>
                                 {formatDateRange(
                                   vacation.startDate,
-                                  vacation.endDate
+                                  vacation.endDate,
                                 )}
                               </TableCell>
                               <TableCell>
                                 {calculateDuration(
                                   vacation.startDate,
-                                  vacation.endDate
+                                  vacation.endDate,
                                 )}
                               </TableCell>
                               <TableCell>

@@ -6,14 +6,12 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import { Controller } from "react-hook-form";
 import { Clock } from "lucide-react";
-import PhoneInput from "react-phone-input-2";
+import dynamic from "next/dynamic";
 import "react-phone-input-2/lib/style.css";
 
 // UI Components
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import {
   Form,
   FormControl,
@@ -25,17 +23,17 @@ import {
 import { Input } from "@/components/ui/input";
 import TurnstileChallenge from "@/components/common/TurnstileChallenge";
 
-import { useNotification } from "@/context/NotificationContext";
+import { usePublicBookingNotifications } from "@/components/booking/PublicBookingNotifications";
 import { useBookingForm } from "@/hooks/useBookingForm";
 import { useMaintenanceStatus } from "@/hooks/useMaintenanceStatus";
 import { useOptimizedTimeSlots } from "@/hooks/useOptimizedTimeSlots";
 
 // Utilities
-import { APPOINTMENT_TYPES, getAppointmentType } from "@/lib/utils/constants";
+import { SERVICE_CATALOG } from "@/lib/domain/catalog/index.ts";
 import { isBusinessDay } from "@/lib/utils/timeUtils";
 import { formatDate } from "@/lib/utils/dateUtils";
 import {
-  catalogSelection,
+  catalogSelectionById,
   bookingErrorInvalidatesSelection,
   ClientApiError,
   createPublicBooking,
@@ -46,15 +44,46 @@ import {
   startMinutesFromTime,
 } from "@/lib/client/publicApi.ts";
 import {
-  MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE,
-  PUBLIC_MAINTENANCE_MESSAGE,
+  maintenanceStatusUnavailableMessage,
+  publicMaintenanceMessage,
 } from "@/lib/client/maintenanceApi.ts";
+import { bookingContent } from "@/lib/content/bookingContent";
+import {
+  categoryContent,
+  serviceName,
+} from "@/components/services/serviceDiscoveryContent";
+import { romeDate } from "@/lib/domain/booking/rome.ts";
 
 // Components
-import BookingConfirmation from "./BookingConfirmation";
+const loadBookingCalendar = () => import("./ItalianBookingCalendar");
+const loadPhoneInput = () => import("react-phone-input-2");
+const loadBookingConfirmation = () => import("./BookingConfirmation");
 
-const BookAppointment = () => {
-  const { showError, notifyAsync } = useNotification();
+const Calendar = dynamic(loadBookingCalendar, {
+  ssr: false,
+  loading: () => (
+    <div
+      aria-label="Caricamento calendario"
+      className="h-[290px] w-[280px] animate-pulse rounded-md border bg-slate-50"
+      role="status"
+    />
+  ),
+});
+const PhoneInput = dynamic(loadPhoneInput, {
+  ssr: false,
+  loading: () => (
+    <div
+      aria-label="Caricamento numero di telefono"
+      className="h-10 w-full animate-pulse rounded-md border bg-slate-50"
+      role="status"
+    />
+  ),
+});
+const BookingConfirmation = dynamic(loadBookingConfirmation, { ssr: false });
+
+const BookAppointment = ({ locale = "it", showHeading = true }) => {
+  const copy = bookingContent(locale);
+  const { showError, notifyAsync } = usePublicBookingNotifications();
   const {
     publicBookingEnabled,
     messageCode: maintenanceMessageCode,
@@ -82,43 +111,26 @@ const BookAppointment = () => {
 
   // Local state (must be declared before hooks that use them)
   const [appointmentType, setAppointmentType] = useState(() => {
-    // Get the first available appointment type from the generated data structure
-    const firstAvailableType = Object.values(APPOINTMENT_TYPES).find(
-      (type) => type.active,
-    );
-    return firstAvailableType || null;
+    return SERVICE_CATALOG.services.find((service) => service.active) ?? null;
   });
-  const [selectedVariant, setSelectedVariant] = useState(null);
+  const [selectedVariantId, setSelectedVariantId] = useState(null);
   const [showAllTimeSlots, setShowAllTimeSlots] = useState(false);
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [bookingData, setBookingData] = useState(null);
-  const [isClient, setIsClient] = useState(false);
 
   // Custom hooks
   const { form, resetForm } = useBookingForm();
 
-  // Ensure client-side rendering for appointment types to avoid hydration issues
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Normalize durations to numbers and memoize
-  const normalizedDurations = useMemo(() => {
-    const arr = appointmentType?.durations ?? [];
-    return arr.map((d) => Number(d)).filter((n) => !Number.isNaN(n));
+  const activeVariants = useMemo(() => {
+    return appointmentType?.variants.filter((variant) => variant.active) ?? [];
   }, [appointmentType]);
 
-  // Memoize duration to prevent unnecessary hook re-renders
-  const currentDuration = useMemo(() => {
-    if (!normalizedDurations || normalizedDurations.length === 0) {
-      return 60; // Default duration if no appointment type selected
-    }
-    // prefer selectedVariant if valid, else first duration
-    const fallback = normalizedDurations[0];
-    if (!selectedVariant) return fallback;
-    const n = Number(selectedVariant);
-    return normalizedDurations.includes(n) ? n : fallback;
-  }, [selectedVariant, normalizedDurations]);
+  const currentVariant = useMemo(
+    () =>
+      activeVariants.find((variant) => variant.id === selectedVariantId) ??
+      null,
+    [activeVariants, selectedVariantId],
+  );
 
   // Optimized time slots with real-time updates and caching
   const {
@@ -128,8 +140,8 @@ const BookAppointment = () => {
     refreshTimeSlots,
   } = useOptimizedTimeSlots(
     selectedDate,
-    appointmentType?.type,
-    currentDuration,
+    appointmentType?.id,
+    currentVariant?.id,
     {
       enableRealTime: false, // DISABLED: Reduce Firebase reads during testing
       preloadDays: 0, // DISABLED: No background preloading
@@ -142,68 +154,83 @@ const BookAppointment = () => {
   // Initialize appointment type in form
   useEffect(() => {
     if (appointmentType) {
-      form.setValue("appointmentType", appointmentType.type); // keep human-readable name in the form
-      form.setValue("duration", normalizedDurations?.[0] || 60);
-
-      // If the selected appointment type has only one duration, set the variant value
-      if (normalizedDurations && normalizedDurations.length === 1) {
-        const onlyDuration = normalizedDurations[0];
-        setSelectedVariant(onlyDuration);
-        form.setValue("variant", String(onlyDuration));
+      form.setValue("appointmentType", appointmentType.id);
+      if (activeVariants.length === 1) {
+        const onlyVariant = activeVariants[0];
+        setSelectedVariantId(onlyVariant.id);
+        form.setValue("variant", onlyVariant.id);
+        form.setValue("duration", onlyVariant.serviceDurationMinutes);
       } else {
-        // Multiple durations -> clear variant until user chooses
+        setSelectedVariantId(null);
         form.setValue("variant", "");
+        form.setValue("duration", 0);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointmentType, form, normalizedDurations?.length]);
+  }, [activeVariants, appointmentType, form]);
 
   // Function to check if a day should be disabled
   const isDisabledDay = (day) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const checkDay = new Date(day);
-    checkDay.setHours(0, 0, 0, 0);
+    const salonToday = romeDate(new Date());
+    const maximumDate = new Date(`${salonToday}T12:00:00`);
+    maximumDate.setDate(maximumDate.getDate() + 60);
+    const salonDay = salonDateFromLocalDate(day);
+    const salonMaximum = salonDateFromLocalDate(maximumDate);
 
-    return checkDay < today || !isBusinessDay(checkDay);
+    return (
+      salonDay <= salonToday || salonDay > salonMaximum || !isBusinessDay(day)
+    );
   };
 
-  // Handle appointment type change (EXACT MATCH by .type)
+  const clearSelectedTimeSlot = () => {
+    setSelectedTimeSlot(null);
+    setShowAllTimeSlots(false);
+    form.setValue("timeSlot", "");
+  };
+
+  // Handle appointment type change by stable catalog ID.
   const handleAppointmentTypeChange = (e) => {
-    const value = e.target.value; // this is the display name (type)
-    const selectedType = getAppointmentType(value);
+    clearSelectedTimeSlot();
+    const selectedType = SERVICE_CATALOG.services.find(
+      (service) => service.active && service.id === e.target.value,
+    );
     if (selectedType) {
       setAppointmentType(selectedType);
-      setSelectedVariant(null); // Reset variant
+      setSelectedVariantId(null);
 
       // Update form values
-      form.setValue("appointmentType", selectedType.type);
-      form.setValue("duration", selectedType.durations?.[0] ?? 60);
+      form.setValue("appointmentType", selectedType.id);
 
-      // If only one duration, auto-select it; otherwise clear
-      if (selectedType.durations && selectedType.durations.length === 1) {
-        const onlyDuration = Number(selectedType.durations[0]);
-        setSelectedVariant(onlyDuration);
-        form.setValue("variant", String(onlyDuration));
+      const variants = selectedType.variants.filter(
+        (variant) => variant.active,
+      );
+      if (variants.length === 1) {
+        const onlyVariant = variants[0];
+        setSelectedVariantId(onlyVariant.id);
+        form.setValue("variant", onlyVariant.id);
+        form.setValue("duration", onlyVariant.serviceDurationMinutes);
       } else {
         form.setValue("variant", "");
+        form.setValue("duration", 0);
       }
     } else {
       // Clear if nothing found (shouldn't happen with exact options)
       setAppointmentType(null);
-      setSelectedVariant(null);
+      setSelectedVariantId(null);
       form.setValue("appointmentType", "");
-      form.setValue("duration", 60);
+      form.setValue("duration", 0);
       form.setValue("variant", "");
     }
   };
 
   // Handle duration/variant change
   const handleVariantChange = (e) => {
-    const duration = parseInt(e.target.value, 10);
-    setSelectedVariant(duration);
-    form.setValue("duration", duration);
-    form.setValue("variant", duration.toString());
+    clearSelectedTimeSlot();
+    const variant = activeVariants.find(
+      (candidate) => candidate.id === e.target.value,
+    );
+    setSelectedVariantId(variant?.id ?? null);
+    form.setValue("duration", variant?.serviceDurationMinutes ?? 0);
+    form.setValue("variant", variant?.id ?? "");
   };
 
   // Handle date selection
@@ -217,6 +244,7 @@ const BookAppointment = () => {
 
   // Handle time slot selection
   const handleTimeSlotSelect = (timeSlot) => {
+    void loadBookingConfirmation();
     setSelectedTimeSlot(timeSlot);
     form.setValue("timeSlot", timeSlot);
   };
@@ -226,20 +254,20 @@ const BookAppointment = () => {
     if (!publicBookingEnabled) {
       showError(
         maintenanceStatusUnavailable
-          ? MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE
-          : PUBLIC_MAINTENANCE_MESSAGE,
+          ? maintenanceStatusUnavailableMessage(locale)
+          : publicMaintenanceMessage(locale),
       );
       return;
     }
     if (humanChallengeRequired && !humanChallengeToken) {
-      showError("Completa la verifica di sicurezza e riprova.");
+      showError(copy.securityRequired);
       return;
     }
     setBookingLoading(true);
     try {
-      const selection = catalogSelection(
+      const selection = catalogSelectionById(
         data.appointmentType,
-        Number(data.duration),
+        data.variant,
       );
       if (!selection) throw new Error("INVALID_CATALOG_SELECTION");
 
@@ -247,8 +275,8 @@ const BookAppointment = () => {
         name: data.name?.trim(),
         email: data.email?.trim().toLowerCase(),
         number: data.number,
-        appointmentType: data.appointmentType,
-        duration: Number(data.duration),
+        appointmentType: selection.service.nameIt,
+        duration: selection.variant.serviceDurationMinutes,
         selectedDate: data.selectedDate,
         startTime: data.timeSlot,
         note: data.note?.trim() || "",
@@ -260,7 +288,8 @@ const BookAppointment = () => {
       const [hours, minutes] = String(data.timeSlot)
         .split(":")
         .map((n) => parseInt(n, 10));
-      const totalMinutes = hours * 60 + minutes + Number(data.duration || 0);
+      const totalMinutes =
+        hours * 60 + minutes + selection.variant.serviceDurationMinutes;
       const endHours = Math.floor(totalMinutes / 60) % 24;
       const endMinutes = totalMinutes % 60;
       appointmentData.endTime = `${String(endHours).padStart(2, "0")}:${String(
@@ -293,9 +322,9 @@ const BookAppointment = () => {
             humanChallengeToken || undefined,
           ),
         {
-          loading: "Prenotazione in corso...",
-          success: "Appuntamento prenotato con successo!",
-          error: (error) => publicErrorMessage(error),
+          loading: copy.bookingLoading,
+          success: copy.bookingSuccess,
+          error: (error) => publicErrorMessage(error, locale),
         },
       );
       bookingAttemptRef.current = null;
@@ -307,12 +336,15 @@ const BookAppointment = () => {
       setBookingData({
         ...appointmentData,
         formattedDate: formatDate(appointmentData.selectedDate),
-        appointmentTypeDisplay: appointmentType?.type,
-        durationDisplay: `${appointmentData.duration} minuti`,
+        appointmentTypeDisplay: serviceName(selection.service, locale),
+        durationDisplay: copy.minutes(appointmentData.duration),
       });
 
       // Reset form and open confirmation modal
       resetForm();
+      form.setValue("appointmentType", selection.serviceId);
+      form.setValue("variant", selection.variantId);
+      form.setValue("duration", selection.variant.serviceDurationMinutes);
       setSelectedTimeSlot(null);
       setModalIsOpen(true);
     } catch (error) {
@@ -330,9 +362,7 @@ const BookAppointment = () => {
         error instanceof Error &&
         error.message === "INVALID_CATALOG_SELECTION"
       ) {
-        showError(
-          "Il trattamento selezionato non è disponibile. Ricarica la pagina e riprova.",
-        );
+        showError(copy.invalidCatalog);
       } else {
         if (!shouldRetainPublicIdempotencyKey(error)) {
           bookingAttemptRef.current = null;
@@ -356,23 +386,21 @@ const BookAppointment = () => {
     },
     // Error callback - called when validation fails
     (errors) => {
-      // Collect missing required fields in Italian
       const missingFields = [];
-      if (errors.name) missingFields.push("Nome e Cognome");
-      if (errors.email) missingFields.push("Email");
-      if (errors.number) missingFields.push("Numero di telefono");
-      if (errors.timeSlot) missingFields.push("Orario");
-      if (errors.selectedDate || errors.date) missingFields.push("Data");
-      if (errors.appointmentType) missingFields.push("Trattamento");
-      if (errors.duration) missingFields.push("Durata del trattamento");
+      if (errors.name) missingFields.push(copy.missingFields.name);
+      if (errors.email) missingFields.push(copy.missingFields.email);
+      if (errors.number) missingFields.push(copy.missingFields.number);
+      if (errors.timeSlot) missingFields.push(copy.missingFields.timeSlot);
+      if (errors.selectedDate || errors.date)
+        missingFields.push(copy.missingFields.date);
+      if (errors.appointmentType)
+        missingFields.push(copy.missingFields.appointmentType);
+      if (errors.duration) missingFields.push(copy.missingFields.duration);
 
       // Show error notification
-      showError(
-        `Compila tutti i campi obbligatori prima di prenotare: ${missingFields.join(
-          ", ",
-        )}`,
-        { duration: 6000 },
-      );
+      showError(`${copy.missingPrefix} ${missingFields.join(", ")}`, {
+        duration: 6000,
+      });
 
       // Scroll to first error field
       const firstErrorField = Object.keys(errors)[0];
@@ -389,20 +417,23 @@ const BookAppointment = () => {
     },
   );
 
-  const openModal = () => setModalIsOpen(true);
   const closeModal = () => setModalIsOpen(false);
 
   return (
-    <div className="m-auto mt-12 w-[90vw] space-y-4 md:w-[70vw]">
+    <div
+      className={`m-auto w-[90vw] space-y-4 md:w-[70vw] ${showHeading ? "mt-12" : "mt-0"}`}
+    >
       {/* Header */}
-      <div className="flex flex-col gap-2 py-1 md:gap-4 md:py-4">
-        <h4 className="text-xs font-extrabold text-primary">
-          CONCEDITI UN MOMENTO DI RELAX
-        </h4>
-        <h2 className="font-serif text-3xl font-bold tracking-tight md:text-3xl">
-          Prenota un appuntamento
-        </h2>
-      </div>
+      {showHeading ? (
+        <div className="flex flex-col gap-2 py-1 md:gap-4 md:py-4">
+          <h4 className="text-xs font-extrabold text-primary">
+            {copy.eyebrow}
+          </h4>
+          <h2 className="font-serif text-3xl font-bold tracking-tight md:text-3xl">
+            {copy.heading}
+          </h2>
+        </div>
+      ) : null}
 
       {maintenanceMessageCode === "MAINTENANCE_ACTIVE" ||
       maintenanceMessageCode === "OWNER_RECONCILIATION_ACTIVE" ||
@@ -412,8 +443,8 @@ const BookAppointment = () => {
           role="alert"
         >
           {maintenanceStatusUnavailable
-            ? MAINTENANCE_STATUS_UNAVAILABLE_MESSAGE
-            : PUBLIC_MAINTENANCE_MESSAGE}
+            ? maintenanceStatusUnavailableMessage(locale)
+            : publicMaintenanceMessage(locale)}
         </div>
       ) : null}
 
@@ -427,9 +458,10 @@ const BookAppointment = () => {
               name="date"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Seleziona data*</FormLabel>
+                  <FormLabel>{copy.selectDate}</FormLabel>
                   <FormControl>
                     <Calendar
+                      locale={locale}
                       mode="single"
                       selected={field.value}
                       onSelect={handleDateSelect}
@@ -450,20 +482,20 @@ const BookAppointment = () => {
                 <FormItem className="mt-3 md:mt-0">
                   <FormLabel className="mb-3 flex items-center gap-2">
                     <Clock className="h-5 w-5 text-primary" />
-                    Seleziona orario*
+                    {copy.selectTime}
                   </FormLabel>
                   <FormControl>
                     <div className="space-y-4">
                       {timeSlotsLoading ? (
                         <div className="flex h-32 items-center justify-center rounded-lg border">
                           <div className="text-muted-foreground">
-                            Caricamento orari disponibili...
+                            {copy.loadingTimes}
                           </div>
                         </div>
                       ) : timeSlotsError ? (
                         <div className="flex h-32 flex-col items-center justify-center gap-3 rounded-lg border px-4 text-center">
                           <div className="text-muted-foreground">
-                            {publicErrorMessage(timeSlotsError)}
+                            {publicErrorMessage(timeSlotsError, locale)}
                           </div>
                           <Button
                             type="button"
@@ -471,14 +503,14 @@ const BookAppointment = () => {
                             size="sm"
                             onClick={refreshTimeSlots}
                           >
-                            Riprova
+                            {copy.retry}
                           </Button>
                         </div>
                       ) : !availableTimeSlots ||
                         availableTimeSlots.length === 0 ? (
                         <div className="flex h-32 items-center justify-center rounded-lg border">
                           <div className="text-muted-foreground">
-                            Nessun orario disponibile per questa data
+                            {copy.noTimes}
                           </div>
                         </div>
                       ) : (
@@ -497,7 +529,7 @@ const BookAppointment = () => {
                                 variant={
                                   timeSlot === selectedTimeSlot
                                     ? "default"
-                                    : "outline"
+                                    : "outline-solid"
                                 }
                                 className="h-auto p-2 text-sm"
                                 onClick={() => handleTimeSlotSelect(timeSlot)}
@@ -518,11 +550,11 @@ const BookAppointment = () => {
                               }
                             >
                               {showAllTimeSlots
-                                ? "Mostra meno"
-                                : `Mostra più (${
+                                ? copy.showLess
+                                : copy.showMore(
                                     (availableTimeSlots?.length || 0) -
-                                    initialVisibleSlots
-                                  } altri)`}
+                                      initialVisibleSlots,
+                                  )}
                             </Button>
                           )}
                         </>
@@ -540,54 +572,52 @@ const BookAppointment = () => {
               name="appointmentType"
               render={({ field, fieldState }) => (
                 <FormItem>
-                  <FormLabel>Trattamento*</FormLabel>
+                  <FormLabel>{copy.treatment}</FormLabel>
                   <FormControl>
                     <select
-                      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:shadow disabled:cursor-not-allowed disabled:opacity-50 ${
+                      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${
                         fieldState.error
                           ? "border-red-500 focus:border-red-500"
                           : "border-input"
                       }`}
                       {...field}
                       onChange={handleAppointmentTypeChange}
-                      value={appointmentType?.type || field.value || ""}
+                      value={appointmentType?.id || field.value || ""}
                     >
-                      <option value="">Seleziona trattamento</option>
-                      {isClient ? (
-                        (() => {
-                          // Group appointment types by category
-                          const groupedTypes = {};
-                          Object.entries(APPOINTMENT_TYPES)
-                            .filter(([key, type]) => type.active)
-                            .forEach(([key, type]) => {
-                              if (!groupedTypes[type.categoryName]) {
-                                groupedTypes[type.categoryName] = [];
+                      <option value="">{copy.selectTreatment}</option>
+                      {SERVICE_CATALOG.categories
+                        .filter((category) => category.active)
+                        .sort((a, b) => a.sortOrder - b.sortOrder)
+                        .map((category) => {
+                          const categoryServices = SERVICE_CATALOG.services
+                            .filter(
+                              (service) =>
+                                service.active &&
+                                service.categoryId === category.id,
+                            )
+                            .sort((a, b) =>
+                              serviceName(a, locale).localeCompare(
+                                serviceName(b, locale),
+                                locale,
+                              ),
+                            );
+                          if (categoryServices.length === 0) return null;
+                          return (
+                            <optgroup
+                              key={category.id}
+                              label={
+                                categoryContent(category.id, locale)?.title ??
+                                category.nameIt
                               }
-                              groupedTypes[type.categoryName].push({
-                                key,
-                                type,
-                              });
-                            });
-
-                          return Object.entries(groupedTypes)
-                            .sort(([a], [b]) => a.localeCompare(b))
-                            .map(([categoryName, types]) => (
-                              <optgroup key={categoryName} label={categoryName}>
-                                {types
-                                  .sort((a, b) =>
-                                    a.type.type.localeCompare(b.type.type),
-                                  )
-                                  .map(({ key, type }) => (
-                                    <option key={key} value={type.type}>
-                                      {type.type}
-                                    </option>
-                                  ))}
-                              </optgroup>
-                            ));
-                        })()
-                      ) : (
-                        <option disabled>Caricamento servizi...</option>
-                      )}
+                            >
+                              {categoryServices.map((service) => (
+                                <option key={service.id} value={service.id}>
+                                  {serviceName(service, locale)}
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })}
                     </select>
                   </FormControl>
                   <FormMessage />
@@ -596,58 +626,49 @@ const BookAppointment = () => {
             />
 
             {/* Duration/Variant Selection */}
-            {appointmentType && normalizedDurations && (
+            {appointmentType && activeVariants.length > 0 && (
               <FormField
                 control={form.control}
                 name="variant"
                 render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>
-                      Durata del trattamento*
-                      {normalizedDurations.length > 1 &&
-                        ` (${normalizedDurations.length} opzioni)`}
+                      {copy.duration}
+                      {activeVariants.length > 1 &&
+                        copy.optionCount(activeVariants.length)}
                     </FormLabel>
                     <FormControl>
-                      {normalizedDurations.length === 1 ? (
+                      {activeVariants.length === 1 ? (
                         // If only one duration is available, show a disabled text input
                         <>
                           {/* Keep the actual form value in a hidden input so react-hook-form has the value */}
                           <input
                             type="hidden"
                             {...field}
-                            value={String(normalizedDurations[0])}
+                            value={activeVariants[0].id}
                           />
                           <Input
-                            value={`${normalizedDurations[0]} minuti`}
+                            value={copy.minutes(
+                              activeVariants[0].serviceDurationMinutes,
+                            )}
                             disabled
                           />
                         </>
                       ) : (
                         <select
-                          className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:shadow disabled:cursor-not-allowed disabled:opacity-50 ${
+                          className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${
                             fieldState.error
                               ? "border-red-500 focus:border-red-500"
                               : "border-input"
                           }`}
                           {...field}
                           onChange={handleVariantChange}
-                          value={selectedVariant ?? ""}
+                          value={selectedVariantId ?? ""}
                         >
-                          <option value="">Seleziona durata</option>
-                          {normalizedDurations.map((duration) => (
-                            <option key={duration} value={duration}>
-                              {duration} minuti
-                              {appointmentType.variants?.[
-                                appointmentType.durations.indexOf(duration)
-                              ] &&
-                                appointmentType.variants[
-                                  appointmentType.durations.indexOf(duration)
-                                ] !== appointmentType.type &&
-                                ` - ${
-                                  appointmentType.variants[
-                                    appointmentType.durations.indexOf(duration)
-                                  ]
-                                }`}
+                          <option value="">{copy.selectDuration}</option>
+                          {activeVariants.map((variant) => (
+                            <option key={variant.id} value={variant.id}>
+                              {copy.minutes(variant.serviceDurationMinutes)}
                             </option>
                           ))}
                         </select>
@@ -665,11 +686,11 @@ const BookAppointment = () => {
               name="note"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Note</FormLabel>
+                  <FormLabel>{copy.note}</FormLabel>
                   <FormControl>
                     <Input
                       type="text"
-                      placeholder="Note aggiuntive (opzionale)"
+                      placeholder={copy.notePlaceholder}
                       {...field}
                     />
                   </FormControl>
@@ -684,11 +705,11 @@ const BookAppointment = () => {
               name="name"
               render={({ field, fieldState }) => (
                 <FormItem>
-                  <FormLabel>Nome e Cognome*</FormLabel>
+                  <FormLabel>{copy.name}</FormLabel>
                   <FormControl>
                     <Input
                       type="text"
-                      placeholder="Es. Mario Rossi"
+                      placeholder={copy.namePlaceholder}
                       className={
                         fieldState.error
                           ? "border-red-500 focus:border-red-500"
@@ -708,7 +729,7 @@ const BookAppointment = () => {
               name="email"
               render={({ field, fieldState }) => (
                 <FormItem>
-                  <FormLabel>Email*</FormLabel>
+                  <FormLabel>{copy.email}</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
@@ -732,7 +753,7 @@ const BookAppointment = () => {
               name="number"
               render={({ field, fieldState }) => (
                 <FormItem>
-                  <FormLabel>Numero di telefono*</FormLabel>
+                  <FormLabel>{copy.phone}</FormLabel>
                   <FormControl>
                     <PhoneInput
                       country={"it"}
@@ -768,14 +789,14 @@ const BookAppointment = () => {
                 className="text-center text-sm text-muted-foreground"
                 role="status"
               >
-                Completa la verifica di sicurezza per continuare.
+                {copy.securityRequired}
               </p>
               {humanChallengeUnavailable ? (
                 <p
                   className="text-center text-sm text-destructive"
                   role="alert"
                 >
-                  La verifica non è disponibile. Ricarica la pagina e riprova.
+                  {copy.securityUnavailable}
                 </p>
               ) : null}
               <TurnstileChallenge
@@ -802,21 +823,20 @@ const BookAppointment = () => {
                 bookingLoading ||
                 !selectedDate ||
                 !selectedTimeSlot ||
+                timeSlotsLoading ||
+                Boolean(timeSlotsError) ||
                 !publicBookingEnabled ||
+                !currentVariant ||
                 (humanChallengeRequired && !humanChallengeToken)
               }
             >
-              {bookingLoading
-                ? "Prenotazione in corso..."
-                : "Prenota Appuntamento"}
+              {bookingLoading ? copy.bookingLoading : copy.submit}
             </Button>
           </div>
 
           {/* Helper text for required fields */}
           <div className="mt-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              I campi contrassegnati con * sono obbligatori
-            </p>
+            <p className="text-sm text-muted-foreground">{copy.required}</p>
           </div>
         </form>
       </Form>
@@ -825,6 +845,7 @@ const BookAppointment = () => {
       {modalIsOpen && bookingData && (
         <BookingConfirmation
           isOpen={modalIsOpen}
+          locale={locale}
           onRequestClose={closeModal}
           bookingData={bookingData}
         />

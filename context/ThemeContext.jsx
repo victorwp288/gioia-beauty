@@ -15,7 +15,7 @@ export const useTheme = () => {
 export const ThemeProvider = ({ children }) => {
   const { value: darkMode, setValue: setDarkMode } = useLocalStorage(
     "darkMode",
-    false
+    false,
   );
 
   // Apply theme immediately and on changes
@@ -30,13 +30,6 @@ export const ThemeProvider = ({ children }) => {
 
     applyTheme(darkMode);
   }, [darkMode]);
-
-  // Apply theme immediately on mount to prevent flash
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-    }
-  }, []);
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);

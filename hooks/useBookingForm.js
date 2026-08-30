@@ -1,26 +1,70 @@
 import { useCallback } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 
-import { emailSchema } from "@/lib/utils/validationSchemas";
+const EMAIL_PATTERN =
+  /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/;
 
-const formSchema = z.object({
-  date: z.date(),
-  note: z.string().optional(),
-  name: z.string().trim().min(1, "Name is required"),
-  number: z.string().trim().min(1, "Phone number is required"),
-  email: emailSchema,
-  timeSlot: z.string().min(1, "Time slot is required"),
-  selectedDate: z.date(),
-  appointmentType: z.string().min(1, "Appointment type is required"),
-  variant: z.string().optional(),
-  duration: z.number().min(1, "Duration is required"),
-});
+function fieldError(message) {
+  return { message, type: "validate" };
+}
+
+function isValidDate(value) {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+export async function bookingFormResolver(values) {
+  const errors = {};
+  const name = typeof values.name === "string" ? values.name.trim() : "";
+  const number = typeof values.number === "string" ? values.number.trim() : "";
+  const email =
+    typeof values.email === "string" ? values.email.trim().toLowerCase() : "";
+
+  if (!isValidDate(values.date)) errors.date = fieldError("Date is required");
+  if (!name) errors.name = fieldError("Name is required");
+  if (!number) errors.number = fieldError("Phone number is required");
+  if (!email) {
+    errors.email = fieldError("Email is required");
+  } else if (email.length > 320) {
+    errors.email = fieldError("Email is too long");
+  } else if (!EMAIL_PATTERN.test(email)) {
+    errors.email = fieldError("Invalid email format");
+  }
+  if (typeof values.timeSlot !== "string" || values.timeSlot.length < 1) {
+    errors.timeSlot = fieldError("Time slot is required");
+  }
+  if (!isValidDate(values.selectedDate)) {
+    errors.selectedDate = fieldError("Date is required");
+  }
+  if (
+    typeof values.appointmentType !== "string" ||
+    values.appointmentType.length < 1
+  ) {
+    errors.appointmentType = fieldError("Appointment type is required");
+  }
+  if (
+    typeof values.duration !== "number" ||
+    !Number.isFinite(values.duration) ||
+    values.duration < 1
+  ) {
+    errors.duration = fieldError("Duration is required");
+  }
+  if (values.note !== undefined && typeof values.note !== "string") {
+    errors.note = fieldError("Invalid note");
+  }
+  if (values.variant !== undefined && typeof values.variant !== "string") {
+    errors.variant = fieldError("Invalid variant");
+  }
+
+  if (Object.keys(errors).length > 0) return { errors, values: {} };
+  return {
+    errors: {},
+    values: { ...values, email, name, number },
+  };
+}
 
 export const useBookingForm = () => {
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: bookingFormResolver,
     defaultValues: {
       date: null,
       note: "",
